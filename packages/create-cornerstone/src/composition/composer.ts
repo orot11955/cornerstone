@@ -107,9 +107,10 @@ async function composeOne(
     delete value.name
     delete value.license
     const scripts = objectValue(value.scripts, 'package.json scripts')
-    for (const script of ['package:check', 'package:verify', 'generator:verify', 'license:check']) {
-      delete scripts[script]
-    }
+    delete scripts['generator:verify']
+    delete scripts['generator:standard:candidate']
+    delete scripts['generator:standard:database']
+    delete scripts['generator:portability:compare']
     const composed = mergeJsonContributions([
       { owner: 'workspace-snapshot', value },
       {
@@ -309,10 +310,13 @@ async function collectNotices(directory: string, notices: Set<string>): Promise<
 
 function removeUnsupportedCiSteps(workflow: { [key: string]: JsonValue }): void {
   const jobs = objectValue(workflow.jobs, 'CI jobs')
+  delete jobs['standard-candidate']
+  delete jobs['generator-portability']
+  delete jobs['generator-portability-compare']
   const unsupported = new Set([
-    'pnpm package:verify',
     'pnpm generator:verify',
-    'pnpm license:check',
+    'pnpm generator:standard:candidate',
+    'pnpm generator:portability:compare',
   ])
   for (const job of Object.values(jobs)) {
     const jobObject = objectValue(job, 'CI job')

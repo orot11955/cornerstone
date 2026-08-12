@@ -34,7 +34,7 @@
   "test:integration": {
     "participants": ["api"],
     "excluded": {
-      "create-cornerstone": "Profile creation integration tests are introduced in DXF.",
+      "create-cornerstone": "Generated-project integration is executed once by generator:standard:candidate; database integration is executed by the separate Ubuntu standard database candidate job.",
       "web": "Web integration tests are introduced with M6.",
       "@cornerstone/api-client": "Contract integration tests are introduced with M4.",
       "@cornerstone/config": "The package currently requires unit tests only.",
@@ -50,7 +50,7 @@
     "participants": ["api"],
     "excluded": {
       "web": "Playwright E2E is introduced with M6/M8S.",
-      "create-cornerstone": "Generated-project E2E is introduced with DXF/M8S.",
+      "create-cornerstone": "Generator lifecycle evidence is covered by package unit and Standard candidate gates; browser Standard Core E2E remains an M8 certification prerequisite.",
       "@cornerstone/api-client": "The package is covered through app E2E after M4.",
       "@cornerstone/config": "The package has no standalone E2E boundary.",
       "@cornerstone/eslint-config": "The package has no standalone E2E boundary.",

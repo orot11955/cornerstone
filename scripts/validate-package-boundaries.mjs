@@ -1,25 +1,41 @@
 import { existsSync, readFileSync, readdirSync } from 'node:fs'
 import { join } from 'node:path'
 
-const publishable = [
-  'api-client',
-  'config',
-  'create-cornerstone',
-  'eslint-config',
-  'schemas',
-  'tsconfig',
-  'types',
-  'ui',
-  'utils',
+const standardNames = [
+  '@cornerstone/api-client',
+  '@cornerstone/config',
+  '@cornerstone/eslint-config',
+  '@cornerstone/schemas',
+  '@cornerstone/tsconfig',
+  '@cornerstone/types',
+  '@cornerstone/ui',
+  '@cornerstone/utils',
 ]
+const rootNames = [...standardNames, 'create-cornerstone'].sort()
 const expectedVersion = '0.1.0'
 const errors = []
 
-for (const directory of publishable) {
-  const root = join('packages', directory)
-  const manifest = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8'))
+const publishable = readdirSync('packages', { withFileTypes: true })
+  .filter(
+    (entry) => entry.isDirectory() && existsSync(join('packages', entry.name, 'package.json')),
+  )
+  .map((entry) => {
+    const root = join('packages', entry.name)
+    const manifest = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8'))
+    return { directory: entry.name, root, manifest }
+  })
+  .filter(({ manifest }) => manifest.private !== true)
+  .sort((left, right) => left.manifest.name.localeCompare(right.manifest.name))
 
-  if (manifest.private === true) errors.push(`${manifest.name}: private package`)
+const actualNames = publishable.map(({ manifest }) => manifest.name)
+const expectedNames = actualNames.includes('create-cornerstone') ? rootNames : standardNames
+if (JSON.stringify(actualNames) !== JSON.stringify([...expectedNames].sort())) {
+  errors.push(
+    `Publishable workspace set mismatch: expected ${[...expectedNames].sort().join(', ')}, found ${actualNames.join(', ')}`,
+  )
+}
+
+for (const { root, manifest } of publishable) {
   if (manifest.version !== expectedVersion) errors.push(`${manifest.name}: version mismatch`)
   if (manifest.license !== 'ISC') errors.push(`${manifest.name}: license must be ISC`)
   if (!existsSync(join(root, 'LICENSE'))) errors.push(`${manifest.name}: LICENSE missing`)
@@ -47,8 +63,7 @@ for (const application of readdirSync('apps', { withFileTypes: true }).filter((e
   const appName = JSON.parse(
     readFileSync(join('apps', application.name, 'package.json'), 'utf8'),
   ).name
-  for (const directory of publishable) {
-    const manifest = JSON.parse(readFileSync(join('packages', directory, 'package.json'), 'utf8'))
+  for (const { manifest } of publishable) {
     if (Object.hasOwn(manifest.dependencies ?? {}, appName)) {
       errors.push(`${manifest.name}: reverse dependency on app ${appName}`)
     }

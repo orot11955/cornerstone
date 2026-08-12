@@ -379,6 +379,42 @@ test('creates the exact standard preview deterministically with real v2 ownershi
   assert.match(generatedReadme, /NODE_ENV=production/)
   assert.match(generatedReadme, /does not require user-owned fragment source/)
   assert.match(generatedReadme, /self-consistency digest/)
+  const generatedPackage = JSON.parse(await readFile(join(first, 'package.json'), 'utf8'))
+  const generatedTurbo = JSON.parse(await readFile(join(first, 'turbo.json'), 'utf8'))
+  assert.deepEqual(generatedTurbo.tasks.lint.dependsOn, ['^build', '^lint'])
+  assert.equal(generatedPackage.scripts['api:build'], 'turbo run build --filter=api')
+  for (const script of [
+    'migration:show',
+    'migration:run',
+    'migration:revert',
+    'database:verify',
+    'retention:cleanup',
+    'openapi:generate',
+    'openapi:check',
+    'seed',
+    'admin:bootstrap',
+  ]) {
+    assert.match(generatedPackage.scripts[script], /^pnpm api:build && /)
+  }
+  assert.equal(
+    generatedPackage.scripts['package:check'],
+    'node scripts/validate-package-boundaries.mjs',
+  )
+  assert.equal(
+    generatedPackage.scripts['package:verify'],
+    'node scripts/verify-package-consumer.mjs',
+  )
+  assert.equal(generatedPackage.scripts['license:check'], 'node scripts/check-package-licenses.mjs')
+  assert.equal(generatedPackage.scripts['generator:portability:compare'], undefined)
+  const generatedCi = await readFile(join(first, '.github/workflows/ci.yml'), 'utf8')
+  assert.doesNotMatch(generatedCi, /generator-portability(?:-compare)?/)
+  for (const script of [
+    'check-package-licenses.mjs',
+    'validate-package-boundaries.mjs',
+    'verify-package-consumer.mjs',
+  ]) {
+    assert.equal((await stat(join(first, 'scripts', script))).isFile(), true)
+  }
 
   const prettierCheck = spawnSync(
     'pnpm',
