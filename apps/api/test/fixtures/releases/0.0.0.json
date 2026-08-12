@@ -1,0 +1,8 @@
+{
+  "fixtureVersion": 1,
+  "release": "0.0.0",
+  "schema": "empty",
+  "applicationArtifact": null,
+  "upgradeTarget": "0.1.x",
+  "reason": "Cornerstone의 첫 schema release 이전에는 호환성을 검증할 N-1 application artifact가 없다."
+}

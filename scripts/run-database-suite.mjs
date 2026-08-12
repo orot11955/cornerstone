@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs'
 import { spawnSync } from 'node:child_process'
 
 const root = new URL('..', import.meta.url)
@@ -34,6 +35,7 @@ function run(args, options = {}) {
 let cleanupNeeded = false
 
 try {
+  verifyBaselineFixture()
   run(['db:test:down'], { allowFailure: true, quiet: true })
   cleanupNeeded = true
   run(['db:test:up'])
@@ -46,6 +48,7 @@ try {
   run(['exec', 'node', 'scripts/test-scope.mjs', task, '--run'], {
     database: true,
   })
+  run(['database:backup:verify'])
 } catch (error) {
   console.error(error instanceof Error ? error.message : 'Database integration failed')
   process.exitCode = 1
@@ -54,4 +57,20 @@ try {
     const status = run(['db:test:down'], { allowFailure: true })
     if (status !== 0) process.exitCode = 1
   }
+}
+
+function verifyBaselineFixture() {
+  const fixture = JSON.parse(
+    readFileSync(new URL('../apps/api/test/fixtures/releases/0.0.0.json', import.meta.url), 'utf8'),
+  )
+  if (
+    fixture.fixtureVersion !== 1 ||
+    fixture.release !== '0.0.0' ||
+    fixture.schema !== 'empty' ||
+    fixture.applicationArtifact !== null ||
+    fixture.upgradeTarget !== '0.1.x'
+  ) {
+    throw new Error('Invalid initial release fixture')
+  }
+  console.log('Release fixture: 0.0.0 empty baseline')
 }

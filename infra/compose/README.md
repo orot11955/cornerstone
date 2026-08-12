@@ -36,6 +36,8 @@ Test 데이터는 tmpfs에만 저장된다. `cornerstone_test_app`은 schema DDL
 
 Root `pnpm test:integration`과 `pnpm test:e2e`는 이 test Compose project를 내린 뒤 새로 기동하므로 `cornerstone_test`의 기존 test 데이터는 보존하지 않는다. Migration `forward → revert → forward`, schema/권한/advisory lock 검증과 멱등 Seed를 수행하고 성공·실패와 관계없이 container와 network를 정리한다.
 
+Integration 마지막에는 `pg_dump --format=custom` archive를 메모리에서 생성해 `cornerstone_restore_test`에 복원하고 source/restore fingerprint를 비교한다. 이 임시 restore DB도 항상 삭제하며 provider 암호화 backup과 원격 보존 훈련은 M9 범위다.
+
 ## 운영 경계
 
 - Compose fixture는 운영 배포용이 아니다.

@@ -448,10 +448,12 @@ M1 이후 Backend M2~M5와 병렬 진행할 수 있다. M6의 인증 화면보�
 - caller transaction과 원자적인 outbox enqueue, `SKIP LOCKED` bounded lease, retry·worker crash reclaim·poison 격리와 processed 재전달 차단
 - idempotency/outbox 저장 payload의 32 KiB·깊이·노드·plain JSON·민감/prototype field 제한과 실제 PostgreSQL concurrency/rollback test
 - Nest global Database/Observability module, runtime 최소 권한 connection과 Migration 이력 read-only compatibility check
+- `0.0.0` empty initial-release fixture와 N-1 application 부재의 명시적 waiver; 차기 schema release부터 실제 직전 artifact/fixture 필수화
+- test DB custom-format `pg_dump`를 새 격리 DB에 restore하고 table/user/audit/Migration checksum을 비교하는 logical backup Gate
 
 남은 완료 조건:
 
-- 직전 release fixture upgrade와 expand schema의 N/N-1 application read/write 호환 Gate
+- 차기 schema release부터 직전 immutable application artifact/fixture upgrade와 expand schema의 N/N-1 read/write Gate
 - 운영 admin protected one-time bootstrap job과 break-glass audit
 - outbox delivery worker lifecycle과 provider idempotency adapter
 

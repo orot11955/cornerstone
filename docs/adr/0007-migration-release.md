@@ -63,6 +63,7 @@
 - `infra/compose/compose.dev.yml`과 `compose.test.yml`은 서로 다른 database, credential, port와 volume/project name을 사용한다. test command가 development/Production DB 이름·host를 받으면 거절한다.
 - integration worker는 worker별 schema 또는 database를 사용하고 test 종료 시 자신의 namespace만 제거한다. 공유 DB 전체 truncate와 무작위 다른 worker cleanup을 금지한다.
 - CI는 빈 DB `forward → revert → forward`, 직전 release fixture upgrade, schema drift와 pending Migration을 검증한다.
+- 첫 schema release만 versioned `0.0.0` empty fixture와 `applicationArtifact: null`을 허용하며 N/N-1 검증을 통과한 것으로 가장하지 않는다. 두 번째 schema release부터는 직전 immutable application artifact와 schema/data fixture가 필수다.
 - Entity metadata와 Migration 적용 catalog의 diff가 있거나 application boot 전후 예상하지 않은 DDL이 있으면 실패한다.
 - SQL/log/trace에는 parameter value와 connection credential을 남기지 않는다. query name, duration, row count와 error code만 bounded label로 기록한다.
 
@@ -86,3 +87,4 @@
 - advisory lock 경쟁, timeout, Production revert/Seed 거절과 runtime principal DDL 거절을 negative test한다.
 - outbox commit/rollback, duplicate delivery, lease 만료, worker crash/restart와 poison event 격리를 검증한다.
 - backup/restore rehearsal은 checksum, RPO/RTO, restore 뒤 auth revoke/delete journal과 개인정보 비부활까지 확인한다.
+- M3 local/CI logical rehearsal은 `pg_dump` custom archive를 새 격리 DB에 restore하고 schema/data fingerprint를 비교한다. provider 암호화, 원격 보존, RPO/RTO와 restore 승인 훈련은 M9가 소유한다.
