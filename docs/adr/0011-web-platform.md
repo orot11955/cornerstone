@@ -24,7 +24,8 @@
 - `default-src 'self'`, nonce 기반 `script-src`, `object-src 'none'`, `base-uri 'self'`, `form-action 'self'`, `frame-ancestors 'none'`를 기본으로 한다.
 - `X-Content-Type-Options: nosniff`, strict Referrer Policy와 최소 Permissions Policy를 모든 HTML response에 적용한다.
 - HSTS는 TLS를 실제 종료하는 Production ingress/CDN 책임이며 HTTPS 검증 뒤에만 활성화한다.
-- 임의 inline script, broad wildcard origin과 `unsafe-inline`은 허용하지 않는다. 개발용 `unsafe-eval`은 Production CSP에 포함하지 않는다.
+- inline script와 style element, broad wildcard origin에는 `unsafe-inline`을 허용하지 않는다. typed component layout 변수가 사용하는 React `style` attribute에 한해 `style-src-attr 'unsafe-inline'`을 허용하며 사용자 입력을 style 값으로 전달하지 않는다.
+- 개발용 `unsafe-eval`은 Production CSP에 포함하지 않는다.
 
 ## Frontend 관측
 

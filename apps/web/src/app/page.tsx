@@ -1,3 +1,4 @@
+import { connection } from 'next/server'
 import {
   Alert,
   Badge,
@@ -17,7 +18,8 @@ import {
   Text,
 } from '@cornerstone/ui'
 
-export default function Home() {
+export default async function Home() {
+  await connection()
   return (
     <main>
       <Container size="xl" gutter={{ base: '4', md: '8' }}>
