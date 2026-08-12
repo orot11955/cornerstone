@@ -155,6 +155,7 @@ const authEnvironmentShape = {
   CSRF_PREVIOUS_KEY_VERSION: keyId.optional(),
   CSRF_PREVIOUS_SECRET: base64UrlSecret.optional(),
   RATE_LIMIT_SECRET: base64UrlSecret,
+  IDEMPOTENCY_SECRET: base64UrlSecret,
   MAIL_OUTBOX_KEY_VERSION: keyId,
   MAIL_OUTBOX_KEY: base64UrlKey32,
   MAIL_OUTBOX_PREVIOUS_KEY_VERSION: keyId.optional(),
@@ -195,6 +196,7 @@ const knownDevelopmentSecrets = new Set(
     'cornerstone-local-action-key-v1-32-bytes',
     'cornerstone-local-csrf-key-v1-32-bytes',
     'cornerstone-local-rate-key-v1-32-bytes',
+    'cornerstone-local-idempotency-key-v1-32-bytes',
     'cornerstone-local-mail-key-v1-32',
   ].map((value) => Buffer.from(value).toString('hex')),
 );
@@ -261,6 +263,7 @@ function validateAuthPolicy(
     'CSRF_SECRET',
     'CSRF_PREVIOUS_SECRET',
     'RATE_LIMIT_SECRET',
+    'IDEMPOTENCY_SECRET',
     'MAIL_OUTBOX_KEY',
     'MAIL_OUTBOX_PREVIOUS_KEY',
   ] as const;

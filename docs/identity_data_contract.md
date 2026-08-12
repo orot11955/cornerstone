@@ -91,10 +91,11 @@ Index/constraint:
 
 ### `idempotency_records`
 
-- scope hash, key, method, route ID, payload SHA-256, state(pending/completed), response status/body allowlist, resource version, expires와 timestamps
+- 전용 secret으로 HMAC한 actor scope와 client key, method, route ID, payload SHA-256, state(pending/completed), response status/body allowlist, resource version, expires와 timestamps
 - unique `(scope_hash, key, method, route_id)`, TTL 24시간
 - Domain mutation/outbox와 reserve/complete를 같은 transaction에서 처리하고 동일 payload만 replay
 - Cookie/token을 발급하는 auth endpoint에는 적용하지 않고 response allowlist에도 Cookie, token, password와 개인정보를 저장하지 않음
+- `IDEMPOTENCY_SECRET`은 기존 record의 최대 24시간 TTL이 끝날 때까지 그대로 유지한 뒤 전환하며, 조기 교체는 기존 replay 포기를 명시한 maintenance window에서만 수행
 
 ### `rate_limit_buckets`
 

@@ -9,6 +9,7 @@ import { ApiExceptionFilter } from './http/api-exception.filter.js';
 import { HealthModule } from './health/health.module.js';
 import { ObservabilityModule } from './observability/observability.module.js';
 import { RequestLoggingInterceptor } from './observability/request-logging.interceptor.js';
+import { UsersModule } from './users/users.module.js';
 
 @Module({
   imports: [
@@ -22,6 +23,7 @@ import { RequestLoggingInterceptor } from './observability/request-logging.inter
     DatabaseModule,
     HealthModule,
     AuthModule,
+    UsersModule,
   ],
   providers: [
     { provide: APP_FILTER, useClass: ApiExceptionFilter },

@@ -1,6 +1,7 @@
 import { Reflector } from '@nestjs/core';
 import type { ExecutionContext } from '@nestjs/common';
 import { HealthController } from '../health/health.controller.js';
+import { UsersController } from '../users/users.controller.js';
 import { routePolicies } from '../authorization/route-policy.js';
 import { ROUTE_POLICY_OPERATION } from '../authorization/route-policy.decorator.js';
 import { AuthController } from './auth.controller.js';
@@ -46,6 +47,11 @@ describe('AuthGuard route policy boundary', () => {
       [AuthController, 'listSessions'],
       [AuthController, 'revokeSession'],
       [AuthController, 'revokeAllSessions'],
+      [UsersController, 'deleteCurrentUser'],
+      [UsersController, 'list'],
+      [UsersController, 'get'],
+      [UsersController, 'updateRole'],
+      [UsersController, 'updateStatus'],
       [HealthController, 'liveness'],
       [HealthController, 'readiness'],
     ] as const;

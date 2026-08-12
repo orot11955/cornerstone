@@ -12,6 +12,10 @@ import type { UserResponseDto } from '../contracts/user.dto.js';
 import { toUserResponse } from '../contracts/user.mapper.js';
 import type { UserEntity } from '../database/entities/user.entity.js';
 import { readQueryRows } from '../database/query-result.js';
+import {
+  identityIdempotencyKey,
+  identityIdempotencyScope,
+} from '../database/idempotency-identity.js';
 import { normalizeEmail } from '../identity/identity.contract.js';
 import { AccessTokenService } from './access-token.service.js';
 import { PasswordWorkQueueFullError } from './auth-crypto.error.js';
@@ -586,6 +590,50 @@ export class AuthLifecycleService implements OnModuleInit {
          AND s.idle_expires_at > CURRENT_TIMESTAMP
          AND s.absolute_expires_at > CURRENT_TIMESTAMP`,
       [token.sessionId, token.userId, token.authzVersion],
+    );
+    const row = rows[0];
+    if (!row) throw invalidSession();
+    return {
+      user: toAuthenticatedUser(candidateToUser(row)),
+      sessionId: row.sessionId,
+      lastPasswordAuthAt: row.lastPasswordAuthAt,
+    };
+  }
+
+  async authenticateDeleteReplay(
+    value: string,
+    idempotencyKey: string | undefined,
+  ): Promise<AuthenticatedPrincipal> {
+    if (!idempotencyKey || idempotencyKey.length > 128) throw invalidSession();
+    let token: Awaited<ReturnType<AccessTokenService['verify']>>;
+    try {
+      token = await this.accessTokens.verify(value);
+    } catch {
+      throw invalidSession();
+    }
+    const rows = await queryRows<
+      UserRecord & {
+        readonly sessionId: string;
+        readonly lastPasswordAuthAt: Date;
+      }
+    >(
+      this.source,
+      `SELECT ${userColumns}, s.id AS "sessionId",
+         s.last_password_auth_at AS "lastPasswordAuthAt"
+       FROM idempotency_records i
+       JOIN users u ON u.id = $1
+       JOIN auth_sessions s ON s.id = $2 AND s.user_id = u.id
+       WHERE i.scope_hash = $3 AND i.idempotency_key = $4
+         AND i.method = 'DELETE' AND i.route_id = 'deleteCurrentUser'
+         AND i.state = 'completed' AND i.response_status = 204
+         AND i.expires_at > CURRENT_TIMESTAMP AND u.status = 'deleted'
+         AND s.revoked_at IS NOT NULL`,
+      [
+        token.userId,
+        token.sessionId,
+        identityIdempotencyScope(this.options.idempotencySecret, token.userId),
+        identityIdempotencyKey(this.options.idempotencySecret, idempotencyKey),
+      ],
     );
     const row = rows[0];
     if (!row) throw invalidSession();

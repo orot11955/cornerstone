@@ -334,6 +334,14 @@ describe('Auth runtime (e2e)', () => {
     expect(me.headers['cache-control']).toBe('private, no-store');
     expect(me.headers.vary).toContain('Cookie');
 
+    await agent
+      .get('/api/v1/users')
+      .set('Origin', origin)
+      .expect(403)
+      .expect(({ body }) => {
+        expect((body as BoundaryErrorResponse).error.code).toBe('FORBIDDEN');
+      });
+
     await agent.get('/api/v1/auth/csrf').set('Origin', origin).expect(200);
 
     const refresh = await agent
@@ -394,6 +402,62 @@ describe('Auth runtime (e2e)', () => {
       .expect(204);
     expect(responseCookie(revokeCurrent.headers, 'cs_access')).toBe('');
     expect(responseCookie(revokeCurrent.headers, 'cs_csrf')).toBe('');
+
+    const deleteCsrfResponse = await agent
+      .get('/api/v1/auth/csrf')
+      .set('Origin', origin)
+      .expect(200);
+    const deletePreauthCsrf = (deleteCsrfResponse.body as { csrfToken: string })
+      .csrfToken;
+    const deleteLogin = await agent
+      .post('/api/v1/auth/login')
+      .set('Origin', origin)
+      .set('X-CSRF-Token', deletePreauthCsrf)
+      .send({ email, password })
+      .expect(200);
+    const deleteSessionCsrf = responseCookie(deleteLogin.headers, 'cs_csrf');
+    const version = (deleteLogin.body as { user: { version: number } }).user
+      .version;
+    const idempotencyKey = 'runtime-self-delete';
+    const deleted = await agent
+      .delete('/api/v1/users/me')
+      .set('Origin', origin)
+      .set('X-CSRF-Token', deleteSessionCsrf)
+      .set('If-Match', `"${version}"`)
+      .set('Idempotency-Key', idempotencyKey)
+      .expect(204);
+    expect(responseCookie(deleted.headers, 'cs_access')).toBe('');
+
+    const replayAgent = request.agent(app.getHttpServer() as Server);
+    copyAuthCookies(deleteLogin.headers, replayAgent);
+    await replayAgent
+      .delete('/api/v1/users/me')
+      .set('Origin', origin)
+      .set('X-CSRF-Token', deleteSessionCsrf)
+      .set('If-Match', `"${version}"`)
+      .set('Idempotency-Key', 'wrong-delete-key')
+      .expect(401);
+    await replayAgent
+      .delete('/api/v1/users/me')
+      .set('Origin', origin)
+      .set('X-CSRF-Token', 'wrong-csrf-token')
+      .set('If-Match', `"${version}"`)
+      .set('Idempotency-Key', idempotencyKey)
+      .expect(403);
+    await replayAgent
+      .delete('/api/v1/users/me')
+      .set('Origin', origin)
+      .set('X-CSRF-Token', deleteSessionCsrf)
+      .set('If-Match', `"${version + 1}"`)
+      .set('Idempotency-Key', idempotencyKey)
+      .expect(409);
+    await replayAgent
+      .delete('/api/v1/users/me')
+      .set('Origin', origin)
+      .set('X-CSRF-Token', deleteSessionCsrf)
+      .set('If-Match', `"${version}"`)
+      .set('Idempotency-Key', idempotencyKey)
+      .expect(204);
   });
 
   afterAll(async () => {
@@ -443,4 +507,13 @@ function responseCookie(
   );
   if (!cookie) throw new Error(`Missing ${name} cookie`);
   return cookie.slice(name.length + 1).split(';', 1)[0]!;
+}
+
+function copyAuthCookies(
+  headers: Readonly<Record<string, unknown>>,
+  agent: ReturnType<typeof request.agent>,
+): void {
+  const values = headers['set-cookie'];
+  if (!Array.isArray(values)) throw new Error('Missing Set-Cookie headers');
+  agent.jar.setCookies(values.map((value) => String(value)));
 }

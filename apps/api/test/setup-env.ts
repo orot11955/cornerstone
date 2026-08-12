@@ -23,6 +23,9 @@ process.env.CSRF_SECRET = Buffer.from(
 process.env.RATE_LIMIT_SECRET = Buffer.from(
   'cornerstone-test-rate-key-v1-32-bytes',
 ).toString('base64url');
+process.env.IDEMPOTENCY_SECRET = Buffer.from(
+  'cornerstone-test-idempotency-key-v1-32-bytes',
+).toString('base64url');
 process.env.MAIL_OUTBOX_KEY_VERSION = 'test-mail-v1';
 process.env.MAIL_OUTBOX_KEY = Buffer.from(
   'cornerstone-test-mail-key-v1-32b',

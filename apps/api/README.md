@@ -2,7 +2,7 @@
 
 Cornerstone의 NestJS Backend 앱이다. API 계약, 입력 검증, 인증·권한, 데이터 접근과 서버 관측 경계를 담당한다.
 
-현재는 API/관측 경계와 PostgreSQL Migration·runtime 연결을 제공한다. Auth와 나머지 운영 기반은 [구현 계획](../../docs/cornerstone_implementation_plan.md)에 따라 추가한다.
+현재 API/관측 경계, PostgreSQL Migration·runtime 연결, password-session 인증과 기본 사용자 관리 경계를 제공한다. 이후 범위는 [구현 계획](../../docs/cornerstone_implementation_plan.md)에 따라 추가한다.
 
 ## 환경 변수
 

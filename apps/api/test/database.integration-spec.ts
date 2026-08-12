@@ -1,4 +1,5 @@
 import { createHash, randomUUID } from 'node:crypto';
+import { ConflictException, ForbiddenException } from '@nestjs/common';
 import { DataSource } from 'typeorm';
 import { AccessTokenService } from '../src/auth/access-token.service.js';
 import {
@@ -24,11 +25,13 @@ import { validateDatabaseEnvironment } from '../src/config/env.schema.js';
 import { buildDatabaseOptions } from '../src/database/database-options.js';
 import { IdempotencyRepository } from '../src/database/idempotency.repository.js';
 import { OutboxRepository } from '../src/database/outbox.repository.js';
+import { readQueryRows } from '../src/database/query-result.js';
 import {
   OutboxWorker,
   TypeOrmOutboxWorkStore,
 } from '../src/database/outbox.worker.js';
 import { cleanupExpiredOperationalData } from '../src/database/retention-cleanup.js';
+import { UsersService } from '../src/users/users.service.js';
 
 const digest = (value: string) =>
   createHash('sha256').update(value).digest('hex');
@@ -431,6 +434,231 @@ describe('Database repositories (integration)', () => {
         { eventType: 'identity.password.changed' },
       ]),
     );
+  });
+
+  it('applies idempotent admin mutations and terminal self deletion without reviving credentials', async () => {
+    const services = authLifecycleServices(source);
+    const users = new UsersService(
+      source,
+      new IdempotencyRepository(),
+      new AuthAuditRepository(),
+      new OutboxRepository(),
+      authSecurityOptions(),
+    );
+    const context = { ip: '203.0.113.91' };
+    const password = 'user-runtime-password-123';
+    const adminEmail = 'runtime-admin@example.test';
+    const targetEmail = 'runtime-target@example.test';
+    for (const email of [adminEmail, targetEmail]) {
+      await services.lifecycle.register(email, password, context);
+      await services.lifecycle.verifyEmail(
+        await latestAuthAction(
+          source,
+          services.envelopes,
+          email,
+          'verify_email',
+        ),
+        context,
+      );
+    }
+    const adminSession = await services.lifecycle.login(
+      adminEmail,
+      password,
+      context,
+    );
+    const targetSession = await services.lifecycle.login(
+      targetEmail,
+      password,
+      context,
+    );
+    await source.query(
+      `UPDATE users SET role = 'admin', authz_version = authz_version + 1,
+         version = version + 1 WHERE id = $1`,
+      [adminSession.user.id],
+    );
+    const adminPrincipal = {
+      user: {
+        ...adminSession.user,
+        role: 'admin' as const,
+        version: adminSession.user.version + 1,
+      },
+      sessionId: adminSession.sessionId,
+      lastPasswordAuthAt: new Date(),
+    };
+    const headers = (version: number, idempotencyKey: string) => ({
+      ifMatch: `"${version}"`,
+      idempotencyKey,
+    });
+
+    await expect(users.list({ page: 1, pageSize: 10 })).resolves.toMatchObject({
+      total: 2,
+    });
+    const promoted = await users.updateRole(
+      adminPrincipal,
+      targetSession.user.id,
+      'admin',
+      headers(targetSession.user.version, 'promote-target'),
+    );
+    await expect(
+      users.updateRole(
+        adminPrincipal,
+        targetSession.user.id,
+        'admin',
+        headers(targetSession.user.version, 'promote-target'),
+      ),
+    ).resolves.toEqual(promoted);
+    await expect(
+      users.updateRole(
+        adminPrincipal,
+        targetSession.user.id,
+        'user',
+        headers(promoted.version, 'promote-target'),
+      ),
+    ).rejects.toBeInstanceOf(ConflictException);
+
+    const persistedIdentity = readQueryRows<{
+      scopeHash: string;
+      idempotencyKey: string;
+    }>(
+      await source.query(
+        `SELECT scope_hash AS "scopeHash", idempotency_key AS "idempotencyKey"
+         FROM idempotency_records WHERE route_id = 'updateUserRole' LIMIT 1`,
+      ),
+    )[0];
+    expect(persistedIdentity).toBeDefined();
+    expect(persistedIdentity!.scopeHash).not.toBe(
+      digest(adminPrincipal.user.id),
+    );
+    expect(persistedIdentity!.idempotencyKey).not.toBe('promote-target');
+
+    const suspended = await users.updateStatus(
+      adminPrincipal,
+      targetSession.user.id,
+      'suspended',
+      headers(promoted.version, 'suspend-target'),
+    );
+    expect(suspended).toMatchObject({ role: 'admin', status: 'suspended' });
+    await expect(
+      services.lifecycle.refresh(targetSession.refreshToken, context),
+    ).rejects.toMatchObject({ code: 'INVALID_SESSION' });
+    const activated = await users.updateStatus(
+      adminPrincipal,
+      targetSession.user.id,
+      'active',
+      headers(suspended.version, 'activate-target'),
+    );
+    const demoted = await users.updateRole(
+      adminPrincipal,
+      targetSession.user.id,
+      'user',
+      headers(activated.version, 'demote-target'),
+    );
+    await expect(
+      users.updateStatus(
+        adminPrincipal,
+        adminPrincipal.user.id,
+        'suspended',
+        headers(adminPrincipal.user.version, 'suspend-last-admin'),
+      ),
+    ).rejects.toBeInstanceOf(ForbiddenException);
+
+    const deletionSession = await services.lifecycle.login(
+      targetEmail,
+      password,
+      context,
+    );
+    const deletionPrincipal = {
+      user: deletionSession.user,
+      sessionId: deletionSession.sessionId,
+      lastPasswordAuthAt: new Date(),
+    };
+    await users.deleteCurrentUser(
+      deletionPrincipal,
+      headers(demoted.version, 'delete-target'),
+    );
+    await expect(
+      users.deleteCurrentUser(
+        deletionPrincipal,
+        headers(demoted.version, 'delete-target'),
+      ),
+    ).resolves.toBeUndefined();
+    await expect(
+      services.lifecycle.refresh(deletionSession.refreshToken, context),
+    ).rejects.toMatchObject({ code: 'INVALID_SESSION' });
+    await services.lifecycle.register(targetEmail, password, context);
+    expect(
+      await source.query(
+        `SELECT email_normalized AS email, status, role, password_hash AS "passwordHash"
+         FROM users WHERE id = $1`,
+        [targetSession.user.id],
+      ),
+    ).toEqual([
+      {
+        email: `deleted+${targetSession.user.id}@users.invalid`,
+        status: 'deleted',
+        role: 'user',
+        passwordHash: null,
+      },
+    ]);
+    expect(
+      await source.query(
+        `SELECT COUNT(*)::integer AS count FROM users
+         WHERE email_normalized = $1 AND status = 'pending_verification'`,
+        [targetEmail],
+      ),
+    ).toEqual([{ count: 1 }]);
+    const pending = readQueryRows<{ id: string; version: number }>(
+      await source.query(
+        `SELECT id, version FROM users
+         WHERE email_normalized = $1 AND status = 'pending_verification'`,
+        [targetEmail],
+      ),
+    )[0];
+    expect(pending).toBeDefined();
+    await expect(
+      users.updateStatus(
+        adminPrincipal,
+        pending!.id,
+        'active',
+        headers(pending!.version, 'activate-unverified'),
+      ),
+    ).rejects.toBeInstanceOf(ConflictException);
+    await expect(
+      users.updateRole(
+        adminPrincipal,
+        pending!.id,
+        'admin',
+        headers(pending!.version, 'promote-unverified'),
+      ),
+    ).rejects.toBeInstanceOf(ConflictException);
+    const adminDeleted = await users.updateStatus(
+      adminPrincipal,
+      pending!.id,
+      'deleted',
+      headers(pending!.version, 'delete-unverified'),
+    );
+    expect(adminDeleted).toMatchObject({ status: 'deleted', role: 'user' });
+    expect(
+      readQueryRows<{ eventType: string; reasonCode: string }>(
+        await migrationSource.query(
+          `SELECT event_type AS "eventType", reason_code AS "reasonCode"
+           FROM audit_events WHERE subject_id = $1
+             AND event_type IN ('identity.status.changed', 'identity.user.deleted')
+           ORDER BY event_type`,
+          [pending!.id],
+        ),
+      ),
+    ).toEqual([
+      { eventType: 'identity.status.changed', reasonCode: 'STATUS_CHANGED' },
+      { eventType: 'identity.user.deleted', reasonCode: 'USER_DELETED' },
+    ]);
+    expect(
+      await migrationSource.query(
+        `SELECT COUNT(*)::integer AS count FROM outbox_events
+         WHERE aggregate_id = $1 AND event_type = 'identity.user.delete.journaled'`,
+        [pending!.id],
+      ),
+    ).toEqual([{ count: 1 }]);
   });
 
   it('revokes an action token after its bounded invalid attempts', async () => {
@@ -888,6 +1116,7 @@ async function latestAuthAction(
 function authSecurityOptions(): AuthSecurityOptions {
   return {
     rateLimitSecret: Buffer.alloc(32, 7).toString('base64url'),
+    idempotencySecret: Buffer.alloc(32, 9).toString('base64url'),
     mailOutbox: {
       current: {
         id: 'mail-v2',

@@ -29,6 +29,7 @@
 ## 멱등성과 동시성
 
 - retry 가능한 mutation은 `Idempotency-Key`를 받는다. key는 1~128자의 불투명 ASCII 값이며 scope는 authenticated actor(또는 anonymous rate-limit subject), HTTP method와 normalized route다.
+- DB에는 client key와 actor 식별자를 원문으로 저장하지 않고 전용 `IDEMPOTENCY_SECRET`으로 domain-separated HMAC한 digest만 저장한다. secret은 기존 record의 최대 TTL 24시간이 끝날 때까지 유지한 뒤 전환한다.
 - server는 canonical payload SHA-256, 상태, response와 생성 시각을 24시간 보존한다. 같은 key와 같은 payload는 저장한 결과를 재생하고 다른 payload는 `409 IDEMPOTENCY_KEY_REUSED`로 거절한다.
 - 처리와 idempotency 결과 저장, DB 변경과 outbox 기록은 같은 transaction 경계에 둔다. concurrent duplicate 중 하나만 실행한다.
 - 수정 가능한 resource는 정수 `version`과 strong ETag를 제공한다. mutation은 `If-Match`를 요구하고 불일치는 `412 VERSION_MISMATCH`다.

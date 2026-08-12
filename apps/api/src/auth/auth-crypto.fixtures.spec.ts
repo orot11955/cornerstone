@@ -384,6 +384,7 @@ function options(): AuthSecurityOptions {
       previous: key('csrf-v1', 'csrf-previous'),
     },
     rateLimitSecret: secret('rate-limit'),
+    idempotencySecret: secret('idempotency'),
     mailOutbox: {
       current: {
         id: 'mail-v2',

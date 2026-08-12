@@ -12,7 +12,7 @@ import { routePolicies } from '../authorization/route-policy.js';
 import { ROUTE_POLICY_OPERATION } from '../authorization/route-policy.decorator.js';
 import { CsrfTokenService } from './csrf-token.service.js';
 import { AuthLifecycleService } from './auth-lifecycle.service.js';
-import { invalidSession } from './auth-lifecycle.error.js';
+import { AuthLifecycleError, invalidSession } from './auth-lifecycle.error.js';
 import {
   type AuthenticatedRequest,
   setAuthenticatedPrincipal,
@@ -74,7 +74,22 @@ export class AuthGuard implements CanActivate {
     }
 
     const access = requireCookie(request, this.cookies.access.name);
-    const principal = await this.lifecycle.authenticateAccess(access);
+    let principal;
+    try {
+      principal = await this.lifecycle.authenticateAccess(access);
+    } catch (error) {
+      if (
+        operationId !== 'deleteCurrentUser' ||
+        !(error instanceof AuthLifecycleError) ||
+        error.code !== 'INVALID_SESSION'
+      ) {
+        throw error;
+      }
+      principal = await this.lifecycle.authenticateDeleteReplay(
+        access,
+        request.get('idempotency-key'),
+      );
+    }
     if (
       !policy.roles.includes(principal.user.role) ||
       (policy.permission &&

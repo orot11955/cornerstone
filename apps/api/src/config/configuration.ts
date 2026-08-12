@@ -87,6 +87,7 @@ export const configuration = () => {
             : undefined,
       },
       rateLimitSecret: environment.RATE_LIMIT_SECRET,
+      idempotencySecret: environment.IDEMPOTENCY_SECRET,
       mailOutbox: {
         current: {
           id: environment.MAIL_OUTBOX_KEY_VERSION,

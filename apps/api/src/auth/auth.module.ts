@@ -27,6 +27,6 @@ import { AUTH_COOKIE_POLICY } from './auth.tokens.js';
     },
     { provide: APP_GUARD, useExisting: AuthGuard },
   ],
-  exports: [AuthLifecycleService],
+  exports: [AuthLifecycleService, AuthCryptoModule, AUTH_COOKIE_POLICY],
 })
 export class AuthModule {}
