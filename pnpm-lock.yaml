@@ -157,7 +157,11 @@ importers:
 
   packages/api-client: {}
 
-  packages/config: {}
+  packages/config:
+    devDependencies:
+      '@types/node':
+        specifier: ^24.0.0
+        version: 24.13.3
 
   packages/eslint-config: {}
 
@@ -171,9 +175,20 @@ importers:
 
   packages/types: {}
 
-  packages/ui: {}
+  packages/ui:
+    dependencies:
+      react:
+        specifier: '>=19.0.0 <20'
+        version: 19.2.8
+      react-dom:
+        specifier: '>=19.0.0 <20'
+        version: 19.2.8(react@19.2.8)
 
-  packages/utils: {}
+  packages/utils:
+    dependencies:
+      '@cornerstone/types':
+        specifier: workspace:^
+        version: link:../types
 
 packages:
 

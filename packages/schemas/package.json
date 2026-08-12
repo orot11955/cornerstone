@@ -1,10 +1,29 @@
 {
   "name": "@cornerstone/schemas",
-  "version": "0.0.0",
-  "private": true,
+  "version": "0.1.0",
+  "license": "ISC",
   "type": "module",
+  "engines": {
+    "node": ">=22.20.0 <25"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc -p tsconfig.build.json --noEmit",
+    "test:unit": "node --test test/*.test.mjs"
+  },
   "exports": {
-    ".": "./src/index.ts"
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "NOTICE"
+  ],
+  "sideEffects": false,
+  "publishConfig": {
+    "access": "public"
   },
   "dependencies": {
     "zod": "^4.4.3"

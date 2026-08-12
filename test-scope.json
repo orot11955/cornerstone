@@ -1,16 +1,18 @@
 {
   "test:unit": {
-    "participants": ["api"],
+    "participants": [
+      "api",
+      "@cornerstone/api-client",
+      "@cornerstone/config",
+      "@cornerstone/schemas",
+      "@cornerstone/types",
+      "@cornerstone/utils"
+    ],
     "excluded": {
       "web": "Web unit runner is introduced with WPF/UIF.",
-      "@cornerstone/api-client": "Package tests are introduced with M1.",
-      "@cornerstone/config": "Package tests are introduced with M1.",
       "@cornerstone/eslint-config": "Config fixtures are introduced with M1.",
-      "@cornerstone/schemas": "Package tests are introduced with M1.",
       "@cornerstone/tsconfig": "Config fixtures are introduced with M1.",
-      "@cornerstone/types": "Type tests are introduced with M1.",
-      "@cornerstone/ui": "Component tests are introduced with UIF.",
-      "@cornerstone/utils": "Package tests are introduced with M1."
+      "@cornerstone/ui": "Component tests are introduced with UIF."
     }
   },
   "test:component": {

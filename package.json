@@ -19,6 +19,8 @@
     "test:component": "node scripts/test-scope.mjs test:component --run",
     "test:integration": "node scripts/test-scope.mjs test:integration --run",
     "test:e2e": "node scripts/test-scope.mjs test:e2e --run",
+    "package:check": "node scripts/validate-package-boundaries.mjs",
+    "package:verify": "node scripts/verify-package-consumer.mjs",
     "governance:check": "node scripts/validate-governance.mjs",
     "security:secrets": "node scripts/scan-secrets.mjs --history --self-test",
     "format": "prettier --write .",

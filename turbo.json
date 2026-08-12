@@ -17,11 +17,11 @@
     },
 
     "typecheck": {
-      "dependsOn": ["^typecheck"]
+      "dependsOn": ["^build"]
     },
 
     "test:unit": {
-      "dependsOn": ["^test:unit"]
+      "dependsOn": ["build", "^test:unit"]
     },
 
     "test:component": {
