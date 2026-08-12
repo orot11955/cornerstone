@@ -14,6 +14,7 @@ ADR은 장기간 유지되는 아키텍처 결정을 기록한다. 구현 순서
 | [ADR-0001](./0001-runtime.md)                | Accepted | Runtime과 TypeScript 지원 정책                          |
 | [ADR-0002](./0002-package-boundaries.md)     | Accepted | Package boundary, export와 배포 형식                    |
 | [ADR-0003](./0003-api-contract.md)           | Accepted | Nest DTO, OpenAPI, 오류와 동시성 계약                   |
+| [ADR-0004](./0004-network-boundary.md)       | Accepted | Web/API origin, CORS, proxy와 cache 경계                |
 | [ADR-0006](./0006-test-kernel.md)            | Accepted | Test와 CI Kernel                                        |
 | [ADR-0008](./0008-supported-environments.md) | Accepted | Browser, OS, 보조기술과 responsive 지원 matrix          |
 | [ADR-0009](./0009-distribution-trust.md)     | Accepted | Distribution, license와 artifact trust                  |
