@@ -1,69 +1,134 @@
-import Image from 'next/image'
+import {
+  Alert,
+  Badge,
+  Box,
+  Button,
+  Checkbox,
+  Container,
+  FormField,
+  Grid,
+  Heading,
+  Inline,
+  Input,
+  Panel,
+  Select,
+  Stack,
+  Switch,
+  Text,
+} from '@cornerstone/ui'
 
 export default function Home() {
   return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert h-5 w-[100px]"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the{' '}
-            <code className="rounded bg-black/[.06] px-1.5 py-0.5 font-mono text-[0.9em] dark:bg-white/[.08]">
-              page.tsx
-            </code>{' '}
-            file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{' '}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{' '}
-            or the{' '}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{' '}
-            center.
-          </p>
-        </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert h-[14px] w-4"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={14}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
-        </div>
-      </main>
-    </div>
+    <main>
+      <Container size="xl" gutter={{ base: '4', md: '8' }}>
+        <Box padding={{ base: '6', md: '10', xl: '12' }}>
+          <Stack gap={{ base: '8', lg: '12' }}>
+            <Stack gap="4">
+              <Inline gap="2">
+                <Badge tone="brand">Cornerstone</Badge>
+                <Badge tone="success" variant="outline">
+                  Foundation Preview
+                </Badge>
+              </Inline>
+              <Heading as="h1" size="xl">
+                프로젝트의 기반을 직접 조합하세요
+              </Heading>
+              <Text as="p" size="lg" tone="muted">
+                Theme, Style, Brand와 Density를 독립적으로 선택하고 같은 component API로 새로운
+                제품을 시작합니다.
+              </Text>
+            </Stack>
+
+            <Grid columns={{ base: 1, lg: 2 }} gap={{ base: '6', lg: '8' }}>
+              <Panel variant="outlined" padding={{ base: '5', md: '6' }}>
+                <Stack gap="5">
+                  <Stack gap="2">
+                    <Heading as="h2" size="lg">
+                      초기 프로젝트 설정
+                    </Heading>
+                    <Text as="p" tone="muted">
+                      선택값은 secret이 없는 capability manifest로 저장됩니다.
+                    </Text>
+                  </Stack>
+
+                  <FormField
+                    label="프로젝트 이름"
+                    description="소문자, 숫자와 하이픈을 사용할 수 있습니다."
+                    required
+                  >
+                    {(props) => (
+                      <Input
+                        {...props}
+                        name="name"
+                        defaultValue="atlas-console"
+                        autoComplete="off"
+                      />
+                    )}
+                  </FormField>
+
+                  <FormField label="Profile" required>
+                    {(props) => (
+                      <Select {...props} name="profile" defaultValue="standard">
+                        <option value="minimal">Minimal</option>
+                        <option value="standard">Standard</option>
+                        <option value="production">Production</option>
+                        <option value="regulated">Regulated</option>
+                      </Select>
+                    )}
+                  </FormField>
+
+                  <Checkbox
+                    name="examples"
+                    label="Reference 화면 포함"
+                    description="인증, 설정, CRUD와 Dashboard 예제를 생성합니다."
+                  />
+                  <Switch
+                    name="dark"
+                    label="Dark Theme"
+                    description="초기 SSR Appearance에 반영합니다."
+                    defaultChecked
+                  />
+
+                  <Inline justify="between" gap="3">
+                    <Button variant="ghost" tone="neutral">
+                      Manifest 보기
+                    </Button>
+                    <Button>프로젝트 계획 생성</Button>
+                  </Inline>
+                </Stack>
+              </Panel>
+
+              <Stack gap="5">
+                <Alert tone="info" title="현재 Reference 조합">
+                  dark + industrial + signal-violet + default
+                </Alert>
+                <Panel variant="elevated" padding={{ base: '5', md: '6' }}>
+                  <Stack gap="4">
+                    <Heading as="h2" size="md">
+                      독립 Appearance 축
+                    </Heading>
+                    <Grid columns={{ base: 2, md: 4 }} gap="3">
+                      {[
+                        ['Theme', 'Dark'],
+                        ['Style', 'Industrial'],
+                        ['Brand', 'Signal Violet'],
+                        ['Density', 'Default'],
+                      ].map(([label, value]) => (
+                        <Stack key={label} gap="1">
+                          <Text size="sm" tone="muted">
+                            {label}
+                          </Text>
+                          <Text weight="semibold">{value}</Text>
+                        </Stack>
+                      ))}
+                    </Grid>
+                  </Stack>
+                </Panel>
+              </Stack>
+            </Grid>
+          </Stack>
+        </Box>
+      </Container>
+    </main>
   )
 }
