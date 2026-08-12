@@ -5,7 +5,7 @@
 
 ## 1. 목적
 
-Cornerstone은 새 TypeScript 풀스택 프로젝트마다 반복되는 기반을 공통 패키지와 프로젝트 템플릿으로 제공하는 Starter Kit이다. 특정 제품의 Boilerplate가 아니라, 프로젝트가 필요한 기능과 디자인을 조합할 수 있는 기반 플랫폼을 지향한다.
+Cornerstone은 새 TypeScript 풀스택 프로젝트마다 반복되는 기반을 공통 패키지와 하나의 canonical template으로 제공하는 Starter Kit이다. 특정 제품의 Boilerplate나 모든 기능을 한꺼번에 설치하는 배포물이 아니라, 초기 설정에서 선택한 기능과 디자인만 검증된 조합으로 생성하는 기반 플랫폼을 지향한다.
 
 ```text
 공통 기반 → Frontend → Backend → 인증/권한 → 데이터 → API
@@ -25,22 +25,72 @@ Cornerstone은 새 TypeScript 풀스택 프로젝트마다 반복되는 기반�
 
 ### Core
 
+Core는 기본 Certified Profile인 `standard`가 보장할 범위다.
+
 - pnpm Workspace와 Turborepo 기반 Monorepo
 - Next.js Web과 NestJS API
 - 공통 TypeScript, lint, format 설정
 - 환경 변수 검증, 표준 오류, 요청 추적과 구조화 로그
 - PostgreSQL, TypeORM, Migration과 Seed 규칙
-- User, Session, Cookie 인증과 Role 기반 인가의 기본 경계
+- User, Session, Cookie 인증, 계정 검증·복구와 Role 기반 인가의 기본 경계
 - API client, query, form과 포괄적인 공통 UI Kit
 - 디자인 토큰과 Appearance preset
-- Unit, Integration, E2E, CI와 Production image의 기본 계약
+- Unit, Integration, E2E와 CI의 기본 계약
 
 ### Optional
 
 - Redis, Queue, Scheduler, WebSocket, SSE
-- OAuth, 2FA, 메일, Object Storage
+- OAuth, MFA, Mail delivery provider, Object Storage
 - 특정 Cloud 또는 배포 플랫폼 adapter
 - 조직·Tenant 기반의 복합 Permission
+
+Mail provider는 Optional이지만 verification/recovery token, recent-auth, Session 관리와 메시지 전달 port는 Core 계약이다. 개발·테스트는 capture/fake adapter를 사용하고 Production에서 해당 기능을 활성화하면 승인된 provider 구성을 필수로 한다.
+
+Starter v1 Core는 global User identity와 single-tenant application으로 고정한다. Tenant는 nullable column이나 runtime flag로 미리 가장하지 않고 별도 capability와 schema baseline으로 제공한다.
+
+### 프로젝트 조합 모델
+
+Template 원천은 하나만 유지하고 프로젝트 초기 설정에서 capability manifest를 먼저 확정한다. 상세 결정은 [ADR-0015](./adr/0015-project-composition.md)를 따른다.
+
+| Profile      | 구성                                                           | 보장 범위                                 |
+| ------------ | -------------------------------------------------------------- | ----------------------------------------- |
+| `minimal`    | Web, API, Config, UI Foundation                                | 작은 서비스와 실험용 Certified Profile    |
+| `standard`   | Minimal + PostgreSQL/TypeORM + password-session Auth + Core UI | 기본 Certified Profile                    |
+| `production` | Standard + 운영 관측·배포·복구·공급망                          | Production Ready Profile                  |
+| `regulated`  | Production + privacy/audit/residency 확장점                    | 규제 대응 Foundation, 법적 준수 보증 아님 |
+
+Profile은 별도 Template이 아니라 자주 쓰는 manifest preset이다. 고급 사용자는 지원되는 capability를 조합할 수 있지만 Certified, Supported와 Experimental 수준을 명시한다.
+
+```yaml
+schemaVersion: 1
+profile: standard
+
+capabilities:
+  web: next
+  api: nest
+  ui: core
+  data: postgres-typeorm
+  auth: password-session
+
+extensions:
+  tenant: none
+  mail: capture
+  queue: none
+  storage: none
+  realtime: none
+
+appearance:
+  theme: system
+  style: minimal
+  brand: signal-violet
+  density: default
+```
+
+- Generator는 dependency/conflict, runtime/package/schema compatibility와 Production의 fake adapter 사용을 파일 생성 전에 거절한다.
+- 선택하지 않은 capability의 코드, dependency, 환경 변수, 인프라와 문서는 생성 프로젝트에 포함하지 않는다.
+- 생성 결과의 `cornerstone.config.yml`에 선택값, generator version과 compatibility 기준을 보존한다.
+- 공통 수정은 package update로 전달하고 사용자 파일은 자동 덮어쓰지 않는다. 구조 변경은 dry-run, 예상 diff와 migration guide를 우선한다.
+- Docs는 manifest를 읽어 현재 구성에 해당하는 설치·운영·upgrade 문서를 필터링할 수 있다.
 
 ### Starter에서 제외
 
@@ -66,7 +116,10 @@ cornerstone/
 │  ├─ tsconfig/            실행 환경별 TypeScript 설정
 │  ├─ types/               직렬화 가능한 공통 타입
 │  ├─ ui/                  토큰과 포괄적인 Domain 독립 UI Kit
-│  └─ utils/               환경 독립 pure utility
+│  ├─ utils/               환경 독립 pure utility
+│  └─ create-cornerstone/  Manifest 검증과 프로젝트 생성 CLI
+├─ templates/
+│  └─ canonical/           단일 Template 원천과 capability fragment
 ├─ infra/                  로컬·운영 인프라 정의
 ├─ e2e/                    사용자 핵심 경로 검증
 ├─ examples/               컴파일·시각 검증하는 예제와 reference 화면
@@ -85,6 +138,8 @@ apps/api ────────────────> schemas/types/utils/c
 apps/docs ─┬─> 공개 package API와 versioned docs content
            └─> 검증된 examples와 release manifest
 
+create-cornerstone ─> manifest schema + canonical template
+
 low-level packages -X-> apps
 packages/ui       -X-> API 또는 프로젝트 Domain
 ```
@@ -95,15 +150,16 @@ packages/ui       -X-> API 또는 프로젝트 Domain
 
 공통 코드를 한 패키지에 모으지 않고 런타임과 책임에 따라 분리한다.
 
-| Package      | 소유 책임                                                   | 포함하지 않는 것                                  |
-| ------------ | ----------------------------------------------------------- | ------------------------------------------------- |
-| `types`      | 직렬화 가능한 공통 wire·structural type                     | runtime 검증, Entity, React/browser type          |
-| `schemas`    | 외부 입력의 runtime 검증과 추론 type                        | transport, UI, Domain allowlist                   |
-| `config`     | 환경 독립 설정 계약·기본값·조합                             | secret, 앱별 env 읽기, 전역 `process.env` 접근    |
-| `utils`      | 환경 독립적이고 결정적이며 부작용 없는 함수                 | DOM hook, HTTP·보안 정책, Domain 규칙             |
-| `api-client` | HTTP, 직렬화, 취소, 오류 envelope 변환                      | Query cache, Toast, Router, React hook, 권한 판단 |
-| `ui`         | token, component, layout, 접근성 behavior와 UI browser hook | API 호출, Auth·Domain 정책                        |
-| `apps/web`   | Route, Domain 조합, Query/Auth 상태와 endpoint hook         | 공통 Primitive 재구현                             |
+| Package              | 소유 책임                                                   | 포함하지 않는 것                                  |
+| -------------------- | ----------------------------------------------------------- | ------------------------------------------------- |
+| `types`              | 직렬화 가능한 공통 wire·structural type                     | runtime 검증, Entity, React/browser type          |
+| `schemas`            | 외부 입력의 runtime 검증과 추론 type                        | transport, UI, Domain allowlist                   |
+| `config`             | 환경 독립 설정 계약·기본값·조합                             | secret, 앱별 env 읽기, 전역 `process.env` 접근    |
+| `utils`              | 환경 독립적이고 결정적이며 부작용 없는 함수                 | DOM hook, HTTP·보안 정책, Domain 규칙             |
+| `api-client`         | HTTP, 직렬화, 취소, 오류 envelope 변환                      | Query cache, Toast, Router, React hook, 권한 판단 |
+| `ui`                 | token, component, layout, 접근성 behavior와 UI browser hook | API 호출, Auth·Domain 정책                        |
+| `create-cornerstone` | manifest/preset 검증, capability 해석과 생성 plan           | Runtime Domain 로직, 사용자 파일 무단 overwrite   |
+| `apps/web`           | Route, Domain 조합, Query/Auth 상태와 endpoint hook         | 공통 Primitive 재구현                             |
 
 `utils`는 다음 범위를 우선한다.
 
@@ -140,22 +196,25 @@ Package root와 승인된 subpath만 공개하고 `src/*` deep import를 금지�
 
 ### 3.3 Starter 배포 모델
 
-Cornerstone은 저장소 복제본 하나가 아니라 버전이 있는 공통 패키지와 프로젝트 템플릿의 조합으로 배포한다.
+Cornerstone은 저장소 복제본 하나가 아니라 버전이 있는 공통 패키지, 생성 CLI와 canonical template의 조합으로 배포한다.
 
 ```text
 @cornerstone/* packages       버전이 있는 재사용 계약과 구현
-Project template              apps, infra, root config와 시작 문서
+create-cornerstone            Manifest 검증, preset 해석과 생성 CLI
+Canonical template            apps, infra, root config의 단일 원천
 Compatibility manifest       package/template/runtime/schema 기준
 Migration guide              복사된 파일의 수동 업그레이드 절차
 ```
 
 - Starter v1은 공통 패키지를 같은 버전으로 묶는 synchronized release를 기본으로 한다.
-- Template은 정확한 package 버전, 지원 Node/pnpm 범위와 DB schema baseline을 기록한다.
+- 생성 프로젝트는 정확한 package 버전, generator version, 선택 capability, 지원 Node/pnpm 범위와 DB schema baseline을 기록한다.
 - 공통 수정은 package update로 전달하고 생성된 프로젝트의 앱·인프라 파일을 자동 덮어쓰지 않는다.
 - 공개 package는 workspace link가 없는 임시 소비자에서 tarball 설치, typecheck와 build를 검증한다.
-- Template release는 빈 디렉터리에서 생성, 설치, Migration, 핵심 E2E와 production image 실행까지 검증한다.
+- Certified Profile은 빈 디렉터리에서 생성, 설치, 필요한 Migration, 핵심 E2E와 해당 Profile의 release Gate까지 검증한다.
 - 직전 Template에 대표 사용자 변경을 적용한 fixture에서 package update와 migration guide를 각각 리허설하고 사용자 소유 파일을 보존한다.
 - Registry와 배포 provider가 정해지기 전에도 local tarball과 versioned template archive로 같은 계약을 검증한다.
+- Root, 공개 package, Template, example과 Docs content의 license, SPDX identifier, attribution과 재배포 범위를 일관되게 고정한다.
+- Release artifact에 `LICENSE`, 필요한 `NOTICE`와 third-party attribution을 포함하고 dependency license allow/deny 정책을 CI에서 검사한다.
 
 ### 3.4 Documentation Portal 배포 모델
 
@@ -211,6 +270,24 @@ Artifact storage/CDN ───┴─> package/template 다운로드
 
 공개 계약, 환경 변수, Migration, OpenAPI와 generated artifact는 변경 소유자를 하나만 둔다. Breaking change는 영향 소비자, 전환 순서, rollback 또는 roll-forward와 지원 종료 시점을 기록한다.
 
+### 3.6 계층화된 Release Gate
+
+모든 기능을 하나의 v1 완료 조건에 묶지 않는다. 상세 결정은 [ADR-0017](./adr/0017-release-gates.md)을 따른다.
+
+| Gate             | 완료 범위                                                       | 주요 Artifact                           |
+| ---------------- | --------------------------------------------------------------- | --------------------------------------- |
+| Foundation       | Workspace, shared package, UI Foundation, 외부 소비 검증        | Package tarball, Foundation stable Docs |
+| Standard Starter | 기본 Certified Profile의 Web/API/Data/Auth/Core UI              | 생성 CLI, standard Profile artifact     |
+| Production Ready | Image, Migration 배포, 관측, SLO 선언, load/restore, provenance | Production Profile과 운영 evidence      |
+| Regulated        | Privacy/audit/residency/encryption 확장점                       | Regulated manifest와 검증 harness       |
+| Extension        | 활성 capability별 adapter와 contract                            | 독립 extension package                  |
+
+- Capability별 Gate는 해당 기능이 활성화될 때 필수다.
+- 입력 검증, secret scan, default-deny, build 재현성과 artifact integrity는 모든 Profile의 공통 Gate다.
+- SLO, retention과 residency의 실제 값은 프로젝트가 manifest/운영 설정으로 선언하고 Starter는 schema, 기본값, harness와 검증 방법을 제공한다.
+- Regulated Profile은 법적 준수를 보증하지 않고 프로젝트가 적용 법률과 provider에 맞게 완성할 Foundation을 제공한다.
+- Docs preview는 package/API/UI 변경과 함께 배포하고 stable version만 artifact publish 후 공개한다.
+
 ## 4. 애플리케이션 경계
 
 ### Frontend
@@ -248,6 +325,31 @@ Artifact storage/CDN ───┴─> package/template 다운로드
 - Route inventory와 권한 matrix의 drift를 CI에서 비교하고 미분류 route가 있으면 실패한다.
 - Admin bootstrap은 public endpoint가 아닌 승인된 one-off job/CLI로 실행한다. 별도 단기 principal, 최소 DB 권한과 protected-environment 승인을 사용하고 runtime image에서 artifact를 제외하며 zero-admin 조건, DB lock, 감사, 사용 후 폐기와 재실행 거절을 보장한다.
 
+### 계정 검증과 복구
+
+- Password 인증을 제공하면 email verification, forgot/reset, password change, recent-auth와 활성 Session 조회·개별/전체 revoke를 Core 흐름으로 제공한다.
+- Verification/recovery token은 목적, subject, 만료, single-use와 attempt limit를 가지며 원문을 저장하지 않는다.
+- 존재하지 않는 계정에도 같은 외부 응답과 유사한 처리 시간을 사용해 사용자 열거를 막는다.
+- Password reset, email 변경과 계정 복구는 기존 access/refresh Session 폐기, `authzVersion` 증가와 감사 event를 원자적으로 연결한다.
+- Mail delivery는 port로 분리한다. Request transaction과 외부 전송을 직접 묶지 않고 transactional outbox 또는 동등한 durable handoff를 사용한다.
+- Production에서 verification/recovery를 활성화하면 승인된 Mail provider, sender/domain 검증, bounce/complaint와 rate limit 정책이 없을 때 기동 또는 기능 활성화를 거절한다.
+
+### Tenant와 Identity Scope
+
+- Core는 global `User` identity, global normalized email unique와 application-scoped Role/ownership을 사용한다. 상세 결정은 [ADR-0016](./adr/0016-identity-scope.md)을 따른다.
+- Single-tenant Core의 모든 query에 암묵적 Tenant를 가장하거나 사용하지 않는 nullable `tenantId`를 추가하지 않는다.
+- Tenant capability는 global User를 유지하고 `Tenant`와 `Membership`으로 tenant-scoped Role/status/authz version을 표현한다.
+- Tenant variant는 principal의 active membership을 authoritative source에서 확인하고 `tenantId`를 Client header/body만으로 결정하지 않는다.
+- Core에서 Tenant capability로 전환하는 expand/backfill/contract와 cross-tenant IDOR, cache key, background job, file path, audit/observability 격리를 검증한다.
+
+### 신뢰 가능한 변경 요청과 Side Effect
+
+- 재시도 가능한 상태 변경은 idempotency key의 scope, TTL, payload hash, replay response와 충돌 의미를 고정한다.
+- Optimistic concurrency는 version/ETag와 `409/412` 의미를 사용하고 blind overwrite를 허용할 endpoint를 명시한다.
+- Client와 Server는 timeout, cancel, retry 가능한 오류, backoff와 retry 금지 요청을 같은 계약으로 사용한다.
+- DB 변경과 Mail/Queue/Webhook 같은 외부 side effect는 transaction/outbox 경계를 명시하고 at-least-once 전달의 deduplication 책임을 정한다.
+- Outbound HTTP는 allowlisted destination, connect/request timeout, bounded response, redirect, retry budget와 circuit/bulkhead 정책을 공통 adapter에서 적용한다.
+
 ### Data
 
 - User lifecycle, email 재사용·정규화, Role/상태, 삭제·익명화·보존과 Session revoke 계약을 첫 Migration 전에 확정한다.
@@ -257,7 +359,20 @@ Artifact storage/CDN ───┴─> package/template 다운로드
 - 개발, 테스트와 운영 DB를 분리한다.
 - Seed는 멱등이고 운영에서 자동 실행하지 않으며 비밀정보를 포함하지 않는다.
 
+### Data Governance와 Privacy
+
+Core는 분류·redaction·삭제 확장점만 보장하고 아래 전체 운영 Gate는 `regulated` Profile이 활성화될 때 적용한다.
+
+- 데이터 field를 public/internal/confidential/restricted로 분류하고 저장, log, trace, analytics, export와 backup 허용 범위를 연결한다.
+- User 데이터 access/export, correction, deletion과 consent/analytics opt-out의 Foundation hook과 Domain 책임을 분리한다.
+- Retention 종료와 삭제는 primary DB뿐 아니라 replica, cache, search index, log, artifact와 backup의 전파·예외·증거를 정의한다.
+- Field-level encryption/tokenization 적용 기준, key ownership·rotation과 검색/index 제약을 정한다.
+- Region/residency 요구는 provider adapter가 선언하고 지원하지 않는 배치를 startup/deploy Gate에서 거절한다.
+- 개인정보 조회·export·삭제와 관리자 대리 작업은 목적, actor, scope와 결과를 변조 방지 audit로 기록한다.
+
 ### Operations
+
+기본 metric/log/correlation은 Core에 포함하고 SLO·capacity·backup·배포 evidence는 `production` Profile에서 완료한다.
 
 - liveness와 readiness를 분리하고 필수 dependency만 readiness에 포함한다.
 - 로그에는 token, password, Cookie 원문과 불필요한 개인정보를 남기지 않는다.
@@ -269,6 +384,19 @@ Artifact storage/CDN ───┴─> package/template 다운로드
 - Restore 후 access JWT와 refresh/session을 각각 무효화한다. revoke·삭제·권한 변경 journal은 복원 대상 DB와 분리된 append-only 불변 저장소에 두고 재적용하며 auth epoch와 signing/refresh key rotation 범위를 함께 검증한다.
 - JWT, CI/OIDC, registry/signing과 backup 침해별 freeze, revoke, rotate, audit, 재발행 runbook과 정기 drill을 유지한다.
 - 변경마다 검증, 배포 순서와 rollback 가능성을 기록한다.
+- 핵심 사용자 경로와 API/DB/Docs/Download 및 활성화된 Queue extension의 SLI·SLO, error budget, alert severity·owner·응답 시간을 정의한다.
+- Metric label cardinality, log/trace 보존과 sampling, observability 비용 예산을 release별로 검증한다.
+- 부하·soak·burst test로 request concurrency, DB/HTTP pool, queue lag, memory와 graceful degradation 한계를 확인한다.
+
+### Optional Extension 계약
+
+- Redis, Queue/Scheduler, Realtime, OAuth/MFA, Mail과 Object Storage는 Core가 provider SDK를 직접 import하지 않는 port/adapter 구조를 사용한다.
+- 각 extension은 package name, server/browser export, config schema, local fake, health/readiness, metric와 contract test를 제공한다.
+- Provider 미설정 시 기능 비활성 또는 fail-fast를 명시하고 silent fallback이나 in-memory Production 대체를 허용하지 않는다.
+- Queue는 retry/backoff, deduplication, visibility/lease, DLQ와 poison message 운영을 정의한다.
+- Realtime은 인증 갱신, reconnect/resume, ordering, backpressure와 connection quota를 정의한다.
+- OAuth/MFA는 account linking, provider email trust, step-up/recovery와 factor revoke를 기존 Session/authz 계약에 연결한다.
+- Object Storage는 content type/size, malware scan, quarantine, signed URL, path/key와 delete/retention을 검증한다.
 
 ### Web Platform
 
@@ -287,6 +415,9 @@ Artifact storage/CDN ───┴─> package/template 다운로드
 - OpenAPI client, token, compatibility manifest와 release note 생성은 재현 가능한 명령으로 제공한다.
 - Dependency update, deprecation, changelog와 migration guide를 package/template release 흐름에 연결한다.
 - 공통 명령은 check와 fix를 분리하고 로컬·CI가 같은 script와 artifact를 사용한다.
+- Cornerstone release 저장소는 `CODEOWNERS`, protected branch와 required review/status check로 Migration, Auth/권한, OpenAPI, lockfile, release workflow와 manifest의 문서상 소유권을 강제한다.
+- 생성 프로젝트에는 provider-neutral 권장 정책과 예시를 제공하고 실제 GitHub/GitLab branch protection 적용은 선택한 provider adapter가 소유한다.
+- Emergency/break-glass 변경은 시간 제한 승인, 사후 review와 audit를 요구하고 필수 보안·무결성 Gate를 우회하지 않는다.
 
 ## 5. 디자인 시스템 계약
 
@@ -337,12 +468,12 @@ Domain Tokens          프로젝트별 확장
 
 Appearance는 토큰 계층이 아니라 Semantic token에 값을 공급하는 서로 독립적인 네 축이다.
 
-| 축      | 책임                         | 기본 지원 값                                   |
-| ------- | ---------------------------- | ---------------------------------------------- |
-| Theme   | 명도와 환경 선호             | `light`, `dark`                                |
-| Style   | 형태, 표면, 대비와 시각 문법 | `industrial`, `minimal`, `soft`                |
-| Brand   | 상호작용과 선택의 정체성 색  | `signal-violet`, `orange`, `emerald`, `custom` |
-| Density | 공간과 컨트롤 크기           | `compact`, `default`, `comfortable`            |
+| 축      | 책임                         | 기본 지원 값                                                |
+| ------- | ---------------------------- | ----------------------------------------------------------- |
+| Theme   | 명도와 환경 선호             | `light`, `dark`                                             |
+| Style   | 형태, 표면, 대비와 시각 문법 | `industrial`, `minimal`, `soft`                             |
+| Brand   | 상호작용과 선택의 정체성 색  | `signal-violet`, `orange`, `emerald`, 등록된 프로젝트 Brand |
+| Density | 공간과 컨트롤 크기           | `compact`, `default`, `comfortable`                         |
 
 DOM에는 해석된 값을 선언한다.
 
@@ -362,6 +493,8 @@ Density          : default
 ```
 
 이는 변경 가능한 Starter 초기값이며 특정 조합을 “Cornerstone 디자인”으로 고정하지 않는다. 지원 조합은 각 Theme에서 대비와 상태 구분을 검증해야 하며, 잘못된 저장값은 위 초기값으로 복구한다.
+
+프로젝트 Brand는 `custom`이라는 단일 DOM 값을 사용하지 않는다. `createBrand({ name: 'acme', ... })`처럼 안정적인 key와 semantic token override를 등록하고 DOM에는 `data-brand="acme"`로 해석한다.
 
 Brand는 success, warning, danger 같은 Status 의미를 대신하지 않는다. Density는 정보량만 조정하며 기능이나 정보 우선순위를 바꾸지 않는다. Component variant는 Appearance와 별개의 공개 API다.
 
@@ -385,7 +518,7 @@ Responsive는 사용 가능한 공간에 따른 배치 변화이고 Density는 �
 ```text
 Primitive
 ├─ viewport breakpoint: sm / md / lg / xl
-├─ container threshold: compact / regular / wide
+├─ container threshold: narrow / regular / wide
 ├─ spacing / size / measure
 └─ safe area
 
@@ -572,6 +705,7 @@ Domain
 
 - [`../README.md`](../README.md): 프로젝트 진입점과 표준 명령
 - [`cornerstone_implementation_plan.md`](./cornerstone_implementation_plan.md): 현재 상태와 구현 순서
+- [`adr/README.md`](./adr/README.md): 확정·제안·대체된 아키텍처 결정
 - [`atlas-industrial-violet.html`](./atlas-industrial-violet.html): Industrial + Signal Violet 레퍼런스
 - [`../apps/web/README.md`](../apps/web/README.md): Web 앱 실행과 경계
 - [`../apps/api/README.md`](../apps/api/README.md): API 앱 실행과 경계

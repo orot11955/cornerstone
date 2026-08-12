@@ -1,6 +1,6 @@
 # Cornerstone
 
-Cornerstone은 새 TypeScript 풀스택 프로젝트에서 반복되는 기반을 공통 패키지와 프로젝트 템플릿으로 제공하는 Starter Kit이다.
+Cornerstone은 새 TypeScript 풀스택 프로젝트에서 반복되는 기반을 공통 패키지와 하나의 canonical template으로 제공하는 Starter Kit이다. 모든 기능을 한꺼번에 설치하지 않고 초기 설정이나 capability manifest에서 선택한 기반만 생성한다.
 
 현재 저장소는 기반을 단계적으로 구축 중이다. Next.js Web, NestJS API와 shared package 골격은 존재하지만 Database, Auth, 공통 UI, Test와 CI 전체가 완성된 상태는 아니다. 진행 상태는 [구현 계획](./docs/cornerstone_implementation_plan.md)을 기준으로 확인한다.
 
@@ -14,6 +14,8 @@ docs/           설계 계약, 구현 계획과 시각 레퍼런스
 ```
 
 향후 `apps/docs`를 별도 origin에 배포해 문법/API reference, 실행 가능한 예제 코드, 예시 화면과 버전별 package/template 다운로드 안내를 제공한다. 현재 `docs/`는 저장소 내부 설계 문서이며 공개 문서 포털은 아직 구현 전이다.
+
+기본 생성 Profile은 Next.js, NestJS, PostgreSQL/TypeORM, password-session Auth와 Core UI를 포함하는 `standard`다. `minimal`, `production`, `regulated` Profile도 별도 Template 복사본이 아니라 같은 manifest preset으로 관리하며 Queue, Tenant, Storage 같은 extension은 선택하지 않으면 코드·의존성·환경 변수에 포함하지 않는다. 확정된 조합 원칙은 [ADR Index](./docs/adr/README.md)를 따른다.
 
 ## 시작하기
 
