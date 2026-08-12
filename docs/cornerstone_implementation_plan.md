@@ -1,7 +1,7 @@
 # Cornerstone 구현 계획
 
 > 설계 기준: [`cornerstone_assembly_diagram.md`](./cornerstone_assembly_diagram.md)
-> 기준일: 2026-08-12
+> 기준일: 2026-08-13
 
 이 문서는 Cornerstone Starter v1의 현재 상태, 진입 Gate, 실행 순서와 검증 가능한 완료 조건을 관리한다. 영속적인 제품·아키텍처 계약은 설계 기준 문서에서 단일하게 정의한다.
 
@@ -59,46 +59,45 @@
 
 아래는 파일과 최근 검증을 기준으로 한 상태다. 전체 구현 완료를 의미하지 않는다.
 
-| 영역               | 현재 상태                                                       | 먼저 해결할 항목                                   |
-| ------------------ | --------------------------------------------------------------- | -------------------------------------------------- |
-| Workspace/Lockfile | Root와 Web 중첩 workspace·lockfile 공존                         | Root 단일 workspace importer와 frozen install 복구 |
-| Runtime/TypeScript | pnpm만 manifest에 고정, Node enforcement 없음, TS 메이저가 다름 | 지원 행렬과 runtime 파일·CI 확정                   |
-| Turbo/Quality      | 일부 package script 없음, format 13개 실패, lint가 수정형       | task 참여 범위, read-only lint와 output 정리       |
-| Repository hygiene | ignore 대상 API `dist` 일부가 추적됨                            | build artifact Source of Truth 결정                |
-| Web                | Next.js 기본 scaffold                                           | 외부 font 재현성, data/auth/UI 적용                |
-| API                | Nest scaffold와 env validation 일부 구현                        | 기존 config 검증 후 API 기반 확장                  |
-| Shared packages    | `types/schemas` 일부, 나머지는 빈 export 중심                   | 계약·export·test와 외부 소비 검증                  |
-| Composition        | 생성 CLI, canonical template와 capability manifest 없음         | M1 뒤 DXF에서 최소 Certified Profile 구현          |
-| DB/Auth/UI         | 미착수                                                          | 아래 Gate와 Milestone 순서로 구현                  |
-| Test/CI/Infra      | API unit 2개, E2E `TS1259`, Root E2E 없음, 나머지는 placeholder | E2E compile 복구와 Milestone별 harness 구축        |
-| Distribution       | Root ISC/API UNLICENSED, package private, 배포·license 미정     | license/package/template/version/update 계약       |
-| Docs Portal        | 저장소 내부 문서와 단일 HTML reference만 존재                   | 별도 앱, 예제 source, version/download 모델 확정   |
+| 영역               | 현재 상태                                                                    | 먼저 해결할 항목                                                |
+| ------------------ | ---------------------------------------------------------------------------- | --------------------------------------------------------------- |
+| Workspace/Lockfile | Root 단일 workspace/lockfile, clean frozen install과 Node/pnpm/TS 고정       | Profile·DB 의존성 추가 때 동일 기준 유지                        |
+| Turbo/Quality      | read-only format/lint, 명시적 test scope와 CI quality/security Gate 적용     | Milestone별 integration/Playwright 참여 승격                    |
+| Repository hygiene | 추적 build/cache output 제거, Root artifact 경로와 package boundary 검사     | 이후 image/SBOM artifact 정책 연결                              |
+| Shared packages    | M1 export/build/test/license 및 9개 tarball 외부 소비 검증 완료              | API/UI 공개 계약 추가 때 generated/export drift 검사            |
+| Composition        | secret-free manifest/lock과 `minimal` Certified Profile 생성·검증            | dry-run/update journal과 standard/production/regulated fragment |
+| UI Foundation      | token/Appearance/responsive Core component와 Web reference 구현              | 실제 browser hydration/axe/visual/AT matrix                     |
+| Web Platform       | i18n/metadata/error/offline/CSP/telemetry/performance Gate 구현              | locale route 전략과 실제 browser/404/500/a11y E2E               |
+| API Foundation     | prefix/CORS/validation/error/request context/log/metric/health/outbound 구현 | OpenAPI snapshot, DB idempotency와 shutdown drain integration   |
+| DB/Auth            | 계약 전 단계이며 runtime 구현 미착수                                         | ADR-007/010과 IDC 뒤 PostgreSQL Migration부터 순차 구현         |
+| Distribution       | package/generator tarball·license consumer 검증 완료                         | registry namespace/OIDC, signing/provenance와 immutable publish |
+| Docs Portal        | 저장소 내부 ADR/계획과 HTML reference만 존재                                 | ADR-012, `apps/docs`, version/search/download 배포              |
 
-현재 문서와 API config 관련 사용자 변경은 별도 논리 단위로 보존한다. 중첩 lockfile과 추적 산출물도 정책 확정 전에 임의 삭제하지 않는다.
+현재 표의 “구현”은 해당 자동 검증이 존재한다는 뜻이며 release 완료를 뜻하지 않는다. UIF/WPF의 실제 browser·보조기술 검증, DXF의 상위 Profile, 외부 registry/hosting/protected branch와 Production provider는 아직 Gate가 열려 있다.
 
 ## 3. ADR과 진입 Gate
 
 ADR 상태와 확정 원문은 [ADR Index](./adr/README.md)를 기준으로 한다. `Proposed` 항목은 아래 최소 결정만으로 승인된 것으로 간주하지 않는다.
 
-| ADR                                                  | 상태     | 결정할 계약                                                              | 완료되어야 하는 시점      |
-| ---------------------------------------------------- | -------- | ------------------------------------------------------------------------ | ------------------------- |
-| [001 Runtime](./adr/0001-runtime.md)                 | Accepted | Node/pnpm/TypeScript 지원·고정·CI matrix                                 | M0                        |
-| 002 Package                                          | Proposed | source export/build artifact, CSS, peer dependency, external consumption | M1                        |
-| 003 API                                              | Proposed | Nest DTO/OpenAPI Source of Truth와 client 생성·drift 검증                | M2                        |
-| 004 Network                                          | Proposed | Direct API/BFF, Browser·SSR 흐름, CORS, proxy와 cache                    | M2                        |
-| 005 Auth                                             | Proposed | Cookie, CSRF, JWT/session, rotation/revoke/key transition                | M2, M3 전에 필수          |
-| [006 Test](./adr/0006-test-kernel.md)                | Accepted | runner, DB 격리, fixture, clock와 artifact                               | M0                        |
-| 007 Migration/Release                                | Proposed | expand/backfill/contract, deploy와 restore                               | M3                        |
-| 008 Operations                                       | Proposed | 지원 browser/OS/AT, TLS, hosting, secret, registry와 관측                | UIF 전/M9 전 분리         |
-| 009 Distribution/Trust                               | Proposed | package+template release, SemVer, provenance와 update                    | M1, M9 전에 필수          |
-| 010 Identity/Authz                                   | Proposed | User lifecycle, Role·ownership, default-deny와 revoke SLA                | IDC, M3 전에 필수         |
-| 011 Web Platform                                     | Proposed | i18n, SEO/metadata, error, performance, Frontend observability           | WPF 전에 필수             |
-| 012 Documentation                                    | Proposed | 정보 구조, versioning, example source, search와 artifact delivery        | DOC 전에 필수             |
-| 013 Data Governance                                  | Proposed | privacy, retention, encryption과 residency                               | Regulated Profile 전 필수 |
-| 014 Extensions                                       | Proposed | Redis/Queue/Realtime/OAuth/MFA/Mail/Storage port와 adapter               | EXT 전에 필수             |
-| [015 Composition](./adr/0015-project-composition.md) | Accepted | Canonical Template, capability manifest와 Certified Profile              | DXF 전 필수               |
-| [016 Identity Scope](./adr/0016-identity-scope.md)   | Accepted | Global identity 기반 single-tenant Core와 Tenant capability              | IDC/M3 전에 필수          |
-| [017 Release Gates](./adr/0017-release-gates.md)     | Accepted | Foundation, Standard, Production, Regulated와 Extension Gate             | 모든 release              |
+| ADR                                                                | 상태     | 결정할 계약                                                              | 완료되어야 하는 시점      |
+| ------------------------------------------------------------------ | -------- | ------------------------------------------------------------------------ | ------------------------- |
+| [001 Runtime](./adr/0001-runtime.md)                               | Accepted | Node/pnpm/TypeScript 지원·고정·CI matrix                                 | M0                        |
+| [002 Package](./adr/0002-package-boundaries.md)                    | Accepted | source export/build artifact, CSS, peer dependency, external consumption | M1                        |
+| [003 API](./adr/0003-api-contract.md)                              | Accepted | Nest DTO/OpenAPI Source of Truth와 client 생성·drift 검증                | M2                        |
+| [004 Network](./adr/0004-network-boundary.md)                      | Accepted | Direct API/BFF, Browser·SSR 흐름, CORS, proxy와 cache                    | M2                        |
+| [005 Auth](./adr/0005-auth-session.md)                             | Accepted | Cookie, CSRF, JWT/session, rotation/revoke/key transition                | M2, M3 전에 필수          |
+| [006 Test](./adr/0006-test-kernel.md)                              | Accepted | runner, DB 격리, fixture, clock와 artifact                               | M0                        |
+| 007 Migration/Release                                              | Proposed | expand/backfill/contract, deploy와 restore                               | M3                        |
+| [008 Supported Environments](./adr/0008-supported-environments.md) | Accepted | 지원 browser/OS/AT와 responsive 검증 matrix                              | UIF 전                    |
+| [009 Distribution/Trust](./adr/0009-distribution-trust.md)         | Accepted | package+template release, SemVer, provenance와 update                    | M1, M9 전에 필수          |
+| 010 Identity/Authz                                                 | Proposed | User lifecycle, Role·ownership, default-deny와 revoke SLA                | IDC, M3 전에 필수         |
+| [011 Web Platform](./adr/0011-web-platform.md)                     | Accepted | i18n, SEO/metadata, error, performance, Frontend observability           | WPF 전에 필수             |
+| 012 Documentation                                                  | Proposed | 정보 구조, versioning, example source, search와 artifact delivery        | DOC 전에 필수             |
+| 013 Data Governance                                                | Proposed | privacy, retention, encryption과 residency                               | Regulated Profile 전 필수 |
+| 014 Extensions                                                     | Proposed | Redis/Queue/Realtime/OAuth/MFA/Mail/Storage port와 adapter               | EXT 전에 필수             |
+| [015 Composition](./adr/0015-project-composition.md)               | Accepted | Canonical Template, capability manifest와 Certified Profile              | DXF 전 필수               |
+| [016 Identity Scope](./adr/0016-identity-scope.md)                 | Accepted | Global identity 기반 single-tenant Core와 Tenant capability              | IDC/M3 전에 필수          |
+| [017 Release Gates](./adr/0017-release-gates.md)                   | Accepted | Foundation, Standard, Production, Regulated와 Extension Gate             | 모든 release              |
 
 ### ADR-003 최소 결정
 
@@ -364,6 +363,21 @@ M1 이후 Backend M2~M5와 병렬 진행할 수 있다. M6의 인증 화면보�
 ### M2. Network/API/Observability Foundation
 
 진입 Gate: ADR-003/004/005 승인.
+
+현재 완료:
+
+- `/api/v1`, exact Origin/CORS, JSON content type·1 MiB payload·query/body complexity와 strict DTO validation
+- Helmet의 API security header, Cookie parser, explicit trust proxy, request/trace context와 표준 오류 envelope
+- allowlist 구조화 log, bounded route/status metric, liveness/readiness와 shutdown readiness 전환
+- fixed-origin outbound client의 redirect/timeout/cancel/response-size/circuit 경계
+- idempotency key/canonical payload digest와 strong ETag의 결정적 primitive
+
+남은 완료 조건:
+
+- M4 DTO와 함께 versioned OpenAPI snapshot/client 생성 경로 연결
+- M3 PostgreSQL transaction에서 idempotency reserve/replay/conflict와 outbox atomicity 구현
+- SIGTERM 실제 process E2E에서 readiness 하강, in-flight drain와 timeout 검증
+- outbound provider adapter의 승인 base URL fixture와 metric/trace 연결
 
 목표:
 
@@ -801,12 +815,12 @@ EXT는 ADR-014와 필요한 Core 계약 뒤 독립 release
 
 ## 8. 다음 실행 범위
 
-1. Root와 Web 중첩 workspace/lockfile의 소유 의도를 확인하고 Root 단일 기준을 복구한다.
-2. Accepted ADR-0015~0017을 기준으로 ADR-001/002/006/008/009/011/012의 runtime, package, test, 지원 환경, distribution, Web Platform과 Docs 계약을 확정한다.
-3. 추적 API `dist`, read-only lint, E2E TypeScript project와 Turbo task/output을 정리한다.
-4. 기존 API environment 변경을 관련 unit test로 별도 마감한다.
-5. M1 package export/external-consumer harness 뒤 DXF 사용자 manifest/lock schema, structured composer, canonical template와 최소 Profile 생성을 구현한다.
-6. ADR-003/004/005/010 승인 후 M2·IDC와 UIF/WPF를 병렬 시작한다.
-7. Production/Regulated 준비 시 ADR-008/013, Optional capability 착수 전 ADR-014를 각각 승인한다.
+1. ADR-010 Identity/Authorization과 ADR-007 Migration/Release 계약을 확정하고 IDC를 완료한다.
+2. M3 PostgreSQL/TypeORM, Migration/Seed/Outbox와 test DB isolation을 구현해 M2의 DB idempotency·readiness를 닫는다.
+3. M4 OpenAPI snapshot/client codegen과 User 계약, M5 Auth/권한 backend를 순서대로 구현한다.
+4. DXF structured composer와 `standard` Profile을 실제 M3~M5 capability로 확장한다.
+5. UIF/WPF를 Playwright hydration/axe/viewport/RTL/404/500/security-header E2E 참여자로 승격한다.
+6. M6 SSR/Data/Auth와 M7 Core Product UI/reference app 뒤 M8S Standard Gate를 실행한다.
+7. ADR-012와 `apps/docs` Preview를 구현하고, Production 착수 전 Operations/Data Governance/Extension 계약과 외부 provider를 확정한다.
 
 Production provider가 미정이어도 M0~M8의 provider-independent 작업과 local artifact rehearsal은 진행할 수 있다. M9는 TLS, registry, secret, trust와 지원 환경을 ADR-008/009로 확정한 뒤 시작한다.
