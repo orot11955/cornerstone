@@ -5,4 +5,5 @@ verifyDepsBeforeRun: error
 enableGlobalVirtualStore: false
 allowBuilds:
   '@scarf/scarf': false
+  argon2: true
   unrs-resolver: true

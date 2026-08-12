@@ -107,6 +107,235 @@ const databaseEnvironmentShape = {
     .default(5_000),
 };
 
+const base64UrlSecret = z
+  .string()
+  .regex(/^[A-Za-z0-9_-]+$/, 'Secret must be unpadded base64url')
+  .superRefine((value, context) => {
+    const decoded = Buffer.from(value, 'base64url');
+    if (decoded.length < 32) {
+      context.addIssue({
+        code: 'custom',
+        message: 'Secret must decode to at least 32 bytes',
+      });
+    }
+    if (decoded.toString('base64url') !== value) {
+      context.addIssue({
+        code: 'custom',
+        message: 'Secret must use canonical unpadded base64url encoding',
+      });
+    }
+  });
+
+const keyId = z.string().regex(/^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$/);
+
+const authEnvironmentShape = {
+  JWT_ACCESS_KID: keyId,
+  JWT_ACCESS_KEY: base64UrlSecret,
+  JWT_ACCESS_PREVIOUS_KID: keyId.optional(),
+  JWT_ACCESS_PREVIOUS_KEY: base64UrlSecret.optional(),
+  REFRESH_TOKEN_KEY_VERSION: keyId,
+  REFRESH_TOKEN_PEPPER: base64UrlSecret,
+  REFRESH_TOKEN_PREVIOUS_KEY_VERSION: keyId.optional(),
+  REFRESH_TOKEN_PREVIOUS_PEPPER: base64UrlSecret.optional(),
+  ACTION_TOKEN_KEY_VERSION: keyId,
+  ACTION_TOKEN_PEPPER: base64UrlSecret,
+  ACTION_TOKEN_PREVIOUS_KEY_VERSION: keyId.optional(),
+  ACTION_TOKEN_PREVIOUS_PEPPER: base64UrlSecret.optional(),
+  CSRF_KEY_VERSION: keyId,
+  CSRF_SECRET: base64UrlSecret,
+  CSRF_PREVIOUS_KEY_VERSION: keyId.optional(),
+  CSRF_PREVIOUS_SECRET: base64UrlSecret.optional(),
+  RATE_LIMIT_SECRET: base64UrlSecret,
+  AUTH_SECRET_PROVENANCE: z
+    .enum([
+      'local',
+      'aws-secrets-manager',
+      'gcp-secret-manager',
+      'azure-key-vault',
+      'vault',
+      'kubernetes-secret',
+      'container-secret',
+    ])
+    .default('local'),
+  AUTH_SECRET_PROVENANCE_REF: z
+    .string()
+    .min(3)
+    .max(255)
+    .regex(/^\S+$/)
+    .optional(),
+  ARGON2_MEMORY_KIB: z.coerce
+    .number()
+    .int()
+    .min(19_456)
+    .max(262_144)
+    .default(65_536),
+  ARGON2_TIME_COST: z.coerce.number().int().min(2).max(5).default(3),
+  ARGON2_PARALLELISM: z.coerce.number().int().min(1).max(4).default(1),
+  ARGON2_MAX_CONCURRENT: z.coerce.number().int().min(1).max(8).default(2),
+  ARGON2_MAX_QUEUE: z.coerce.number().int().min(0).max(1_000).default(100),
+};
+
+const knownDevelopmentSecrets = new Set(
+  [
+    'cornerstone-local-access-key-v1-32-bytes',
+    'cornerstone-local-refresh-key-v1-32-bytes',
+    'cornerstone-local-action-key-v1-32-bytes',
+    'cornerstone-local-csrf-key-v1-32-bytes',
+    'cornerstone-local-rate-key-v1-32-bytes',
+  ].map((value) => Buffer.from(value).toString('hex')),
+);
+
+function validateOptionalKeyPair(
+  environment: Record<string, unknown>,
+  idName: string,
+  secretName: string,
+  context: z.RefinementCtx,
+): void {
+  if (Boolean(environment[idName]) !== Boolean(environment[secretName])) {
+    context.addIssue({
+      code: 'custom',
+      path: [environment[idName] ? secretName : idName],
+      message: `${idName} and ${secretName} must be configured together`,
+    });
+  }
+}
+
+function validateAuthPolicy(
+  environment: Record<string, unknown> & {
+    NODE_ENV?: 'development' | 'test' | 'production';
+  },
+  context: z.RefinementCtx,
+): void {
+  const pairs = [
+    ['JWT_ACCESS_PREVIOUS_KID', 'JWT_ACCESS_PREVIOUS_KEY'],
+    ['REFRESH_TOKEN_PREVIOUS_KEY_VERSION', 'REFRESH_TOKEN_PREVIOUS_PEPPER'],
+    ['ACTION_TOKEN_PREVIOUS_KEY_VERSION', 'ACTION_TOKEN_PREVIOUS_PEPPER'],
+    ['CSRF_PREVIOUS_KEY_VERSION', 'CSRF_PREVIOUS_SECRET'],
+  ] as const;
+  for (const [idName, secretName] of pairs) {
+    validateOptionalKeyPair(environment, idName, secretName, context);
+  }
+
+  const versionPairs = [
+    ['JWT_ACCESS_KID', 'JWT_ACCESS_PREVIOUS_KID'],
+    ['REFRESH_TOKEN_KEY_VERSION', 'REFRESH_TOKEN_PREVIOUS_KEY_VERSION'],
+    ['ACTION_TOKEN_KEY_VERSION', 'ACTION_TOKEN_PREVIOUS_KEY_VERSION'],
+    ['CSRF_KEY_VERSION', 'CSRF_PREVIOUS_KEY_VERSION'],
+  ] as const;
+  for (const [currentName, previousName] of versionPairs) {
+    if (
+      environment[previousName] &&
+      environment[currentName] === environment[previousName]
+    ) {
+      context.addIssue({
+        code: 'custom',
+        path: [previousName],
+        message: 'Current and previous key versions must be different',
+      });
+    }
+  }
+
+  const secretNames = [
+    'JWT_ACCESS_KEY',
+    'JWT_ACCESS_PREVIOUS_KEY',
+    'REFRESH_TOKEN_PEPPER',
+    'REFRESH_TOKEN_PREVIOUS_PEPPER',
+    'ACTION_TOKEN_PEPPER',
+    'ACTION_TOKEN_PREVIOUS_PEPPER',
+    'CSRF_SECRET',
+    'CSRF_PREVIOUS_SECRET',
+    'RATE_LIMIT_SECRET',
+  ] as const;
+  const seenSecrets = new Map<string, string>();
+  for (const secretName of secretNames) {
+    const value = environment[secretName];
+    if (typeof value !== 'string') continue;
+    const fingerprint = Buffer.from(value, 'base64url').toString('hex');
+    const duplicate = seenSecrets.get(fingerprint);
+    if (duplicate) {
+      context.addIssue({
+        code: 'custom',
+        path: [secretName],
+        message: `${secretName} must be different from ${duplicate}`,
+      });
+    } else {
+      seenSecrets.set(fingerprint, secretName);
+    }
+
+    const decoded = Buffer.from(value, 'base64url');
+    if (
+      environment.NODE_ENV === 'production' &&
+      (knownDevelopmentSecrets.has(fingerprint) ||
+        /change|example|placeholder|default|local|development|test/i.test(
+          decoded.toString('utf8'),
+        ) ||
+        [...decoded].every((byte) => byte >= 0x20 && byte <= 0x7e) ||
+        estimatedEntropy(decoded) < 3.5)
+    ) {
+      context.addIssue({
+        code: 'custom',
+        path: [secretName],
+        message: 'Production auth secrets must not be placeholders',
+      });
+    }
+  }
+
+  if (environment.NODE_ENV === 'production') {
+    if (environment.AUTH_SECRET_PROVENANCE === 'local') {
+      context.addIssue({
+        code: 'custom',
+        path: ['AUTH_SECRET_PROVENANCE'],
+        message: 'Production auth secrets require an approved provenance',
+      });
+    }
+    const provenanceReference = environment.AUTH_SECRET_PROVENANCE_REF;
+    if (typeof provenanceReference !== 'string') {
+      context.addIssue({
+        code: 'custom',
+        path: ['AUTH_SECRET_PROVENANCE_REF'],
+        message: 'Production auth secrets require provenance metadata',
+      });
+    } else if (
+      !isMatchingProvenanceReference(
+        environment.AUTH_SECRET_PROVENANCE,
+        provenanceReference,
+      )
+    ) {
+      context.addIssue({
+        code: 'custom',
+        path: ['AUTH_SECRET_PROVENANCE_REF'],
+        message: 'Auth secret provenance reference does not match its provider',
+      });
+    }
+  }
+}
+
+function estimatedEntropy(value: Buffer): number {
+  const counts = new Map<number, number>();
+  for (const byte of value) counts.set(byte, (counts.get(byte) ?? 0) + 1);
+  return [...counts.values()].reduce((entropy, count) => {
+    const probability = count / value.length;
+    return entropy - probability * Math.log2(probability);
+  }, 0);
+}
+
+function isMatchingProvenanceReference(
+  provider: unknown,
+  reference: string,
+): boolean {
+  const prefixes: Readonly<Record<string, readonly string[]>> = {
+    'aws-secrets-manager': ['arn:aws:secretsmanager:'],
+    'gcp-secret-manager': ['projects/'],
+    'azure-key-vault': ['https://'],
+    vault: ['vault://'],
+    'kubernetes-secret': ['k8s://'],
+    'container-secret': ['file:///run/secrets/'],
+  };
+  return (prefixes[String(provider)] ?? []).some((prefix) =>
+    reference.startsWith(prefix),
+  );
+}
+
 function validateDatabasePolicy(
   environment: {
     NODE_ENV?: 'development' | 'test' | 'production' | undefined;
@@ -211,11 +440,11 @@ export const envSchema = z
     TRUST_PROXY_HOPS: z.coerce.number().int().min(0).max(3).default(0),
     WEB_URL: httpOrigin,
     ...databaseEnvironmentShape,
-    JWT_ACCESS_SECRET: z.string().min(32),
-    JWT_REFRESH_SECRET: z.string().min(32),
+    ...authEnvironmentShape,
   })
   .superRefine((environment, context) => {
     validateDatabasePolicy(environment, context);
+    validateAuthPolicy(environment, context);
 
     if (
       environment.NODE_ENV === 'production' &&

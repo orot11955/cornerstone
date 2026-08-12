@@ -24,8 +24,81 @@ export const configuration = () => {
       migrationLockWaitMs: environment.MIGRATION_LOCK_WAIT_MS,
     },
     auth: {
-      jwtAccessSecret: environment.JWT_ACCESS_SECRET,
-      jwtRefreshSecret: environment.JWT_REFRESH_SECRET,
+      accessToken: {
+        issuer: 'cornerstone-api',
+        audience: 'cornerstone-web',
+        ttlSeconds: 600,
+        clockToleranceSeconds: 30,
+        current: {
+          id: environment.JWT_ACCESS_KID,
+          secret: environment.JWT_ACCESS_KEY,
+        },
+        previous:
+          environment.JWT_ACCESS_PREVIOUS_KID &&
+          environment.JWT_ACCESS_PREVIOUS_KEY
+            ? {
+                id: environment.JWT_ACCESS_PREVIOUS_KID,
+                secret: environment.JWT_ACCESS_PREVIOUS_KEY,
+              }
+            : undefined,
+      },
+      refreshToken: {
+        current: {
+          id: environment.REFRESH_TOKEN_KEY_VERSION,
+          secret: environment.REFRESH_TOKEN_PEPPER,
+        },
+        previous:
+          environment.REFRESH_TOKEN_PREVIOUS_KEY_VERSION &&
+          environment.REFRESH_TOKEN_PREVIOUS_PEPPER
+            ? {
+                id: environment.REFRESH_TOKEN_PREVIOUS_KEY_VERSION,
+                secret: environment.REFRESH_TOKEN_PREVIOUS_PEPPER,
+              }
+            : undefined,
+        idleTtlSeconds: 7 * 24 * 60 * 60,
+        absoluteTtlSeconds: 30 * 24 * 60 * 60,
+      },
+      actionToken: {
+        current: {
+          id: environment.ACTION_TOKEN_KEY_VERSION,
+          secret: environment.ACTION_TOKEN_PEPPER,
+        },
+        previous:
+          environment.ACTION_TOKEN_PREVIOUS_KEY_VERSION &&
+          environment.ACTION_TOKEN_PREVIOUS_PEPPER
+            ? {
+                id: environment.ACTION_TOKEN_PREVIOUS_KEY_VERSION,
+                secret: environment.ACTION_TOKEN_PREVIOUS_PEPPER,
+              }
+            : undefined,
+      },
+      csrf: {
+        current: {
+          id: environment.CSRF_KEY_VERSION,
+          secret: environment.CSRF_SECRET,
+        },
+        previous:
+          environment.CSRF_PREVIOUS_KEY_VERSION &&
+          environment.CSRF_PREVIOUS_SECRET
+            ? {
+                id: environment.CSRF_PREVIOUS_KEY_VERSION,
+                secret: environment.CSRF_PREVIOUS_SECRET,
+              }
+            : undefined,
+      },
+      rateLimitSecret: environment.RATE_LIMIT_SECRET,
+      secretProvenance: {
+        provider: environment.AUTH_SECRET_PROVENANCE,
+        reference: environment.AUTH_SECRET_PROVENANCE_REF,
+      },
+      password: {
+        memoryCostKib: environment.ARGON2_MEMORY_KIB,
+        timeCost: environment.ARGON2_TIME_COST,
+        parallelism: environment.ARGON2_PARALLELISM,
+        hashLength: 32,
+        maxConcurrent: environment.ARGON2_MAX_CONCURRENT,
+        maxQueue: environment.ARGON2_MAX_QUEUE,
+      },
     },
   };
 };

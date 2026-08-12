@@ -1,3 +1,4 @@
+import { randomBytes } from 'node:crypto';
 import {
   validateDatabaseEnvironment,
   validateEnvironment,
@@ -6,8 +7,15 @@ import {
 const requiredEnvironment = {
   WEB_URL: 'http://localhost:3000',
   DATABASE_URL: 'postgresql://app:app@localhost:5432/app',
-  JWT_ACCESS_SECRET: 'a'.repeat(32),
-  JWT_REFRESH_SECRET: 'b'.repeat(32),
+  JWT_ACCESS_KID: 'test-access-v1',
+  JWT_ACCESS_KEY: secret('test-access'),
+  REFRESH_TOKEN_KEY_VERSION: 'test-refresh-v1',
+  REFRESH_TOKEN_PEPPER: secret('test-refresh'),
+  ACTION_TOKEN_KEY_VERSION: 'test-action-v1',
+  ACTION_TOKEN_PEPPER: secret('test-action'),
+  CSRF_KEY_VERSION: 'test-csrf-v1',
+  CSRF_SECRET: secret('test-csrf'),
+  RATE_LIMIT_SECRET: secret('test-rate-limit'),
 };
 
 describe('validateEnvironment', () => {
@@ -22,7 +30,7 @@ describe('validateEnvironment', () => {
     expect(() =>
       validateEnvironment({
         ...requiredEnvironment,
-        JWT_ACCESS_SECRET: undefined,
+        JWT_ACCESS_KEY: undefined,
       }),
     ).toThrow();
   });
@@ -50,6 +58,83 @@ describe('validateEnvironment', () => {
     expect(() =>
       validateEnvironment({ ...requiredEnvironment, NODE_ENV: 'production' }),
     ).toThrow();
+  });
+
+  it('rejects short, equal, incomplete, or placeholder auth keys', () => {
+    expect(() =>
+      validateEnvironment({
+        ...requiredEnvironment,
+        JWT_ACCESS_KEY: Buffer.from('too-short').toString('base64url'),
+      }),
+    ).toThrow();
+    expect(() =>
+      validateEnvironment({
+        ...requiredEnvironment,
+        CSRF_SECRET: requiredEnvironment.JWT_ACCESS_KEY,
+      }),
+    ).toThrow();
+    expect(() =>
+      validateEnvironment({
+        ...requiredEnvironment,
+        JWT_ACCESS_PREVIOUS_KID: 'old-access',
+      }),
+    ).toThrow();
+    expect(() =>
+      validateEnvironment({
+        ...requiredEnvironment,
+        REFRESH_TOKEN_KEY_VERSION: 'refresh.v2',
+      }),
+    ).toThrow();
+    expect(() =>
+      validateEnvironment({
+        ...requiredEnvironment,
+        NODE_ENV: 'production',
+        WEB_URL: 'https://example.com',
+        DATABASE_SSL_MODE: 'verify-full',
+        JWT_ACCESS_KEY: Buffer.from(
+          'access-current-key-material-at-least-32-bytes',
+        ).toString('base64url'),
+        REFRESH_TOKEN_PEPPER: productionSecret(),
+        ACTION_TOKEN_PEPPER: productionSecret(),
+        CSRF_SECRET: productionSecret(),
+        RATE_LIMIT_SECRET: productionSecret(),
+        AUTH_SECRET_PROVENANCE: 'vault',
+        AUTH_SECRET_PROVENANCE_REF: 'vault://secret/auth/cornerstone/v1',
+      }),
+    ).toThrow();
+    expect(() =>
+      validateEnvironment({
+        ...requiredEnvironment,
+        NODE_ENV: 'production',
+        WEB_URL: 'https://example.com',
+        DATABASE_SSL_MODE: 'verify-full',
+        AUTH_SECRET_PROVENANCE: 'vault',
+        AUTH_SECRET_PROVENANCE_REF: 'vault://secret/auth/cornerstone/v1',
+      }),
+    ).toThrow();
+  });
+
+  it('accepts approved production key provenance and distinct principals', () => {
+    expect(
+      validateEnvironment({
+        ...requiredEnvironment,
+        NODE_ENV: 'production',
+        WEB_URL: 'https://example.com',
+        DATABASE_URL: 'postgresql://runtime:runtime@db.example.com/cornerstone',
+        DATABASE_MIGRATION_URL:
+          'postgresql://migration:migration@db.example.com/cornerstone',
+        DATABASE_MAINTENANCE_URL:
+          'postgresql://maintenance:maintenance@db.example.com/cornerstone',
+        DATABASE_SSL_MODE: 'verify-full',
+        JWT_ACCESS_KEY: productionSecret(),
+        REFRESH_TOKEN_PEPPER: productionSecret(),
+        ACTION_TOKEN_PEPPER: productionSecret(),
+        CSRF_SECRET: productionSecret(),
+        RATE_LIMIT_SECRET: productionSecret(),
+        AUTH_SECRET_PROVENANCE: 'vault',
+        AUTH_SECRET_PROVENANCE_REF: 'vault://secret/auth/cornerstone/v1',
+      }),
+    ).toMatchObject({ NODE_ENV: 'production' });
   });
 
   it('requires verified database TLS and distinct production principals', () => {
@@ -123,3 +208,13 @@ describe('validateEnvironment', () => {
     ).toThrow();
   });
 });
+
+function secret(label: string): string {
+  return Buffer.from(`${label}-key-material-at-least-32-bytes`).toString(
+    'base64url',
+  );
+}
+
+function productionSecret(): string {
+  return randomBytes(32).toString('base64url');
+}
