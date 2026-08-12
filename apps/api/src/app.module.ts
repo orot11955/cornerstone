@@ -5,11 +5,11 @@ import { AppController } from './app.controller.js';
 import { AppService } from './app.service.js';
 import { configuration } from './config/configuration.js';
 import { validateEnvironment } from './config/env.schema.js';
+import { DatabaseModule } from './database/database.module.js';
 import { ApiExceptionFilter } from './http/api-exception.filter.js';
 import { HealthModule } from './health/health.module.js';
-import { MetricsService } from './observability/metrics.service.js';
+import { ObservabilityModule } from './observability/observability.module.js';
 import { RequestLoggingInterceptor } from './observability/request-logging.interceptor.js';
-import { StructuredLogger } from './observability/structured-logger.service.js';
 
 @Module({
   imports: [
@@ -19,13 +19,13 @@ import { StructuredLogger } from './observability/structured-logger.service.js';
       load: [configuration],
       validate: validateEnvironment,
     }),
+    ObservabilityModule,
+    DatabaseModule,
     HealthModule,
   ],
   controllers: [AppController],
   providers: [
     AppService,
-    MetricsService,
-    { provide: StructuredLogger, useFactory: () => new StructuredLogger() },
     { provide: APP_FILTER, useClass: ApiExceptionFilter },
     { provide: APP_INTERCEPTOR, useClass: RequestLoggingInterceptor },
   ],

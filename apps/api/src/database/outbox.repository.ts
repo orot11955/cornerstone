@@ -1,5 +1,7 @@
 import { randomUUID } from 'node:crypto';
+import { Injectable, Optional } from '@nestjs/common';
 import type { DataSource, EntityManager } from 'typeorm';
+import { DatabaseTelemetry } from './database-telemetry.js';
 import { readQueryRows } from './query-result.js';
 import { assertSafeDatabasePayload } from './safe-json.js';
 
@@ -22,8 +24,20 @@ export interface LeasedOutboxEvent {
   readonly maxAttempts: number;
 }
 
+@Injectable()
 export class OutboxRepository {
+  constructor(@Optional() private readonly telemetry?: DatabaseTelemetry) {}
+
   async enqueue(
+    manager: EntityManager,
+    event: OutboxEventInput,
+  ): Promise<string> {
+    return this.observe('outbox.enqueue', () =>
+      this.enqueueInternal(manager, event),
+    );
+  }
+
+  private async enqueueInternal(
     manager: EntityManager,
     event: OutboxEventInput,
   ): Promise<string> {
@@ -51,6 +65,19 @@ export class OutboxRepository {
   }
 
   async leaseBatch(
+    source: DataSource,
+    input: {
+      readonly workerId: string;
+      readonly limit: number;
+      readonly leaseMs: number;
+    },
+  ): Promise<readonly LeasedOutboxEvent[]> {
+    return this.observe('outbox.lease', () =>
+      this.leaseBatchInternal(source, input),
+    );
+  }
+
+  private async leaseBatchInternal(
     source: DataSource,
     input: {
       readonly workerId: string;
@@ -109,18 +136,34 @@ export class OutboxRepository {
     eventId: string,
     workerId: string,
   ): Promise<void> {
-    await requireOwnedUpdate(
-      manager,
-      `UPDATE outbox_events
+    return this.observe('outbox.complete', () =>
+      requireOwnedUpdate(
+        manager,
+        `UPDATE outbox_events
        SET processed_at = CURRENT_TIMESTAMP, locked_at = NULL, locked_by = NULL,
          last_error_code = NULL, updated_at = CURRENT_TIMESTAMP
        WHERE id = $1 AND locked_by = $2 AND processed_at IS NULL
        RETURNING id`,
-      [eventId, workerId],
+        [eventId, workerId],
+      ),
     );
   }
 
   async markFailed(
+    manager: EntityManager,
+    input: {
+      readonly eventId: string;
+      readonly workerId: string;
+      readonly errorCode: string;
+      readonly retryAt: Date;
+    },
+  ): Promise<'retry' | 'poison'> {
+    return this.observe('outbox.fail', () =>
+      this.markFailedInternal(manager, input),
+    );
+  }
+
+  private async markFailedInternal(
     manager: EntityManager,
     input: {
       readonly eventId: string;
@@ -146,6 +189,10 @@ export class OutboxRepository {
     const row = result[0];
     if (!row) throw new Error('Outbox worker lost lease ownership');
     return row.poison ? 'poison' : 'retry';
+  }
+
+  private observe<T>(operation: string, task: () => Promise<T>): Promise<T> {
+    return this.telemetry ? this.telemetry.observe(operation, task) : task();
   }
 }
 

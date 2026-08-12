@@ -2,7 +2,7 @@
 
 Cornerstone의 NestJS Backend 앱이다. API 계약, 입력 검증, 인증·권한, 데이터 접근과 서버 관측 경계를 담당한다.
 
-현재는 기본 scaffold와 환경 변수 검증을 구성하는 단계다. Database, Auth와 운영 기반은 [구현 계획](../../docs/cornerstone_implementation_plan.md)에 따라 추가한다.
+현재는 API/관측 경계와 PostgreSQL Migration·runtime 연결을 제공한다. Auth와 나머지 운영 기반은 [구현 계획](../../docs/cornerstone_implementation_plan.md)에 따라 추가한다.
 
 ## 환경 변수
 
@@ -19,14 +19,16 @@ Root에서 실행한다.
 ```bash
 pnpm --filter api dev
 pnpm --filter api build
+pnpm --filter api lint
 pnpm --filter api typecheck
 pnpm --filter api test
-pnpm --filter api test:e2e
+pnpm test:integration
+pnpm test:e2e
 ```
 
 - 기본 URL: `http://localhost:4000`
 - Production 실행: `pnpm --filter api start:prod` (`build` 선행)
-- 현재 `lint` script는 파일을 수정하는 `--fix` 방식이다. CI용 비수정 lint가 분리되기 전에는 실행 시 작업 트리 변경에 주의한다.
+- DB 시작·Migration·Seed와 권한 검증은 [`infra/compose/README.md`](../../infra/compose/README.md)를 따른다.
 
 ## 경계
 

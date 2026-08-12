@@ -12,6 +12,8 @@ const ALLOWED_FIELDS = new Set([
   'durationMs',
   'errorType',
   'message',
+  'operation',
+  'outcome',
   'requestId',
   'routeId',
   'status',

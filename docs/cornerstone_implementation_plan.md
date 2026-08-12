@@ -372,6 +372,8 @@ M1 이후 Backend M2~M5와 병렬 진행할 수 있다. M6의 인증 화면보�
 - fixed-origin outbound client의 redirect/timeout/cancel/response-size/circuit 경계
 - idempotency key/canonical payload digest와 strong ETag의 결정적 primitive
 - PostgreSQL transaction 안의 idempotency reserve/in-progress/replay/conflict/TTL takeover와 민감 response payload 차단
+- Nest runtime TypeORM 연결, DB ping·pending Migration 기반 readiness와 E2E의 자동 test DB lifecycle
+- idempotency/outbox operation의 bounded success/failure latency metric과 request/trace 연계 구조화 log
 
 남은 완료 조건:
 
@@ -445,12 +447,13 @@ M1 이후 Backend M2~M5와 병렬 진행할 수 있다. M6의 인증 화면보�
 - 비밀·공용 password·admin을 만들지 않는 pending reference User/Audit 멱등 Seed, test DB name 격리와 production fail-closed 정책
 - caller transaction과 원자적인 outbox enqueue, `SKIP LOCKED` bounded lease, retry·worker crash reclaim·poison 격리와 processed 재전달 차단
 - idempotency/outbox 저장 payload의 32 KiB·깊이·노드·plain JSON·민감/prototype field 제한과 실제 PostgreSQL concurrency/rollback test
+- Nest global Database/Observability module, runtime 최소 권한 connection과 Migration 이력 read-only compatibility check
 
 남은 완료 조건:
 
 - 직전 release fixture upgrade와 expand schema의 N/N-1 application read/write 호환 Gate
 - 운영 admin protected one-time bootstrap job과 break-glass audit
-- outbox delivery worker lifecycle, provider idempotency adapter와 DB latency/error metric·trace 연결
+- outbox delivery worker lifecycle과 provider idempotency adapter
 
 목표:
 

@@ -1,5 +1,7 @@
 import { randomUUID } from 'node:crypto';
+import { Injectable, Optional } from '@nestjs/common';
 import type { EntityManager } from 'typeorm';
+import { DatabaseTelemetry } from './database-telemetry.js';
 import { readQueryRows } from './query-result.js';
 import { assertSafeDatabasePayload } from './safe-json.js';
 
@@ -32,8 +34,20 @@ interface IdempotencyRow {
   readonly expiresAt: Date;
 }
 
+@Injectable()
 export class IdempotencyRepository {
+  constructor(@Optional() private readonly telemetry?: DatabaseTelemetry) {}
+
   async reserve(
+    manager: EntityManager,
+    reservation: IdempotencyReservation,
+  ): Promise<IdempotencyReserveResult> {
+    return this.observe('idempotency.reserve', () =>
+      this.reserveInternal(manager, reservation),
+    );
+  }
+
+  private async reserveInternal(
     manager: EntityManager,
     reservation: IdempotencyReservation,
   ): Promise<IdempotencyReserveResult> {
@@ -119,6 +133,20 @@ export class IdempotencyRepository {
       readonly resourceVersion?: number;
     },
   ): Promise<void> {
+    return this.observe('idempotency.complete', () =>
+      this.completeInternal(manager, input),
+    );
+  }
+
+  private async completeInternal(
+    manager: EntityManager,
+    input: {
+      readonly recordId: string;
+      readonly status: number;
+      readonly body: Readonly<Record<string, unknown>> | null;
+      readonly resourceVersion?: number;
+    },
+  ): Promise<void> {
     if (
       !Number.isInteger(input.status) ||
       input.status < 100 ||
@@ -144,6 +172,10 @@ export class IdempotencyRepository {
       ],
     );
     if (!result[0]) throw new Error('Idempotency completion lost ownership');
+  }
+
+  private observe<T>(operation: string, task: () => Promise<T>): Promise<T> {
+    return this.telemetry ? this.telemetry.observe(operation, task) : task();
   }
 }
 

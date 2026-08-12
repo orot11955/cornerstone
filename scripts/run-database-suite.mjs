@@ -2,6 +2,11 @@ import { spawnSync } from 'node:child_process'
 
 const root = new URL('..', import.meta.url)
 const executable = process.platform === 'win32' ? 'pnpm.cmd' : 'pnpm'
+const task = process.argv[2]
+if (!['test:integration', 'test:e2e'].includes(task)) {
+  console.error('Expected test:integration or test:e2e')
+  process.exit(1)
+}
 const databaseEnvironment = {
   ...process.env,
   NODE_ENV: 'test',
@@ -38,7 +43,7 @@ try {
   run(['migration:run'], { database: true })
   run(['seed'], { database: true })
   run(['seed'], { database: true })
-  run(['exec', 'node', 'scripts/test-scope.mjs', 'test:integration', '--run'], {
+  run(['exec', 'node', 'scripts/test-scope.mjs', task, '--run'], {
     database: true,
   })
 } catch (error) {

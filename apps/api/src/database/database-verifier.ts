@@ -144,6 +144,16 @@ async function verify(): Promise<void> {
           'Runtime principal is missing required users DML privileges',
         );
       }
+      if (
+        !(await scalar(
+          runtimeDataSource,
+          "SELECT has_table_privilege(current_user, 'cornerstone_migrations', 'SELECT') AS value",
+        ))
+      ) {
+        throw new Error(
+          'Runtime principal cannot inspect migration compatibility',
+        );
+      }
     } finally {
       await runtimeDataSource.destroy();
     }
