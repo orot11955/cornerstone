@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { mkdtemp, mkdir, readFile, readdir, writeFile } from 'node:fs/promises'
+import { chmod, mkdtemp, mkdir, readFile, readdir, stat, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { spawnSync } from 'node:child_process'
@@ -8,11 +8,17 @@ import { stringify } from 'yaml'
 import {
   bundledCapabilityCatalog,
   createProject,
+  createProjectFromManifest,
+  formatJsonDocument,
   getCapabilityApplicationOrder,
+  mergeJsonContributions,
   parseCapabilityCatalog,
+  planProject,
   projectLockSchema,
+  canonicalTemplateMetadataSchema,
   resolveCapabilities,
   resolveManifest,
+  validateCanonicalOwnership,
   verifyProject,
 } from '../dist/index.js'
 
@@ -215,7 +221,7 @@ test('resolves exported JSON schemas and preserves structural uniqueItems checks
   assert.equal(lockSchema.$defs.v2.properties.outputs.uniqueItems, true)
 })
 
-test('rejects valid v2 locks as reader-only before generator-owned verification', async () => {
+test('parses v2 locks before generator-owned verification', async () => {
   const fixture = await mkdtemp(join(tmpdir(), 'cornerstone-v2-reader-test-'))
   await mkdir(join(fixture, '.cornerstone'))
   await writeFile(
@@ -223,10 +229,7 @@ test('rejects valid v2 locks as reader-only before generator-owned verification'
     `${JSON.stringify(validV2Lock(), null, 2)}\n`,
   )
 
-  await assert.rejects(
-    verifyProject(fixture),
-    /schemaVersion 2 is reader-only and unsupported by Generator 0\.1\.0/,
-  )
+  await assert.rejects(verifyProject(fixture), /integrity mismatch/)
 
   const invalid = { ...validV2Lock(), unexpected: true }
   await writeFile(
@@ -248,18 +251,274 @@ test('rejects unresolved production provider slots', () => {
   )
 })
 
-test('does not generate a profile before its fragments are certified', async () => {
+test('creates the exact standard preview deterministically with real v2 ownership', async () => {
   const fixture = await mkdtemp(join(tmpdir(), 'cornerstone-create-test-'))
   const manifestPath = join(fixture, 'manifest.yml')
+  const first = join(fixture, 'project-a')
+  const second = join(fixture, 'project-b')
   await writeFile(
     manifestPath,
     stringify({ schemaVersion: 1, name: 'sample-app', profile: 'standard' }),
   )
-  await assert.rejects(
-    createProject(join(fixture, 'project'), manifestPath),
-    /only certifies the minimal profile/,
+
+  const firstLock = await createProject(first, manifestPath)
+  const secondLock = await createProject(second, manifestPath)
+  assert.equal(firstLock.schemaVersion, 2)
+  assert.deepEqual(firstLock, secondLock)
+  assert.deepEqual(
+    firstLock.fragments.map(({ id }) => id),
+    ['api', 'auth', 'base', 'database', 'ui', 'web'],
   )
-  await assert.rejects(readdir(join(fixture, 'project')))
+  assert.equal(firstLock.certification.status, 'supported')
+  assert.equal(firstLock.certification.matrix, 'standard-preview-node24-pg17')
+  assert.equal(
+    firstLock.fragments.every(({ checksum }) => checksum !== digest),
+    true,
+  )
+  assert.equal(
+    firstLock.composers.every(({ checksum }) => checksum !== digest),
+    true,
+  )
+  assert.equal(
+    firstLock.outputs.every(({ mode }) => Number.isInteger(mode)),
+    true,
+  )
+  assert.equal(
+    await readFile(join(first, 'NOTICE'), 'utf8').then((value) => value.length > 0),
+    true,
+  )
+  await assert.rejects(stat(join(first, 'LICENSE')))
+  assert.equal(
+    firstLock.outputs.some(({ path }) => path === 'LICENSE'),
+    false,
+  )
+  assert.equal(
+    firstLock.fragments.some(({ id }) => id === 'privacy'),
+    false,
+  )
+  assert.equal(
+    firstLock.fragments.some(({ id }) => id === 'observability'),
+    false,
+  )
+  assert.equal((await verifyProject(first)).integrity, firstLock.integrity)
+  const generatedReadme = await readFile(join(first, 'README.md'), 'utf8')
+  assert.match(generatedReadme, /local-development fixtures only/)
+  assert.match(generatedReadme, /NODE_ENV=production/)
+  assert.match(generatedReadme, /does not require user-owned fragment source/)
+  assert.match(generatedReadme, /self-consistency digest/)
+
+  const prettierCheck = spawnSync(
+    'pnpm',
+    [
+      'exec',
+      'prettier',
+      '--check',
+      join(first, '.cornerstone/manifest.lock.json'),
+      join(first, 'pnpm-workspace.yaml'),
+      join(first, 'test-scope.json'),
+      join(first, 'turbo.json'),
+    ],
+    { cwd: new URL('../../..', import.meta.url), encoding: 'utf8' },
+  )
+  assert.equal(prettierCheck.status, 0, `${prettierCheck.stdout}${prettierCheck.stderr}`)
+
+  const plan = planProject(
+    resolveManifest({ schemaVersion: 1, name: 'sample-app', profile: 'standard' }),
+  )
+  assert.equal(plan.files.includes('apps/web/package.json'), true)
+  assert.equal(plan.files.includes('apps/api/package.json'), true)
+  assert.equal(plan.files.includes('infra/compose/compose.dev.yml'), true)
+  assert.equal(plan.files.includes('NOTICE'), true)
+  assert.equal(plan.files.includes('LICENSE'), false)
+})
+
+test('writes only a selected project LICENSE for standard', async () => {
+  const fixture = await mkdtemp(join(tmpdir(), 'cornerstone-license-test-'))
+  const lock = await createProjectFromManifest(join(fixture, 'project'), {
+    schemaVersion: 1,
+    name: 'licensed-app',
+    profile: 'standard',
+    license: 'MIT',
+  })
+  assert.equal(lock.schemaVersion, 2)
+  assert.equal(lock.outputs.find(({ path }) => path === 'LICENSE')?.owner, 'license')
+  assert.match(await readFile(join(fixture, 'project', 'LICENSE'), 'utf8'), /MIT License/)
+})
+
+test('fails structured composer conflicts and direct shared ownership before writing', () => {
+  assert.deepEqual(
+    mergeJsonContributions([
+      { owner: 'base', value: { scripts: { test: 'node --test' } } },
+      { owner: 'api', value: { scripts: { test: 'node --test', build: 'nest build' } } },
+    ]),
+    { scripts: { test: 'node --test', build: 'nest build' } },
+  )
+  assert.throws(
+    () =>
+      mergeJsonContributions([
+        { owner: 'base', value: { scripts: { test: 'node --test' } } },
+        { owner: 'api', value: { scripts: { test: 'jest' } } },
+      ]),
+    /composer conflict.*scripts\.test/i,
+  )
+  assert.throws(
+    () =>
+      validateCanonicalOwnership({ base: ['package.json'] }, [
+        { id: 'root-package-json', output: 'package.json' },
+      ]),
+    /composer-owned path/i,
+  )
+  for (const value of [
+    JSON.parse('{"nested":{"__proto__":{"polluted":true}}}'),
+    { nested: { prototype: { polluted: true } } },
+    { nested: { constructor: { polluted: true } } },
+    { nested: { __proto__: { polluted: true } } },
+  ]) {
+    assert.throws(
+      () => mergeJsonContributions([{ owner: 'malicious', value }]),
+      /forbidden key|unsafe object prototype/i,
+    )
+  }
+  assert.equal({}.polluted, undefined)
+})
+
+test('formats primitive JSON arrays at the configured 100-column boundary', () => {
+  const withinWidth = formatJsonDocument({ values: ['x'.repeat(84)] })
+  const overWidth = formatJsonDocument({ values: ['x'.repeat(85)] })
+
+  assert.equal(withinWidth.split('\n')[1].length, 100)
+  assert.match(withinWidth, /^\{\n  "values": \["x+"\]\n\}\n$/)
+  assert.match(overWidth, /^\{\n  "values": \[\n    "x+"\n  \]\n\}\n$/)
+})
+
+test('rejects git pathspec magic in canonical source metadata', () => {
+  const metadata = JSON.parse(
+    JSON.stringify({
+      schemaVersion: 1,
+      templateVersion: '0.2.0',
+      profiles: {
+        standard: {
+          capabilities: ['api', 'auth', 'database', 'ui', 'web'],
+          certification: { matrix: 'standard-preview-node24-pg17', status: 'supported' },
+        },
+      },
+      fragments: [
+        { id: 'base', version: 1, mappings: [{ source: ':(glob)apps/**' }] },
+        ...bundledCapabilityCatalog.map(({ id }) => ({ id, version: 1, mappings: [] })),
+      ],
+      composers: [],
+    }),
+  )
+  assert.throws(() => canonicalTemplateMetadataSchema.parse(metadata), /pathspec magic/i)
+})
+
+test('standard verification rejects generator-owned content and mode drift', async () => {
+  const fixture = await mkdtemp(join(tmpdir(), 'cornerstone-v2-drift-test-'))
+  const target = join(fixture, 'project')
+  await createProjectFromManifest(target, {
+    schemaVersion: 1,
+    name: 'sample-app',
+    profile: 'standard',
+  })
+  const userOwnedSource = join(target, 'apps/web/src/app/page.tsx')
+  await writeFile(
+    userOwnedSource,
+    `${await readFile(userOwnedSource, 'utf8')}\n// user-owned change\n`,
+  )
+  await verifyProject(target)
+  await writeFile(join(target, 'package.json'), '{}\n')
+  await assert.rejects(verifyProject(target), /output drift.*package\.json/i)
+
+  const modeTarget = join(fixture, 'mode-project')
+  await createProjectFromManifest(modeTarget, {
+    schemaVersion: 1,
+    name: 'mode-app',
+    profile: 'standard',
+  })
+  await chmod(join(modeTarget, 'README.md'), 0o600)
+  await assert.rejects(verifyProject(modeTarget), /mode drift.*README\.md/i)
+})
+
+test('production generation remains fail-closed after provider resolution', async () => {
+  const fixture = await mkdtemp(join(tmpdir(), 'cornerstone-production-test-'))
+  await assert.rejects(
+    createProjectFromManifest(join(fixture, 'project'), {
+      schemaVersion: 1,
+      name: 'production-app',
+      profile: 'production',
+      providers: {
+        hosting: 'acme',
+        registry: 'acme',
+        secretStore: 'acme',
+        backup: 'acme',
+        mail: 'acme',
+      },
+    }),
+    /production and regulated remain uncertified/i,
+  )
+})
+
+test('atomically promotes into an empty target and preserves a raced target', async () => {
+  const fixture = await mkdtemp(join(tmpdir(), 'cornerstone-promotion-test-'))
+  const emptyTarget = join(fixture, 'empty-target')
+  await mkdir(emptyTarget)
+  await createProjectFromManifest(emptyTarget, {
+    schemaVersion: 1,
+    name: 'empty-target',
+    profile: 'standard',
+  })
+  assert.equal((await verifyProject(emptyTarget)).schemaVersion, 2)
+
+  const racedTarget = join(fixture, 'raced-target')
+  await mkdir(racedTarget)
+  const creation = createProjectFromManifest(racedTarget, {
+    schemaVersion: 1,
+    name: 'raced-target',
+    profile: 'standard',
+  })
+  const stagingPrefix = '.raced-target.cornerstone-staging-'
+  let sawStaging = false
+  for (let attempt = 0; attempt < 200; attempt += 1) {
+    if ((await readdir(fixture)).some((entry) => entry.startsWith(stagingPrefix))) {
+      sawStaging = true
+      break
+    }
+    await new Promise((resolve) => setTimeout(resolve, 5))
+  }
+  assert.equal(sawStaging, true, 'generator staging directory was not observed')
+  await writeFile(join(racedTarget, 'other-owner.txt'), 'preserve')
+  await assert.rejects(creation, /ENOTEMPTY|directory not empty/i)
+  assert.equal(await readFile(join(racedTarget, 'other-owner.txt'), 'utf8'), 'preserve')
+  assert.deepEqual(await readdir(racedTarget), ['other-owner.txt'])
+})
+
+test('rejects oversized manifests and YAML aliases before resolution', async () => {
+  const fixture = await mkdtemp(join(tmpdir(), 'cornerstone-input-limit-test-'))
+  const oversized = join(fixture, 'oversized.yml')
+  await writeFile(oversized, `schemaVersion: 1\nname: oversized\n# ${'x'.repeat(1024 * 1024)}\n`)
+  await assert.rejects(
+    createProject(join(fixture, 'oversized-project'), oversized),
+    /1 MiB input limit/i,
+  )
+
+  const aliased = join(fixture, 'aliased.yml')
+  await writeFile(
+    aliased,
+    'schemaVersion: 1\nname: aliased\nprofile: &profile minimal\nlicense: *profile\n',
+  )
+  await assert.rejects(createProject(join(fixture, 'aliased-project'), aliased), /alias/i)
+
+  const target = join(fixture, 'lock-project')
+  await createProjectFromManifest(target, {
+    schemaVersion: 1,
+    name: 'lock-project',
+    profile: 'minimal',
+  })
+  await writeFile(
+    join(target, '.cornerstone', 'manifest.lock.json'),
+    `{"padding":"${'x'.repeat(1024 * 1024)}"}`,
+  )
+  await assert.rejects(verifyProject(target), /1 MiB input limit/i)
 })
 
 test('rejects secret-like unknown manifest keys', () => {

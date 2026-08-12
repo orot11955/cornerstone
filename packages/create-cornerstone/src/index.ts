@@ -35,3 +35,11 @@ export {
   resolveCapabilities,
 } from './composition/resolver.js'
 export type { CapabilityResolutionOptions } from './composition/resolver.js'
+export { formatJsonDocument, mergeJsonContributions } from './composition/composer.js'
+export type { JsonContribution, JsonValue } from './composition/composer.js'
+export {
+  canonicalTemplateMetadataSchema,
+  composerDefinitionSchema,
+  validateCanonicalOwnership,
+} from './composition/template.js'
+export type { CanonicalTemplateMetadata, ComposerDefinition } from './composition/template.js'

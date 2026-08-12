@@ -25,11 +25,19 @@ try {
     const lock = manifestPath
       ? await createProject(target, manifestPath)
       : await createProjectFromManifest(target, await promptManifest(target))
-    console.log(`Created ${lock.resolved.name} (${lock.resolved.profile})`)
+    console.log(
+      lock.schemaVersion === 2
+        ? `Created ${lock.resolved.name} (${lock.resolved.profile} supported preview; not certified)`
+        : `Created ${lock.resolved.name} (${lock.resolved.profile})`,
+    )
   } else if (command === 'verify') {
     const target = positional(args)
     const lock = await verifyProject(target)
-    console.log(`Verified ${lock.resolved.name}`)
+    console.log(
+      lock.schemaVersion === 2
+        ? `Verified ${lock.resolved.name} (supported preview; not certified)`
+        : `Verified ${lock.resolved.name}`,
+    )
   } else {
     usage()
   }

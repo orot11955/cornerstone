@@ -1,0 +1,157 @@
+{
+  "schemaVersion": 1,
+  "templateVersion": "0.2.0",
+  "profiles": {
+    "standard": {
+      "capabilities": ["api", "auth", "database", "ui", "web"],
+      "certification": {
+        "matrix": "standard-preview-node24-pg17",
+        "status": "supported"
+      }
+    }
+  },
+  "fragments": [
+    {
+      "id": "base",
+      "version": 1,
+      "mappings": [
+        { "source": ".editorconfig" },
+        { "source": ".gitignore" },
+        { "source": ".node-version" },
+        { "source": ".nvmrc" },
+        { "source": ".prettierignore" },
+        { "source": ".prettierrc" },
+        { "source": "pnpm-lock.yaml" },
+        { "source": "scripts/check-openapi-compatibility.mjs" },
+        { "source": "scripts/check-web-budget.mjs" },
+        { "source": "scripts/run-database-suite.mjs" },
+        { "source": "scripts/scan-secrets.mjs" },
+        { "source": "scripts/test-scope.mjs" },
+        { "source": "scripts/validate-governance.mjs" },
+        { "source": "scripts/validate-migrations.mjs" },
+        { "source": "scripts/verify-logical-backup.mjs" },
+        { "source": ".github/CODEOWNERS" },
+        { "source": "docs/adr" },
+        { "source": "docs/cornerstone_assembly_diagram.md" },
+        { "source": "docs/identity_data_contract.md" },
+        { "source": "docs/governance" },
+        { "source": "packages/config" },
+        { "source": "packages/eslint-config" },
+        { "source": "packages/schemas" },
+        { "source": "packages/tsconfig" },
+        { "source": "packages/types" },
+        { "source": "packages/utils" }
+      ]
+    },
+    {
+      "id": "api",
+      "version": 1,
+      "mappings": [
+        {
+          "source": "apps/api",
+          "exclude": [
+            "apps/api/release/auth-password-policy.json",
+            "apps/api/src/auth",
+            "apps/api/src/authorization",
+            "apps/api/src/contracts",
+            "apps/api/src/database",
+            "apps/api/src/identity",
+            "apps/api/src/users",
+            "apps/api/test/database.integration-spec.ts",
+            "apps/api/tsconfig.admin-bootstrap.json"
+          ]
+        },
+        { "source": "packages/api-client" }
+      ]
+    },
+    {
+      "id": "auth",
+      "version": 1,
+      "mappings": [
+        { "source": "apps/api/release/auth-password-policy.json" },
+        { "source": "apps/api/src/auth" },
+        { "source": "apps/api/src/authorization" },
+        { "source": "apps/api/src/contracts" },
+        { "source": "apps/api/src/identity" },
+        { "source": "apps/api/src/users" }
+      ]
+    },
+    {
+      "id": "database",
+      "version": 1,
+      "mappings": [
+        { "source": "apps/api/src/database" },
+        { "source": "apps/api/test/database.integration-spec.ts" },
+        { "source": "apps/api/tsconfig.admin-bootstrap.json" },
+        { "source": "infra/compose" }
+      ]
+    },
+    {
+      "id": "ui",
+      "version": 1,
+      "mappings": [{ "source": "packages/ui" }]
+    },
+    {
+      "id": "web",
+      "version": 1,
+      "mappings": [{ "source": "apps/web", "exclude": ["apps/web/AGENTS.md"] }]
+    },
+    { "id": "observability", "version": 1, "mappings": [] },
+    { "id": "privacy", "version": 1, "mappings": [] }
+  ],
+  "composers": [
+    {
+      "id": "root-package-json",
+      "version": 1,
+      "format": "package-json",
+      "output": "package.json",
+      "source": "package.json"
+    },
+    {
+      "id": "pnpm-workspace",
+      "version": 1,
+      "format": "yaml",
+      "output": "pnpm-workspace.yaml",
+      "source": "pnpm-workspace.yaml"
+    },
+    {
+      "id": "turbo-json",
+      "version": 1,
+      "format": "json",
+      "output": "turbo.json",
+      "source": "turbo.json"
+    },
+    {
+      "id": "test-scope-json",
+      "version": 1,
+      "format": "test-scope",
+      "output": "test-scope.json",
+      "source": "test-scope.json"
+    },
+    {
+      "id": "ci-workflow",
+      "version": 1,
+      "format": "ci-workflow",
+      "output": ".github/workflows/ci.yml",
+      "source": ".github/workflows/ci.yml"
+    },
+    {
+      "id": "project-readme",
+      "version": 1,
+      "format": "readme",
+      "output": "README.md"
+    },
+    {
+      "id": "notice",
+      "version": 1,
+      "format": "notice",
+      "output": "NOTICE"
+    },
+    {
+      "id": "license",
+      "version": 1,
+      "format": "license",
+      "output": "LICENSE"
+    }
+  ]
+}
