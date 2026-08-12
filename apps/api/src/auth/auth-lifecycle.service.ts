@@ -31,6 +31,7 @@ import {
   type AuthSecurityOptions,
 } from './auth-security.options.js';
 import {
+  AuthLifecycleError,
   invalidActionToken,
   invalidCredentials,
   invalidSession,
@@ -419,14 +420,19 @@ export class AuthLifecycleService implements OnModuleInit {
       await this.recordRefreshFailure(undefined, context, 'INVALID_TOKEN');
       throw invalidSession();
     }
-    const sessions = await queryRows<{ sessionId: string; userId: string }>(
-      this.source,
-      `SELECT token.session_id AS "sessionId", session.user_id AS "userId"
+    let sessions: readonly { sessionId: string; userId: string }[];
+    try {
+      sessions = await queryRows<{ sessionId: string; userId: string }>(
+        this.source,
+        `SELECT token.session_id AS "sessionId", session.user_id AS "userId"
        FROM auth_refresh_tokens token
        JOIN auth_sessions session ON session.id = token.session_id
        WHERE token.token_hash = $1 AND token.key_version = $2`,
-      [tokenHash, keyVersion],
-    );
+        [tokenHash, keyVersion],
+      );
+    } catch {
+      throw serviceUnavailable();
+    }
     const sessionId = sessions[0]?.sessionId;
     const userId = sessions[0]?.userId;
     if (!sessionId || !userId) {
@@ -437,11 +443,13 @@ export class AuthLifecycleService implements OnModuleInit {
       sessionSubject(sessionId, authRateLimitPolicies.refreshSession),
     ]);
 
-    const result = await this.source.transaction(async (manager) => {
-      await lockAuthUser(manager, userId);
-      const candidates = await queryRows<RefreshCandidate>(
-        manager,
-        `SELECT t.id, t.session_id AS "sessionId", t.generation,
+    let result: RefreshResult;
+    try {
+      result = await this.source.transaction(async (manager) => {
+        await lockAuthUser(manager, userId);
+        const candidates = await queryRows<RefreshCandidate>(
+          manager,
+          `SELECT t.id, t.session_id AS "sessionId", t.generation,
            t.token_hash AS "tokenHash", t.key_version AS "keyVersion",
            t.expires_at AS "tokenExpiresAt", t.consumed_at AS "consumedAt",
            t.revoked_at AS "tokenRevokedAt",
@@ -455,91 +463,95 @@ export class AuthLifecycleService implements OnModuleInit {
          JOIN users u ON u.id = s.user_id
          WHERE t.token_hash = $1 AND t.key_version = $2
          FOR UPDATE OF t, s, u`,
-        [tokenHash, keyVersion],
-      );
-      const candidate = candidates[0];
-      if (!candidate) return { kind: 'invalid' as const };
-      if (candidate.consumedAt) {
-        await revokeSession(manager, candidate.sessionId, 'REFRESH_REUSE');
-        await this.audit.record(manager, {
-          eventType: 'identity.refresh.reused',
-          subjectId: candidate.userId,
-          resourceId: candidate.sessionId,
-          outcome: 'denied',
-          reasonCode: 'REFRESH_REUSE',
-          requestId: context.requestId,
-          traceId: context.traceId,
-          metadata: { familyRevoked: true },
-        });
-        return { kind: 'reuse' as const };
-      }
-      if (candidate.tokenRevokedAt) return { kind: 'invalid' as const };
-      const now = new Date();
-      if (
-        !this.opaqueTokens.matches(
-          'refresh',
-          refreshValue,
-          candidate.tokenHash,
-          candidate.keyVersion,
-        ) ||
-        candidate.generation !== candidate.currentGeneration ||
-        candidate.tokenExpiresAt <= now ||
-        candidate.idleExpiresAt <= now ||
-        candidate.absoluteExpiresAt <= now ||
-        candidate.sessionRevokedAt ||
-        candidate.status !== 'active'
-      ) {
-        await revokeSession(manager, candidate.sessionId, 'SESSION_INVALID');
-        return { kind: 'invalid' as const };
-      }
-      const next = this.opaqueTokens.issue('refresh');
-      const nextGeneration = candidate.generation + 1;
-      const nextIdleExpiry = minimumDate(
-        new Date(
-          now.getTime() + this.options.refreshToken.idleTtlSeconds * 1000,
-        ),
-        candidate.absoluteExpiresAt,
-      );
-      await manager.query(
-        `UPDATE auth_refresh_tokens SET consumed_at = $2
+          [tokenHash, keyVersion],
+        );
+        const candidate = candidates[0];
+        if (!candidate) return { kind: 'invalid' as const };
+        if (candidate.consumedAt) {
+          await revokeSession(manager, candidate.sessionId, 'REFRESH_REUSE');
+          await this.audit.record(manager, {
+            eventType: 'identity.refresh.reused',
+            subjectId: candidate.userId,
+            resourceId: candidate.sessionId,
+            outcome: 'denied',
+            reasonCode: 'REFRESH_REUSE',
+            requestId: context.requestId,
+            traceId: context.traceId,
+            metadata: { familyRevoked: true },
+          });
+          return { kind: 'reuse' as const };
+        }
+        if (candidate.tokenRevokedAt) return { kind: 'invalid' as const };
+        const now = new Date();
+        if (
+          !this.opaqueTokens.matches(
+            'refresh',
+            refreshValue,
+            candidate.tokenHash,
+            candidate.keyVersion,
+          ) ||
+          candidate.generation !== candidate.currentGeneration ||
+          candidate.tokenExpiresAt <= now ||
+          candidate.idleExpiresAt <= now ||
+          candidate.absoluteExpiresAt <= now ||
+          candidate.sessionRevokedAt ||
+          candidate.status !== 'active'
+        ) {
+          await revokeSession(manager, candidate.sessionId, 'SESSION_INVALID');
+          return { kind: 'invalid' as const };
+        }
+        const next = this.opaqueTokens.issue('refresh');
+        const nextGeneration = candidate.generation + 1;
+        const nextIdleExpiry = minimumDate(
+          new Date(
+            now.getTime() + this.options.refreshToken.idleTtlSeconds * 1000,
+          ),
+          candidate.absoluteExpiresAt,
+        );
+        await manager.query(
+          `UPDATE auth_refresh_tokens SET consumed_at = $2
          WHERE id = $1 AND consumed_at IS NULL`,
-        [candidate.id, now],
-      );
-      await manager.query(
-        `UPDATE auth_sessions SET current_generation = $2,
+          [candidate.id, now],
+        );
+        await manager.query(
+          `UPDATE auth_sessions SET current_generation = $2,
            last_seen_at = $3, idle_expires_at = $4,
            version = version + 1, updated_at = $3
          WHERE id = $1`,
-        [candidate.sessionId, nextGeneration, now, nextIdleExpiry],
-      );
-      await insertRefreshToken(
-        manager,
-        candidate.sessionId,
-        nextGeneration,
-        next,
-        nextIdleExpiry,
-        now,
-      );
-      const user = candidateToUser(candidate);
-      const accessToken = await this.accessTokens.issue({
-        userId: user.id,
-        sessionId: candidate.sessionId,
-        authzVersion: user.authzVersion,
-      });
-      return {
-        kind: 'success' as const,
-        session: {
-          user: toAuthenticatedUser(user),
-          accessToken,
-          refreshToken: next.value,
+          [candidate.sessionId, nextGeneration, now, nextIdleExpiry],
+        );
+        await insertRefreshToken(
+          manager,
+          candidate.sessionId,
+          nextGeneration,
+          next,
+          nextIdleExpiry,
+          now,
+        );
+        const user = candidateToUser(candidate);
+        const accessToken = await this.accessTokens.issue({
+          userId: user.id,
           sessionId: candidate.sessionId,
-          accessExpiresAt: new Date(
-            now.getTime() + this.options.accessToken.ttlSeconds * 1000,
-          ),
-          refreshExpiresAt: nextIdleExpiry,
-        },
-      };
-    });
+          authzVersion: user.authzVersion,
+        });
+        return {
+          kind: 'success' as const,
+          session: {
+            user: toAuthenticatedUser(user),
+            accessToken,
+            refreshToken: next.value,
+            sessionId: candidate.sessionId,
+            accessExpiresAt: new Date(
+              now.getTime() + this.options.accessToken.ttlSeconds * 1000,
+            ),
+            refreshExpiresAt: nextIdleExpiry,
+          },
+        };
+      });
+    } catch (error) {
+      if (error instanceof AuthLifecycleError) throw error;
+      throw serviceUnavailable();
+    }
     if (result.kind === 'invalid') {
       await this.recordRefreshFailure(sessionId, context, 'INVALID_SESSION');
       throw invalidSession();
@@ -559,12 +571,17 @@ export class AuthLifecycleService implements OnModuleInit {
     } catch {
       return undefined;
     }
-    const rows = await queryRows<{ sessionId: string }>(
-      this.source,
-      `SELECT session_id AS "sessionId" FROM auth_refresh_tokens
+    let rows: readonly { sessionId: string }[];
+    try {
+      rows = await queryRows<{ sessionId: string }>(
+        this.source,
+        `SELECT session_id AS "sessionId" FROM auth_refresh_tokens
        WHERE token_hash = $1 AND key_version = $2`,
-      [token.hash, token.keyVersion],
-    );
+        [token.hash, token.keyVersion],
+      );
+    } catch {
+      throw serviceUnavailable();
+    }
     return rows[0]?.sessionId;
   }
 
@@ -575,22 +592,30 @@ export class AuthLifecycleService implements OnModuleInit {
     } catch {
       throw invalidSession();
     }
-    const rows = await queryRows<
-      UserRecord & {
-        readonly sessionId: string;
-        readonly lastPasswordAuthAt: Date;
-      }
-    >(
-      this.source,
-      `SELECT ${userColumns}, s.id AS "sessionId",
+    let rows: readonly (UserRecord & {
+      readonly sessionId: string;
+      readonly lastPasswordAuthAt: Date;
+    })[];
+    try {
+      rows = await queryRows<
+        UserRecord & {
+          readonly sessionId: string;
+          readonly lastPasswordAuthAt: Date;
+        }
+      >(
+        this.source,
+        `SELECT ${userColumns}, s.id AS "sessionId",
          s.last_password_auth_at AS "lastPasswordAuthAt"
        FROM auth_sessions s JOIN users u ON u.id = s.user_id
        WHERE s.id = $1 AND u.id = $2 AND u.authz_version = $3
          AND u.status = 'active' AND s.revoked_at IS NULL
          AND s.idle_expires_at > CURRENT_TIMESTAMP
          AND s.absolute_expires_at > CURRENT_TIMESTAMP`,
-      [token.sessionId, token.userId, token.authzVersion],
-    );
+        [token.sessionId, token.userId, token.authzVersion],
+      );
+    } catch {
+      throw serviceUnavailable();
+    }
     const row = rows[0];
     if (!row) throw invalidSession();
     return {
@@ -611,14 +636,19 @@ export class AuthLifecycleService implements OnModuleInit {
     } catch {
       throw invalidSession();
     }
-    const rows = await queryRows<
-      UserRecord & {
-        readonly sessionId: string;
-        readonly lastPasswordAuthAt: Date;
-      }
-    >(
-      this.source,
-      `SELECT ${userColumns}, s.id AS "sessionId",
+    let rows: readonly (UserRecord & {
+      readonly sessionId: string;
+      readonly lastPasswordAuthAt: Date;
+    })[];
+    try {
+      rows = await queryRows<
+        UserRecord & {
+          readonly sessionId: string;
+          readonly lastPasswordAuthAt: Date;
+        }
+      >(
+        this.source,
+        `SELECT ${userColumns}, s.id AS "sessionId",
          s.last_password_auth_at AS "lastPasswordAuthAt"
        FROM idempotency_records i
        JOIN users u ON u.id = $1
@@ -628,13 +658,22 @@ export class AuthLifecycleService implements OnModuleInit {
          AND i.state = 'completed' AND i.response_status = 204
          AND i.expires_at > CURRENT_TIMESTAMP AND u.status = 'deleted'
          AND s.revoked_at IS NOT NULL`,
-      [
-        token.userId,
-        token.sessionId,
-        identityIdempotencyScope(this.options.idempotencySecret, token.userId),
-        identityIdempotencyKey(this.options.idempotencySecret, idempotencyKey),
-      ],
-    );
+        [
+          token.userId,
+          token.sessionId,
+          identityIdempotencyScope(
+            this.options.idempotencySecret,
+            token.userId,
+          ),
+          identityIdempotencyKey(
+            this.options.idempotencySecret,
+            idempotencyKey,
+          ),
+        ],
+      );
+    } catch {
+      throw serviceUnavailable();
+    }
     const row = rows[0];
     if (!row) throw invalidSession();
     return {
@@ -1308,6 +1347,11 @@ interface RefreshCandidate extends UserRecord {
   readonly absoluteExpiresAt: Date;
   readonly sessionRevokedAt: Date | null;
 }
+
+type RefreshResult =
+  | { readonly kind: 'invalid' }
+  | { readonly kind: 'reuse' }
+  | { readonly kind: 'success'; readonly session: AuthenticatedSessionResult };
 
 const userColumns = `u.id AS "userId", u.email_normalized AS "emailNormalized",
   u.password_hash AS "passwordHash", u.status, u.role,

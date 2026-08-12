@@ -42,6 +42,7 @@ const digest = (value: string) =>
 
 describe('Database repositories (integration)', () => {
   let source: DataSource;
+  let replicaSource: DataSource;
   let migrationSource: DataSource;
   let maintenanceSource: DataSource;
 
@@ -56,6 +57,10 @@ describe('Database repositories (integration)', () => {
       buildDatabaseOptions(databaseEnvironment, 'runtime'),
     );
     await source.initialize();
+    replicaSource = new DataSource(
+      buildDatabaseOptions(databaseEnvironment, 'runtime'),
+    );
+    await replicaSource.initialize();
     migrationSource = new DataSource(
       buildDatabaseOptions(databaseEnvironment, 'migration'),
     );
@@ -75,10 +80,14 @@ describe('Database repositories (integration)', () => {
   });
 
   it('shares atomic rate limits without storing the raw subject', async () => {
-    const service = new AuthRateLimitService(source, authSecurityOptions());
+    const primary = new AuthRateLimitService(source, authSecurityOptions());
+    const replica = new AuthRateLimitService(
+      replicaSource,
+      authSecurityOptions(),
+    );
     const decisions = await Promise.all(
-      Array.from({ length: 25 }, () =>
-        service.consume([
+      Array.from({ length: 25 }, (_, index) =>
+        (index % 2 === 0 ? primary : replica).consume([
           {
             kind: 'ip',
             value: '203.0.113.10',
@@ -341,6 +350,100 @@ describe('Database repositories (integration)', () => {
       [secondSession.sessionId],
     );
     expect(sessionRows).toEqual([{ revokeReason: 'REFRESH_REUSE' }]);
+  });
+
+  it('shares refresh reuse containment and session revocation across independent replicas', async () => {
+    const primary = authLifecycleServices(source);
+    const replica = authLifecycleServices(replicaSource);
+    const context = { ip: '203.0.113.82' };
+    const email = 'replica-session@example.test';
+    const password = 'replica-session-password-123';
+    await primary.lifecycle.register(email, password, context);
+    await primary.lifecycle.verifyEmail(
+      await latestAuthAction(source, primary.envelopes, email, 'verify_email'),
+      context,
+    );
+    const session = await primary.lifecycle.login(email, password, context);
+
+    const refreshes = await Promise.allSettled([
+      primary.lifecycle.refresh(session.refreshToken, context),
+      replica.lifecycle.refresh(session.refreshToken, context),
+    ]);
+    const successfulRefreshes = refreshes.filter(
+      (
+        result,
+      ): result is PromiseFulfilledResult<
+        Awaited<ReturnType<AuthLifecycleService['refresh']>>
+      > => result.status === 'fulfilled',
+    );
+    expect(successfulRefreshes).toHaveLength(1);
+    expect(
+      refreshes.filter((result) => result.status === 'rejected'),
+    ).toHaveLength(1);
+    await expect(
+      replica.lifecycle.refresh(
+        successfulRefreshes[0]!.value.refreshToken,
+        context,
+      ),
+    ).rejects.toMatchObject({ code: 'INVALID_SESSION' });
+
+    const second = await primary.lifecycle.login(email, password, context);
+    const principal = {
+      user: second.user,
+      sessionId: second.sessionId,
+      lastPasswordAuthAt: new Date(),
+    };
+    await primary.lifecycle.revokeSession(principal, second.sessionId, context);
+    await expectRejectedByDeadline(
+      () => replica.lifecycle.authenticateAccess(second.accessToken),
+      { code: 'INVALID_SESSION' },
+    );
+    await expectRejectedByDeadline(
+      () => replica.lifecycle.refresh(second.refreshToken, context),
+      { code: 'INVALID_SESSION' },
+    );
+  });
+
+  it('fails closed when the authoritative database is unavailable for access and credential rate checks', async () => {
+    const primary = authLifecycleServices(source);
+    const context = { ip: '203.0.113.83' };
+    const email = 'fault-closed@example.test';
+    const password = 'fault-closed-password-123';
+    await primary.lifecycle.register(email, password, context);
+    await primary.lifecycle.verifyEmail(
+      await latestAuthAction(source, primary.envelopes, email, 'verify_email'),
+      context,
+    );
+    const session = await primary.lifecycle.login(email, password, context);
+
+    await replicaSource.destroy();
+    try {
+      const unavailable = authLifecycleServices(replicaSource, source);
+      await expect(
+        unavailable.lifecycle.authenticateAccess(session.accessToken),
+      ).rejects.toMatchObject({ code: 'SERVICE_UNAVAILABLE' });
+      await expect(
+        unavailable.lifecycle.authenticateDeleteReplay(
+          session.accessToken,
+          'fault-injection',
+        ),
+      ).rejects.toMatchObject({ code: 'SERVICE_UNAVAILABLE' });
+      await expect(
+        unavailable.lifecycle.authorizeRefresh(
+          session.refreshToken,
+          context.ip,
+        ),
+      ).rejects.toMatchObject({ code: 'SERVICE_UNAVAILABLE' });
+      await expect(
+        unavailable.lifecycle.refresh(session.refreshToken, context),
+      ).rejects.toMatchObject({ code: 'SERVICE_UNAVAILABLE' });
+      const unavailableRateStore = authLifecycleServices(replicaSource);
+      await expect(
+        unavailableRateStore.lifecycle.login(email, password, context),
+      ).rejects.toMatchObject({ code: 'SERVICE_UNAVAILABLE' });
+    } finally {
+      await replicaSource.initialize();
+    }
   });
 
   it('manages only the authenticated user sessions and requires recent password authentication for global revoke', async () => {
@@ -1199,6 +1302,7 @@ describe('Database repositories (integration)', () => {
   afterAll(async () => {
     await maintenanceSource.destroy();
     await migrationSource.destroy();
+    await replicaSource.destroy();
     await source.destroy();
   });
 });
@@ -1230,7 +1334,7 @@ async function countRows(source: DataSource, table: string): Promise<number> {
   return count;
 }
 
-function authLifecycleServices(source: DataSource) {
+function authLifecycleServices(source: DataSource, rateLimitSource = source) {
   const options = configuration().auth;
   const accessTokens = new AccessTokenService(options);
   const envelopes = new MailOutboxEnvelopeService(options);
@@ -1242,12 +1346,33 @@ function authLifecycleServices(source: DataSource) {
       new PasswordService(options),
       new OpaqueTokenService(options),
       accessTokens,
-      new AuthRateLimitService(source, options),
+      new AuthRateLimitService(rateLimitSource, options),
       new AuthAuditRepository(),
       new AuthMailOutboxService(new OutboxRepository(), envelopes),
       options,
     ),
   };
+}
+
+async function expectRejectedByDeadline(
+  operation: () => Promise<unknown>,
+  expected: object,
+): Promise<void> {
+  const deadline = performance.now() + 5_000;
+  for (;;) {
+    try {
+      await operation();
+    } catch (error) {
+      expect(error).toMatchObject(expected);
+      return;
+    }
+    if (performance.now() >= deadline) {
+      throw new Error(
+        'Replica accepted a revoked credential past the 5 second deadline',
+      );
+    }
+    await new Promise<void>((resolve) => setTimeout(resolve, 25));
+  }
 }
 
 async function latestAuthAction(
