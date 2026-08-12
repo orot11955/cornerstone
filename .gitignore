@@ -32,3 +32,8 @@ pnpm-debug.log*
 # OS files
 .DS_Store
 Thumbs.db
+
+# AI files
+**/AGENTS.md
+.codex/**
+.codex
