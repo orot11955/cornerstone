@@ -121,6 +121,7 @@ async function verify(): Promise<void> {
         ["has_table_privilege($1, 'users', 'DELETE')", 'users DELETE'],
         ["has_table_privilege($1, 'audit_events', 'UPDATE')", 'audit UPDATE'],
         ["has_table_privilege($1, 'audit_events', 'DELETE')", 'audit DELETE'],
+        ["has_table_privilege($1, 'audit_events', 'SELECT')", 'audit SELECT'],
         [
           `has_function_privilege(
              $1,

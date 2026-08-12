@@ -126,6 +126,15 @@ const base64UrlSecret = z
     }
   });
 
+const base64UrlKey32 = base64UrlSecret.superRefine((value, context) => {
+  if (Buffer.from(value, 'base64url').length !== 32) {
+    context.addIssue({
+      code: 'custom',
+      message: 'Encryption key must decode to exactly 32 bytes',
+    });
+  }
+});
+
 const keyId = z.string().regex(/^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$/);
 
 const authEnvironmentShape = {
@@ -146,6 +155,10 @@ const authEnvironmentShape = {
   CSRF_PREVIOUS_KEY_VERSION: keyId.optional(),
   CSRF_PREVIOUS_SECRET: base64UrlSecret.optional(),
   RATE_LIMIT_SECRET: base64UrlSecret,
+  MAIL_OUTBOX_KEY_VERSION: keyId,
+  MAIL_OUTBOX_KEY: base64UrlKey32,
+  MAIL_OUTBOX_PREVIOUS_KEY_VERSION: keyId.optional(),
+  MAIL_OUTBOX_PREVIOUS_KEY: base64UrlKey32.optional(),
   AUTH_SECRET_PROVENANCE: z
     .enum([
       'local',
@@ -182,6 +195,7 @@ const knownDevelopmentSecrets = new Set(
     'cornerstone-local-action-key-v1-32-bytes',
     'cornerstone-local-csrf-key-v1-32-bytes',
     'cornerstone-local-rate-key-v1-32-bytes',
+    'cornerstone-local-mail-key-v1-32',
   ].map((value) => Buffer.from(value).toString('hex')),
 );
 
@@ -211,6 +225,7 @@ function validateAuthPolicy(
     ['REFRESH_TOKEN_PREVIOUS_KEY_VERSION', 'REFRESH_TOKEN_PREVIOUS_PEPPER'],
     ['ACTION_TOKEN_PREVIOUS_KEY_VERSION', 'ACTION_TOKEN_PREVIOUS_PEPPER'],
     ['CSRF_PREVIOUS_KEY_VERSION', 'CSRF_PREVIOUS_SECRET'],
+    ['MAIL_OUTBOX_PREVIOUS_KEY_VERSION', 'MAIL_OUTBOX_PREVIOUS_KEY'],
   ] as const;
   for (const [idName, secretName] of pairs) {
     validateOptionalKeyPair(environment, idName, secretName, context);
@@ -221,6 +236,7 @@ function validateAuthPolicy(
     ['REFRESH_TOKEN_KEY_VERSION', 'REFRESH_TOKEN_PREVIOUS_KEY_VERSION'],
     ['ACTION_TOKEN_KEY_VERSION', 'ACTION_TOKEN_PREVIOUS_KEY_VERSION'],
     ['CSRF_KEY_VERSION', 'CSRF_PREVIOUS_KEY_VERSION'],
+    ['MAIL_OUTBOX_KEY_VERSION', 'MAIL_OUTBOX_PREVIOUS_KEY_VERSION'],
   ] as const;
   for (const [currentName, previousName] of versionPairs) {
     if (
@@ -245,6 +261,8 @@ function validateAuthPolicy(
     'CSRF_SECRET',
     'CSRF_PREVIOUS_SECRET',
     'RATE_LIMIT_SECRET',
+    'MAIL_OUTBOX_KEY',
+    'MAIL_OUTBOX_PREVIOUS_KEY',
   ] as const;
   const seenSecrets = new Map<string, string>();
   for (const secretName of secretNames) {

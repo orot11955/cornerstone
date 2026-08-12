@@ -354,7 +354,7 @@ export class CreateIdentityCore1786579260000 implements MigrationInterface {
       TO cornerstone_runtime
     `);
     await queryRunner.query(
-      'GRANT SELECT, INSERT ON audit_events TO cornerstone_runtime',
+      'GRANT INSERT ON audit_events TO cornerstone_runtime',
     );
     await queryRunner.query(
       'GRANT SELECT ON cornerstone_migrations TO cornerstone_runtime',

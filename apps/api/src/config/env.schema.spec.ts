@@ -16,6 +16,8 @@ const requiredEnvironment = {
   CSRF_KEY_VERSION: 'test-csrf-v1',
   CSRF_SECRET: secret('test-csrf'),
   RATE_LIMIT_SECRET: secret('test-rate-limit'),
+  MAIL_OUTBOX_KEY_VERSION: 'test-mail-v1',
+  MAIL_OUTBOX_KEY: exactSecret('test-mail'),
 };
 
 describe('validateEnvironment', () => {
@@ -98,6 +100,7 @@ describe('validateEnvironment', () => {
         ACTION_TOKEN_PEPPER: productionSecret(),
         CSRF_SECRET: productionSecret(),
         RATE_LIMIT_SECRET: productionSecret(),
+        MAIL_OUTBOX_KEY: productionSecret(),
         AUTH_SECRET_PROVENANCE: 'vault',
         AUTH_SECRET_PROVENANCE_REF: 'vault://secret/auth/cornerstone/v1',
       }),
@@ -131,6 +134,7 @@ describe('validateEnvironment', () => {
         ACTION_TOKEN_PEPPER: productionSecret(),
         CSRF_SECRET: productionSecret(),
         RATE_LIMIT_SECRET: productionSecret(),
+        MAIL_OUTBOX_KEY: productionSecret(),
         AUTH_SECRET_PROVENANCE: 'vault',
         AUTH_SECRET_PROVENANCE_REF: 'vault://secret/auth/cornerstone/v1',
       }),
@@ -217,4 +221,8 @@ function secret(label: string): string {
 
 function productionSecret(): string {
   return randomBytes(32).toString('base64url');
+}
+
+function exactSecret(label: string): string {
+  return Buffer.from(label.padEnd(32, '-').slice(0, 32)).toString('base64url');
 }

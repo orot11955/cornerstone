@@ -377,6 +377,20 @@ function options(): AuthSecurityOptions {
       previous: key('csrf-v1', 'csrf-previous'),
     },
     rateLimitSecret: secret('rate-limit'),
+    mailOutbox: {
+      current: {
+        id: 'mail-v2',
+        secret: Buffer.from('mail-current-key-material-32byte').toString(
+          'base64url',
+        ),
+      },
+      previous: {
+        id: 'mail-v1',
+        secret: Buffer.from('mail-previous-key-material-32byt').toString(
+          'base64url',
+        ),
+      },
+    },
     secretProvenance: { provider: 'local', reference: undefined },
     password: {
       memoryCostKib: 19_456,

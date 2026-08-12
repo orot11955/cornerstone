@@ -3,6 +3,7 @@ import { configuration } from '../config/configuration.js';
 import { AccessTokenService } from './access-token.service.js';
 import { AUTH_SECURITY_OPTIONS } from './auth-security.options.js';
 import { CsrfTokenService } from './csrf-token.service.js';
+import { MailOutboxEnvelopeService } from './mail-outbox-envelope.service.js';
 import { OpaqueTokenService } from './opaque-token.service.js';
 import { PasswordService } from './password.service.js';
 
@@ -16,6 +17,7 @@ import { PasswordService } from './password.service.js';
     CsrfTokenService,
     OpaqueTokenService,
     PasswordService,
+    MailOutboxEnvelopeService,
   ],
   exports: [
     AUTH_SECURITY_OPTIONS,
@@ -23,6 +25,7 @@ import { PasswordService } from './password.service.js';
     CsrfTokenService,
     OpaqueTokenService,
     PasswordService,
+    MailOutboxEnvelopeService,
   ],
 })
 export class AuthCryptoModule {}

@@ -1,5 +1,16 @@
 import { createHash, randomUUID } from 'node:crypto';
 import { DataSource } from 'typeorm';
+import {
+  AuthAuditRepository,
+  type AuthAuditMetadata,
+} from '../src/auth/auth-audit.repository.js';
+import { AuthMailOutboxService } from '../src/auth/auth-mail-outbox.service.js';
+import {
+  AuthRateLimitService,
+  authRateLimitPolicies,
+} from '../src/auth/auth-rate-limit.service.js';
+import type { AuthSecurityOptions } from '../src/auth/auth-security.options.js';
+import { MailOutboxEnvelopeService } from '../src/auth/mail-outbox-envelope.service.js';
 import { validateDatabaseEnvironment } from '../src/config/env.schema.js';
 import { buildDatabaseOptions } from '../src/database/database-options.js';
 import { IdempotencyRepository } from '../src/database/idempotency.repository.js';
@@ -15,6 +26,7 @@ const digest = (value: string) =>
 
 describe('Database repositories (integration)', () => {
   let source: DataSource;
+  let migrationSource: DataSource;
   let maintenanceSource: DataSource;
 
   beforeAll(async () => {
@@ -22,6 +34,13 @@ describe('Database repositories (integration)', () => {
       buildDatabaseOptions(validateDatabaseEnvironment(process.env), 'runtime'),
     );
     await source.initialize();
+    migrationSource = new DataSource(
+      buildDatabaseOptions(
+        validateDatabaseEnvironment(process.env),
+        'migration',
+      ),
+    );
+    await migrationSource.initialize();
     maintenanceSource = new DataSource(
       buildDatabaseOptions(
         validateDatabaseEnvironment(process.env),
@@ -34,6 +53,156 @@ describe('Database repositories (integration)', () => {
   beforeEach(async () => {
     await source.query('DELETE FROM idempotency_records');
     await source.query('DELETE FROM outbox_events');
+    await source.query('DELETE FROM rate_limit_buckets');
+    await migrationSource.query('DELETE FROM audit_events');
+  });
+
+  it('shares atomic rate limits without storing the raw subject', async () => {
+    const service = new AuthRateLimitService(source, authSecurityOptions());
+    const decisions = await Promise.all(
+      Array.from({ length: 25 }, () =>
+        service.consume([
+          {
+            kind: 'ip',
+            value: '203.0.113.10',
+            policy: authRateLimitPolicies.registerIp,
+          },
+        ]),
+      ),
+    );
+
+    expect(decisions.filter((decision) => decision.allowed)).toHaveLength(20);
+    expect(decisions.filter((decision) => !decision.allowed)).toHaveLength(5);
+    const rows: unknown = await source.query(
+      `SELECT subject_hash AS "subjectHash", count
+       FROM rate_limit_buckets WHERE policy_id = $1`,
+      [authRateLimitPolicies.registerIp.id],
+    );
+    expect(rows).toEqual([expect.objectContaining({ count: 21 })]);
+    expect(JSON.stringify(rows)).not.toContain('203.0.113.10');
+  });
+
+  it('orders compound limit locks and bounds account cardinality after IP denial', async () => {
+    const service = new AuthRateLimitService(source, authSecurityOptions());
+    const ip = '198.51.100.40';
+    const subjects = (email: string) => [
+      {
+        kind: 'account' as const,
+        value: email,
+        policy: authRateLimitPolicies.registerAccount,
+      },
+      {
+        kind: 'ip' as const,
+        value: ip,
+        policy: authRateLimitPolicies.registerIp,
+      },
+    ];
+    await expect(
+      service.consume([subjects('account-only@example.test')[0]!]),
+    ).rejects.toThrow('requires an IP or session');
+    await expect(
+      Promise.all([
+        service.consume(subjects('order-one@example.test')),
+        service.consume([...subjects('order-one@example.test')].reverse()),
+      ]),
+    ).resolves.toHaveLength(2);
+
+    for (let index = 0; index < 40; index += 1) {
+      await service.consume(subjects(`cardinality-${index}@example.test`));
+    }
+    const rows: unknown = await source.query(
+      `SELECT policy_id AS "policyId", count(*)::integer AS count
+       FROM rate_limit_buckets
+       WHERE policy_id IN ($1, $2)
+       GROUP BY policy_id ORDER BY policy_id`,
+      [
+        authRateLimitPolicies.registerAccount.id,
+        authRateLimitPolicies.registerIp.id,
+      ],
+    );
+    expect(rows).toEqual([
+      { policyId: authRateLimitPolicies.registerAccount.id, count: 19 },
+      { policyId: authRateLimitPolicies.registerIp.id, count: 1 },
+    ]);
+  });
+
+  it('stores mail action values only inside an authenticated envelope', async () => {
+    const options = authSecurityOptions();
+    const envelopes = new MailOutboxEnvelopeService(options);
+    const service = new AuthMailOutboxService(
+      new OutboxRepository(),
+      envelopes,
+    );
+    const userId = randomUUID();
+    const recipient = 'outbox-person@example.test';
+    const actionValue = `mail-v2.${'a'.repeat(43)}`;
+    await source.transaction((manager) =>
+      service.enqueue(manager, {
+        userId,
+        purpose: 'verify_email',
+        recipient,
+        actionValue,
+      }),
+    );
+
+    const rows: unknown = await source.query(
+      `SELECT payload FROM outbox_events
+       WHERE aggregate_id = $1 AND event_type = 'identity.mail.verification.requested'`,
+      [userId],
+    );
+    expect(Array.isArray(rows)).toBe(true);
+    const payload = Reflect.get((rows as object[])[0]!, 'payload') as {
+      sealed: Parameters<MailOutboxEnvelopeService['open']>[0];
+    };
+    expect(JSON.stringify(payload)).not.toContain(recipient);
+    expect(JSON.stringify(payload)).not.toContain(actionValue);
+    expect(
+      envelopes.open(payload.sealed, {
+        userId,
+        purpose: 'verify_email',
+        eventType: 'identity.mail.verification.requested',
+        eventVersion: 1,
+      }),
+    ).toEqual({ purpose: 'verify_email', recipient, actionValue });
+  });
+
+  it('writes append-only auth audit events without sensitive metadata', async () => {
+    const audit = new AuthAuditRepository();
+    const subjectId = randomUUID();
+    await source.transaction((manager) =>
+      audit.record(manager, {
+        eventType: 'identity.login.failed',
+        subjectId,
+        outcome: 'denied',
+        reasonCode: 'INVALID_CREDENTIALS',
+        metadata: { factor: 'password' },
+      }),
+    );
+
+    await expect(
+      source.transaction((manager) =>
+        audit.record(manager, {
+          eventType: 'identity.login.failed',
+          outcome: 'denied',
+          metadata: {
+            value: 'must-not-be-stored',
+          } as unknown as AuthAuditMetadata,
+        }),
+      ),
+    ).rejects.toThrow('unsupported field');
+    await expect(
+      source.transaction((manager) =>
+        audit.record(manager, {
+          eventType: 'identity.login.failed',
+          actorId: 'person@example.test',
+          outcome: 'denied',
+        }),
+      ),
+    ).rejects.toThrow('principal identifier');
+    const rows: unknown = await migrationSource.query(
+      'SELECT subject_id AS "subjectId", reason_code AS "reasonCode" FROM audit_events',
+    );
+    expect(rows).toEqual([{ subjectId, reasonCode: 'INVALID_CREDENTIALS' }]);
   });
 
   it('reserves, completes, replays, and conflicts by canonical payload', async () => {
@@ -371,6 +540,7 @@ describe('Database repositories (integration)', () => {
 
   afterAll(async () => {
     await maintenanceSource.destroy();
+    await migrationSource.destroy();
     await source.destroy();
   });
 });
@@ -399,4 +569,17 @@ async function countRows(source: DataSource, table: string): Promise<number> {
   const count = Reflect.get(result[0], 'count') as unknown;
   if (typeof count !== 'number') throw new Error('Count query is not numeric');
   return count;
+}
+
+function authSecurityOptions(): AuthSecurityOptions {
+  return {
+    rateLimitSecret: Buffer.alloc(32, 7).toString('base64url'),
+    mailOutbox: {
+      current: {
+        id: 'mail-v2',
+        secret: Buffer.alloc(32, 8).toString('base64url'),
+      },
+      previous: undefined,
+    },
+  } as AuthSecurityOptions;
 }

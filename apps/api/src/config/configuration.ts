@@ -87,6 +87,20 @@ export const configuration = () => {
             : undefined,
       },
       rateLimitSecret: environment.RATE_LIMIT_SECRET,
+      mailOutbox: {
+        current: {
+          id: environment.MAIL_OUTBOX_KEY_VERSION,
+          secret: environment.MAIL_OUTBOX_KEY,
+        },
+        previous:
+          environment.MAIL_OUTBOX_PREVIOUS_KEY_VERSION &&
+          environment.MAIL_OUTBOX_PREVIOUS_KEY
+            ? {
+                id: environment.MAIL_OUTBOX_PREVIOUS_KEY_VERSION,
+                secret: environment.MAIL_OUTBOX_PREVIOUS_KEY,
+              }
+            : undefined,
+      },
       secretProvenance: {
         provider: environment.AUTH_SECRET_PROVENANCE,
         reference: environment.AUTH_SECRET_PROVENANCE_REF,
