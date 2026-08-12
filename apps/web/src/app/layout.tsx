@@ -3,6 +3,7 @@ import type { ReactNode } from 'react'
 import { appearanceDataAttributes, defaultAppearance } from '@cornerstone/ui'
 import { getWebConfig } from '../config/web'
 import { resolveDirection } from '../i18n'
+import { WebVitals } from './web-vitals'
 import '@cornerstone/ui/styles.css'
 import './globals.css'
 
@@ -37,7 +38,10 @@ export default function RootLayout({ children }: RootLayoutProps) {
       dir={resolveDirection(webConfig.locale)}
       {...appearanceDataAttributes(defaultAppearance)}
     >
-      <body>{children}</body>
+      <body>
+        {children}
+        <WebVitals />
+      </body>
     </html>
   )
 }

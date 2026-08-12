@@ -1,6 +1,7 @@
 {
   "extends": "@cornerstone/tsconfig/react.json",
   "compilerOptions": {
+    "allowImportingTsExtensions": true,
     "plugins": [
       {
         "name": "next"

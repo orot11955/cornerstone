@@ -14,6 +14,7 @@ import {
   buildContentSecurityPolicy,
   createNonce,
 } from '../src/security/headers.ts'
+import { BrowserTelemetry } from '../src/telemetry/browser.ts'
 
 test('web config는 origin을 정규화하고 production HTTPS를 강제한다', () => {
   const config = resolveWebConfig({
@@ -86,4 +87,61 @@ test('기본 browser security header가 frame, MIME sniffing과 민감 권한을
   assert.equal(browserSecurityHeaders['X-Frame-Options'], 'DENY')
   assert.equal(browserSecurityHeaders['X-Content-Type-Options'], 'nosniff')
   assert.match(browserSecurityHeaders['Permissions-Policy'], /camera=\(\)/)
+})
+
+test('browser telemetry는 동의, sampling과 route allowlist를 모두 통과해야 기록한다', () => {
+  const events = []
+  const telemetry = new BrowserTelemetry({
+    adapter: { record: (event) => events.push(event) },
+    allowedRoutes: ['/', '/projects/[projectId]'],
+    consent: true,
+    samplingRate: 1,
+    release: 'web-2026.08.13',
+    random: () => 0,
+  })
+  telemetry.recordWebVital('/', { name: 'LCP', value: 1234, rating: 'good' })
+  telemetry.recordUnexpectedError('/projects/[projectId]', 'request_123')
+  telemetry.recordWebVital('/users/private@example.com', { name: 'CLS', value: 0.01 })
+  telemetry.recordWebVital('/', { name: 'UNKNOWN', value: 1 })
+
+  assert.deepEqual(events, [
+    {
+      type: 'web-vital',
+      routePattern: '/',
+      name: 'LCP',
+      value: 1234,
+      rating: 'good',
+      release: 'web-2026.08.13',
+    },
+    {
+      type: 'unexpected-error',
+      routePattern: '/projects/[projectId]',
+      correlationId: 'request_123',
+      release: 'web-2026.08.13',
+    },
+  ])
+})
+
+test('browser telemetry는 기본적으로 no-op이며 민감한 오류 값을 payload에 넣지 않는다', () => {
+  const events = []
+  const telemetry = new BrowserTelemetry({
+    adapter: { record: (event) => events.push(event) },
+    allowedRoutes: ['/'],
+  })
+  telemetry.recordUnexpectedError('/', '<token>')
+  telemetry.recordWebVital('/', { name: 'LCP', value: Number.NaN })
+  assert.deepEqual(events, [])
+})
+
+test('telemetry provider 실패는 사용자 흐름으로 전파하지 않는다', () => {
+  const telemetry = new BrowserTelemetry({
+    adapter: {
+      record: () => {
+        throw new Error('provider unavailable')
+      },
+    },
+    allowedRoutes: ['/'],
+    consent: true,
+  })
+  assert.doesNotThrow(() => telemetry.recordUnexpectedError('/', 'request_123'))
 })
