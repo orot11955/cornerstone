@@ -26,6 +26,7 @@
     "test:cov": "node --experimental-vm-modules node_modules/jest/bin/jest.js --coverage",
     "test:debug": "node --experimental-vm-modules --inspect-brk node_modules/jest/bin/jest.js --runInBand",
     "test:e2e": "node --experimental-vm-modules node_modules/jest/bin/jest.js --config ./test/jest-e2e.json",
+    "test:integration": "pnpm database:verify",
     "typeorm": "typeorm-ts-node-esm -d src/database/data-source.ts",
     "migration:create": "typeorm migration:create src/database/migrations",
     "migration:generate": "pnpm typeorm migration:generate",

@@ -1,32 +1,16 @@
 import 'dotenv/config';
-import { setTimeout as delay } from 'node:timers/promises';
 import { validateDatabaseEnvironment } from '../config/env.schema.js';
 import { migrationDataSource } from './data-source.js';
+import {
+  acquireMigrationLock,
+  releaseMigrationLock,
+} from './migration-lock.js';
 
 type MigrationCommand = 'show' | 'run' | 'revert';
-
-const advisoryLockName = 'cornerstone:migration-runner:v1';
 
 function parseCommand(value: string | undefined): MigrationCommand {
   if (value === 'show' || value === 'run' || value === 'revert') return value;
   throw new Error('Expected one of: show, run, revert');
-}
-
-async function acquireMigrationLock(waitMs: number): Promise<void> {
-  const deadline = Date.now() + waitMs;
-
-  do {
-    const rows: Array<{ acquired: boolean }> = await migrationDataSource.query(
-      'SELECT pg_try_advisory_lock(hashtext($1)) AS acquired',
-      [advisoryLockName],
-    );
-
-    if (rows[0]?.acquired) return;
-    if (Date.now() >= deadline) break;
-    await delay(Math.min(100, Math.max(1, deadline - Date.now())));
-  } while (Date.now() <= deadline);
-
-  throw new Error('Another migration runner holds the advisory lock');
 }
 
 async function run(): Promise<void> {
@@ -38,9 +22,11 @@ async function run(): Promise<void> {
   }
 
   await migrationDataSource.initialize();
+  const lockRunner = migrationDataSource.createQueryRunner();
+  await lockRunner.connect();
 
   try {
-    await acquireMigrationLock(environment.MIGRATION_LOCK_WAIT_MS);
+    await acquireMigrationLock(lockRunner, environment.MIGRATION_LOCK_WAIT_MS);
 
     if (command === 'show') {
       const pending = await migrationDataSource.showMigrations();
@@ -61,15 +47,21 @@ async function run(): Promise<void> {
     await migrationDataSource.undoLastMigration({ transaction: 'each' });
     process.stdout.write('Reverted the latest migration.\n');
   } finally {
-    await migrationDataSource.query('SELECT pg_advisory_unlock(hashtext($1))', [
-      advisoryLockName,
-    ]);
+    await releaseMigrationLock(lockRunner);
+    await lockRunner.release();
     await migrationDataSource.destroy();
   }
 }
 
 void run().catch((error: unknown) => {
-  const message = error instanceof Error ? error.message : 'Migration failed';
+  const message = safeErrorMessage(error, 'Migration failed');
   process.stderr.write(`Migration command failed: ${message}\n`);
   process.exitCode = 1;
 });
+
+function safeErrorMessage(error: unknown, fallback: string): string {
+  if (!(error instanceof Error)) return fallback;
+  if (error.message.trim()) return error.message;
+  const code = Reflect.get(error, 'code') as unknown;
+  return typeof code === 'string' ? `${error.name} (${code})` : error.name;
+}

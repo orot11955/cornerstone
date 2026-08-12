@@ -31,6 +31,8 @@ pnpm db:test:down
 
 Test 데이터는 tmpfs에만 저장된다. `cornerstone_test_app`은 schema DDL 권한을 받지 않으며 각 Migration이 업무 table별 DML 권한을 명시해야 한다. Migration 이력과 schema는 `cornerstone_test_migrator`만 변경한다.
 
+Root `pnpm test:integration`은 이 test Compose project를 내린 뒤 새로 기동하므로 `cornerstone_test`의 기존 test 데이터는 보존하지 않는다. Migration `forward → revert → forward`, schema/권한/advisory lock 검증을 수행하고 성공·실패와 관계없이 container와 network를 정리한다.
+
 ## 운영 경계
 
 - Compose fixture는 운영 배포용이 아니다.

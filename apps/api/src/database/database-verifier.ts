@@ -1,8 +1,12 @@
 import 'dotenv/config';
-import { DataSource } from 'typeorm';
+import { DataSource, type QueryRunner } from 'typeorm';
 import { validateDatabaseEnvironment } from '../config/env.schema.js';
 import { buildDatabaseOptions } from './database-options.js';
 import { migrationDataSource } from './data-source.js';
+import {
+  acquireMigrationLock,
+  releaseMigrationLock,
+} from './migration-lock.js';
 
 interface ScalarRow {
   readonly value: boolean | number | string;
@@ -88,6 +92,24 @@ async function verify(): Promise<void> {
       );
     }
 
+    const lockContender = new DataSource(
+      buildDatabaseOptions(environment, 'migration'),
+    );
+    await lockContender.initialize();
+    const lockHolderRunner = migrationDataSource.createQueryRunner();
+    const lockContenderRunner = lockContender.createQueryRunner();
+    await lockHolderRunner.connect();
+    await lockContenderRunner.connect();
+    try {
+      await acquireMigrationLock(lockHolderRunner, 0);
+      await expectLockContention(lockContenderRunner);
+    } finally {
+      await releaseMigrationLock(lockHolderRunner);
+      await lockHolderRunner.release();
+      await lockContenderRunner.release();
+      await lockContender.destroy();
+    }
+
     await runtimeDataSource.initialize();
     try {
       const runtimePrincipal = new URL(environment.DATABASE_URL).username;
@@ -132,9 +154,32 @@ async function verify(): Promise<void> {
   process.stdout.write('Database contract verification: OK\n');
 }
 
+async function expectLockContention(runner: QueryRunner): Promise<void> {
+  try {
+    await acquireMigrationLock(runner, 50);
+  } catch (error: unknown) {
+    if (
+      error instanceof Error &&
+      error.message === 'Another migration runner holds the advisory lock'
+    ) {
+      return;
+    }
+    throw error;
+  }
+
+  await releaseMigrationLock(runner);
+  throw new Error('Concurrent migration advisory lock was not rejected');
+}
+
 void verify().catch((error: unknown) => {
-  const message =
-    error instanceof Error ? error.message : 'Verification failed';
+  const message = safeErrorMessage(error, 'Verification failed');
   process.stderr.write(`Database verification failed: ${message}\n`);
   process.exitCode = 1;
 });
+
+function safeErrorMessage(error: unknown, fallback: string): string {
+  if (!(error instanceof Error)) return fallback;
+  if (error.message.trim()) return error.message;
+  const code = Reflect.get(error, 'code') as unknown;
+  return typeof code === 'string' ? `${error.name} (${code})` : error.name;
+}

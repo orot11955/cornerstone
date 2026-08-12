@@ -32,9 +32,8 @@
     }
   },
   "test:integration": {
-    "participants": [],
+    "participants": ["api"],
     "excluded": {
-      "api": "Database integration tests are introduced with M3.",
       "create-cornerstone": "Profile creation integration tests are introduced in DXF.",
       "web": "Web integration tests are introduced with M6.",
       "@cornerstone/api-client": "Contract integration tests are introduced with M4.",

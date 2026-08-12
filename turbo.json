@@ -30,7 +30,20 @@
 
     "test:integration": {
       "dependsOn": ["^test:integration"],
-      "cache": false
+      "cache": false,
+      "passThroughEnv": [
+        "NODE_ENV",
+        "DATABASE_URL",
+        "DATABASE_MIGRATION_URL",
+        "DATABASE_SSL_MODE",
+        "DATABASE_SSL_CA",
+        "DATABASE_POOL_MAX",
+        "DATABASE_CONNECT_TIMEOUT_MS",
+        "DATABASE_STATEMENT_TIMEOUT_MS",
+        "DATABASE_LOCK_TIMEOUT_MS",
+        "DATABASE_IDLE_TRANSACTION_TIMEOUT_MS",
+        "MIGRATION_LOCK_WAIT_MS"
+      ]
     },
 
     "test:e2e": {
