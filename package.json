@@ -21,6 +21,7 @@
     "test:e2e": "node scripts/test-scope.mjs test:e2e --run",
     "package:check": "node scripts/validate-package-boundaries.mjs",
     "package:verify": "node scripts/verify-package-consumer.mjs",
+    "generator:verify": "node scripts/verify-generator-consumer.mjs",
     "license:check": "node scripts/check-package-licenses.mjs",
     "governance:check": "node scripts/validate-governance.mjs",
     "security:secrets": "node scripts/scan-secrets.mjs --history --self-test",

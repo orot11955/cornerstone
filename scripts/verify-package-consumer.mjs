@@ -8,6 +8,7 @@ const artifacts = join(root, '.artifacts', 'packages')
 const packageDirectories = [
   'api-client',
   'config',
+  'create-cornerstone',
   'eslint-config',
   'schemas',
   'tsconfig',
@@ -59,8 +60,8 @@ const dependencies = Object.fromEntries(
     if (!entries.includes('package/NOTICE')) {
       throw new Error(`${manifest.name} tarball does not contain NOTICE`)
     }
-    if (entries.some((entry) => entry.includes('/src/'))) {
-      throw new Error(`${manifest.name} tarball contains source files`)
+    if (entries.some((entry) => entry.startsWith('package/src/'))) {
+      throw new Error(`${manifest.name} tarball contains package source files`)
     }
     return [manifest.name, `file:${tarball}`]
   }),

@@ -4,6 +4,7 @@ import { join } from 'node:path'
 const publishable = [
   'api-client',
   'config',
+  'create-cornerstone',
   'eslint-config',
   'schemas',
   'tsconfig',

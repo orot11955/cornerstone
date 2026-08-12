@@ -12,6 +12,7 @@ const publishable = [
   '@cornerstone/types',
   '@cornerstone/ui',
   '@cornerstone/utils',
+  'create-cornerstone',
 ]
 const allowed = new Set(['0BSD', 'Apache-2.0', 'BSD-2-Clause', 'BSD-3-Clause', 'ISC', 'MIT'])
 
