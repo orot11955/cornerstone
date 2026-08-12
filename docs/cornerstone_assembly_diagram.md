@@ -50,11 +50,14 @@ Cornerstone은 새 TypeScript 풀스택 프로젝트마다 반복되는 기반�
 
 ## 3. 시스템 구조
 
+아래는 목표 구조다. 현재 `infra`, `e2e`, `scripts`와 일부 package는 placeholder이며 실제 구현 상태는 구현 계획의 기준선 표를 따른다.
+
 ```text
 cornerstone/
 ├─ apps/
 │  ├─ web/                 Next.js UI와 사용자 흐름
-│  └─ api/                 NestJS API와 서버 정책
+│  ├─ api/                 NestJS API와 서버 정책
+│  └─ docs/                별도 배포 문서·예제·다운로드 포털
 ├─ packages/
 │  ├─ api-client/          HTTP 계약과 오류 변환
 │  ├─ config/              공유 가능한 설정 schema와 상수
@@ -66,17 +69,21 @@ cornerstone/
 │  └─ utils/               환경 독립 pure utility
 ├─ infra/                  로컬·운영 인프라 정의
 ├─ e2e/                    사용자 핵심 경로 검증
-├─ docs/                   설계, 계획과 운영 기록
+├─ examples/               컴파일·시각 검증하는 예제와 reference 화면
+├─ docs/                   저장소 내부 설계, 계획과 운영 기록
 └─ scripts/                반복 가능한 관리 작업
 ```
 
-허용 의존 방향은 다음과 같다.
+목표로 하는 허용 의존 방향은 다음과 같다. M1 전에는 모든 연결이 실제 package dependency로 구현된 상태를 의미하지 않는다.
 
 ```text
 apps/web ─┬─> api-client ─> schemas/types
           └─> ui ─────────> types/utils
 
 apps/api ────────────────> schemas/types/utils/config
+
+apps/docs ─┬─> 공개 package API와 versioned docs content
+           └─> 검증된 examples와 release manifest
 
 low-level packages -X-> apps
 packages/ui       -X-> API 또는 프로젝트 Domain
@@ -150,7 +157,46 @@ Migration guide              복사된 파일의 수동 업그레이드 절차
 - 직전 Template에 대표 사용자 변경을 적용한 fixture에서 package update와 migration guide를 각각 리허설하고 사용자 소유 파일을 보존한다.
 - Registry와 배포 provider가 정해지기 전에도 local tarball과 versioned template archive로 같은 계약을 검증한다.
 
-### 3.4 호환성 정책
+### 3.4 Documentation Portal 배포 모델
+
+`apps/docs`는 제품 Web/API와 분리된 origin과 release lifecycle을 갖는 공개 문서 포털이다. 저장소 내부 `docs/`는 설계와 운영 기록의 원천이고, 공개 포털은 사용자용 설명·예제·다운로드 경험을 소유한다.
+
+```text
+Versioned docs content ─┬─> 문법·개념·API reference
+Typed source/examples ──┼─> 코드 예제·실행 preview·예시 화면
+Release manifest ───────┼─> 버전 호환성·checksum·provenance
+Artifact storage/CDN ───┴─> package/template 다운로드
+```
+
+문서 정보 구조:
+
+- Getting Started: 요구 runtime, 설치, 프로젝트 생성, 첫 실행과 배포 전 점검
+- Foundations: token 계층, Theme/Style/Brand/Density 문법과 naming 규칙
+- Components: import, props/options, 상태, responsive 값, 접근성, 예제와 migration
+- Layout/Patterns: AppShell, PageShell, 인증, 설정, CRUD, Dashboard 조합
+- API/Backend: 환경 변수, OpenAPI, auth/authorization, Migration과 운영 명령
+- Examples/Showcase: 실제 package를 import한 실행 화면, viewport·Appearance·locale 조합과 source
+- Releases/Downloads: version별 package/template, compatibility, changelog, checksum, provenance와 upgrade guide
+
+문서와 예제 계약:
+
+- 코드 조각은 복사 전용 문자열로 중복 관리하지 않고 typecheck/build/test 가능한 example source에서 추출하거나 참조한다.
+- Component reference는 public type/export와 연결해 존재하지 않는 prop, token, import path와 제거된 API를 CI에서 거절한다.
+- 예시 화면은 Cornerstone package의 release candidate를 실제 소비하며 앱 내부 source나 workspace 우연성에 의존하지 않는다.
+- Preview는 고정된 fixture만 실행한다. 임의 사용자 코드를 서버에서 실행하지 않으며 필요 시 sandboxed iframe과 분리 origin을 사용한다.
+- 문서는 지원 중인 release별 snapshot을 보존한다. `/latest`는 redirect일 뿐이며 검색 결과, deep link와 다운로드는 명시적 version URL을 사용한다.
+- 문서 배포가 package/template publish보다 먼저 새 버전을 안내하지 않도록 release manifest의 published 상태를 기준으로 노출한다.
+
+다운로드와 서빙 계약:
+
+- 문서 앱은 대용량 artifact를 runtime proxy하지 않고 검증된 object storage/CDN의 immutable digest URL을 release manifest로 안내한다.
+- `latest.zip` 같은 mutable 파일을 신뢰 경계로 사용하지 않는다. 버전, digest, 크기, checksum, 서명/provenance와 지원 runtime을 함께 표시한다.
+- Artifact upload principal과 Docs deploy principal을 분리하고 공개 bucket은 list/write를 금지한다.
+- CDN은 HTTPS, 올바른 `Content-Type`/`Content-Disposition`, 무결성 metadata와 versioned cache policy를 사용한다.
+- 철회된 artifact는 이유와 대체 버전을 문서에 표시하고 신규 다운로드를 차단하되 감사와 사고 분석을 위한 release 기록은 보존한다.
+- Docs origin은 CSP, framing 제한, dependency/secret scan, rate limit과 가용성 관측을 적용하며 제품 Cookie나 운영 secret을 공유하지 않는다.
+
+### 3.5 호환성 정책
 
 | 계약           | 변경 원칙                                                  |
 | -------------- | ---------------------------------------------------------- |
@@ -161,6 +207,7 @@ Migration guide              복사된 파일의 수동 업그레이드 절차
 | Cookie/Session | key overlap, TTL과 명시적인 강제 로그아웃 조건             |
 | UI token/prop  | `@deprecated`, 대체 API와 호환 adapter 제공                |
 | Template       | 자동 overwrite 금지, release별 수동 migration guide 제공   |
+| Documentation  | 지원 버전 snapshot 유지, code/API drift 차단과 폐기 안내   |
 
 공개 계약, 환경 변수, Migration, OpenAPI와 generated artifact는 변경 소유자를 하나만 둔다. Breaking change는 영향 소비자, 전환 순서, rollback 또는 roll-forward와 지원 종료 시점을 기록한다.
 
@@ -173,6 +220,15 @@ Migration guide              복사된 파일의 수동 업그레이드 절차
 - Client validation은 UX를 위한 1차 검증이며 서버 검증을 최종 기준으로 한다.
 - Route 보호와 별개로 API가 항상 인증과 권한을 검증한다.
 
+### Next/BFF 신뢰 경계
+
+- 상태 변경과 Session 권위는 Nest API가 소유한다. Route Handler와 Server Action은 승인된 API adapter를 통해서만 전달한다.
+- API origin은 server-only 설정으로 고정하며 Browser 입력으로 URL, host 또는 upstream을 조합하는 범용 proxy를 제공하지 않는다.
+- `Host`, hop-by-hop, `X-Forwarded-*`, `X-User-*` 등 Browser 제공 신뢰 header를 제거하고 필요한 metadata는 신뢰 경계에서 재생성한다.
+- API는 BFF가 전달한 사용자 식별 header를 신뢰하지 않고 token/session을 독립적으로 검증한다.
+- 상태 변경 Next 경로에도 API와 같은 Origin/CSRF, rate limit, redaction과 audit 정책을 적용한다.
+- 외부 URL 호출이 필요해지면 scheme, host/IP, redirect, DNS 재해석과 egress를 다루는 별도 SSRF Gate를 통과해야 한다.
+
 ### Backend와 API
 
 - `Controller → Service → Repository` 책임을 유지한다.
@@ -181,8 +237,20 @@ Migration guide              복사된 파일의 수동 업그레이드 절차
 - 오류 응답은 안정적인 code, 안전한 message, request ID를 제공한다.
 - 입력값, CORS origin, Cookie, CSRF와 권한을 명시적으로 검증한다.
 
+### 인증과 권한
+
+- 전역 인증 Guard를 기본으로 적용한다. `@Public`은 Controller 상속 없이 handler 단위로만 허용하고 route별 사유·소유자·HTTP method를 승인 allowlist에 기록한다.
+- 권한 metadata나 endpoint × role × ownership matrix에 없는 route는 default-deny한다.
+- Controller뿐 아니라 Service/Repository query도 principal과 ownership scope를 적용한다.
+- `role`, `status`, ownership과 permission은 Client 입력을 신뢰하지 않으며 mass assignment를 차단한다.
+- Access token에는 최소 subject/session/authz version을 둔다. Logout, Session revoke, Role·상태·비밀번호·permission·ownership 변경과 삭제의 revoke 전파 상한, authz cache TTL·무효화와 authoritative store 장애 시 fail-closed 범위를 정의한다.
+- 민감 endpoint는 현재 User/Session 상태 또는 authz version을 재검증한다.
+- Route inventory와 권한 matrix의 drift를 CI에서 비교하고 미분류 route가 있으면 실패한다.
+- Admin bootstrap은 public endpoint가 아닌 승인된 one-off job/CLI로 실행한다. 별도 단기 principal, 최소 DB 권한과 protected-environment 승인을 사용하고 runtime image에서 artifact를 제외하며 zero-admin 조건, DB lock, 감사, 사용 후 폐기와 재실행 거절을 보장한다.
+
 ### Data
 
+- User lifecycle, email 재사용·정규화, Role/상태, 삭제·익명화·보존과 Session revoke 계약을 첫 Migration 전에 확정한다.
 - `synchronize=false`를 유지하고 모든 schema 변경은 검토 가능한 Migration으로 적용한다.
 - 배포는 `expand → migrate/backfill → contract` 호환 순서를 기본으로 한다.
 - 빈 DB뿐 아니라 지원하는 직전 release의 schema/data와 구·신 앱 조합에서 Migration과 read/write 호환을 검증한다.
@@ -197,7 +265,28 @@ Migration guide              복사된 파일의 수동 업그레이드 절차
 - 앱 replica 시작과 Migration 실행을 분리한다.
 - Build artifact는 한 번 만들고 검증한 동일 digest를 환경 간 승격한다.
 - Runtime, Migration과 배포 principal을 분리하고 최소 권한을 적용한다.
+- Backup은 암호화, 별도 최소 권한, 불변성, checksum, 접근 감사와 보존·파기 정책을 갖는다.
+- Restore 후 access JWT와 refresh/session을 각각 무효화한다. revoke·삭제·권한 변경 journal은 복원 대상 DB와 분리된 append-only 불변 저장소에 두고 재적용하며 auth epoch와 signing/refresh key rotation 범위를 함께 검증한다.
+- JWT, CI/OIDC, registry/signing과 backup 침해별 freeze, revoke, rotate, audit, 재발행 runbook과 정기 drill을 유지한다.
 - 변경마다 검증, 배포 순서와 rollback 가능성을 기록한다.
+
+### Web Platform
+
+- Locale, timezone, currency와 숫자·날짜 formatting의 소유자를 정하고 SSR/CSR에서 같은 결과를 보장한다.
+- `lang`, `dir`, 번역 key, fallback과 긴 문자열/RTL/CJK 검증을 공통 계약으로 둔다.
+- Metadata, title/description, canonical, robots, sitemap과 social preview의 기본 API를 제공하되 Domain 값은 앱이 소유한다.
+- `not-found`, 예상 오류, 전역 오류와 offline/network 오류 경계를 분리하고 안전한 복구·retry UX를 제공한다.
+- Web Vitals, Browser error와 release/correlation context를 수집하되 URL·사용자 입력과 PII를 allowlist 기반으로 제한한다.
+- JavaScript/CSS, route chunk, font/image와 핵심 사용자 경로의 성능 예산을 release Gate로 관리한다.
+- Web response는 CSP, `frame-ancestors`, `nosniff`, Referrer/Permissions Policy와 운영 HSTS 책임을 명시한다.
+- 접근성 목표는 WCAG 2.2 Level AA이며 자동 검사와 keyboard, screen reader, zoom을 포함한 수동 검증을 함께 사용한다.
+
+### 개발 생산성
+
+- Feature/package/Migration generator는 프로젝트 구조와 공개 경계를 강제하고 생성 직후 typecheck/test가 가능해야 한다.
+- OpenAPI client, token, compatibility manifest와 release note 생성은 재현 가능한 명령으로 제공한다.
+- Dependency update, deprecation, changelog와 migration guide를 package/template release 흐름에 연결한다.
+- 공통 명령은 check와 fix를 분리하고 로컬·CI가 같은 script와 artifact를 사용한다.
 
 ## 5. 디자인 시스템 계약
 

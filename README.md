@@ -13,11 +13,13 @@ packages/*      설정, 타입, schema, API client, UI와 utility
 docs/           설계 계약, 구현 계획과 시각 레퍼런스
 ```
 
+향후 `apps/docs`를 별도 origin에 배포해 문법/API reference, 실행 가능한 예제 코드, 예시 화면과 버전별 package/template 다운로드 안내를 제공한다. 현재 `docs/`는 저장소 내부 설계 문서이며 공개 문서 포털은 아직 구현 전이다.
+
 ## 시작하기
 
 요구 도구:
 
-- Node.js `24.18.0`
+- Node.js `24.18.0` (M0에서 runtime 파일과 CI enforcement 예정)
 - pnpm `11.20.0`
 
 ```bash
@@ -26,7 +28,7 @@ cp apps/api/.env.example apps/api/.env
 pnpm dev
 ```
 
-기본 개발 포트는 Web `3000`, API `4000`이다. `.env`에는 실제 secret을 커밋하지 않는다.
+API `.env` 복사는 현재 필수 선행 단계다. `WEB_URL`, `DATABASE_URL`, access/refresh secret이 없으면 API 환경 검증이 기동을 중단한다. 기본 개발 포트는 Web `3000`, API `4000`이며 `.env`에는 실제 secret을 커밋하지 않는다. Database 연결은 아직 config-only 단계로 M3에서 구현한다.
 
 ## 표준 명령
 
@@ -39,7 +41,7 @@ pnpm test
 pnpm format:check
 ```
 
-각 명령은 Turborepo를 통해 해당 script가 있는 Workspace에 실행된다. 일부 package는 아직 모든 표준 script를 제공하지 않으므로 완료 여부는 구현 계획을 따른다.
+`dev`, `build`, `lint`, `typecheck`, `test`는 Turborepo를 통해 해당 script가 있는 Workspace에 실행된다. `format:check`는 Root Prettier가 저장소 전체를 검사한다. 일부 package는 아직 모든 표준 script를 제공하지 않으므로 완료 여부는 구현 계획을 따른다.
 
 개별 앱 명령은 [Web README](./apps/web/README.md)와 [API README](./apps/api/README.md)를 참고한다.
 
