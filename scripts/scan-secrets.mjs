@@ -1,4 +1,4 @@
-import { readFileSync } from 'node:fs'
+import { existsSync, readFileSync } from 'node:fs'
 import { spawnSync } from 'node:child_process'
 
 const patterns = [
@@ -70,6 +70,7 @@ const trackedFiles = runGit(['ls-files', '-z', '--cached', '--others', '--exclud
   .filter(Boolean)
 
 for (const file of trackedFiles) {
+  if (!existsSync(file)) continue
   const content = readFileSync(file)
   if (content.includes(0) || content.length > 2 * 1024 * 1024) continue
   findings.push(...scan(file, content.toString('utf8')))
