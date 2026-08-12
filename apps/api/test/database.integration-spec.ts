@@ -1,16 +1,25 @@
 import { createHash, randomUUID } from 'node:crypto';
 import { DataSource } from 'typeorm';
+import { AccessTokenService } from '../src/auth/access-token.service.js';
 import {
   AuthAuditRepository,
   type AuthAuditMetadata,
 } from '../src/auth/auth-audit.repository.js';
+import { AuthLifecycleService } from '../src/auth/auth-lifecycle.service.js';
 import { AuthMailOutboxService } from '../src/auth/auth-mail-outbox.service.js';
 import {
   AuthRateLimitService,
   authRateLimitPolicies,
 } from '../src/auth/auth-rate-limit.service.js';
 import type { AuthSecurityOptions } from '../src/auth/auth-security.options.js';
-import { MailOutboxEnvelopeService } from '../src/auth/mail-outbox-envelope.service.js';
+import {
+  MailOutboxEnvelopeService,
+  type AuthMailPurpose,
+  type SealedMailEnvelope,
+} from '../src/auth/mail-outbox-envelope.service.js';
+import { OpaqueTokenService } from '../src/auth/opaque-token.service.js';
+import { PasswordService } from '../src/auth/password.service.js';
+import { configuration } from '../src/config/configuration.js';
 import { validateDatabaseEnvironment } from '../src/config/env.schema.js';
 import { buildDatabaseOptions } from '../src/database/database-options.js';
 import { IdempotencyRepository } from '../src/database/idempotency.repository.js';
@@ -51,10 +60,11 @@ describe('Database repositories (integration)', () => {
   });
 
   beforeEach(async () => {
-    await source.query('DELETE FROM idempotency_records');
-    await source.query('DELETE FROM outbox_events');
-    await source.query('DELETE FROM rate_limit_buckets');
-    await migrationSource.query('DELETE FROM audit_events');
+    await migrationSource.query(`
+      TRUNCATE TABLE audit_events, outbox_events, idempotency_records,
+        rate_limit_buckets, auth_refresh_tokens, auth_action_tokens,
+        auth_sessions, users
+    `);
   });
 
   it('shares atomic rate limits without storing the raw subject', async () => {
@@ -203,6 +213,160 @@ describe('Database repositories (integration)', () => {
       'SELECT subject_id AS "subjectId", reason_code AS "reasonCode" FROM audit_events',
     );
     expect(rows).toEqual([{ subjectId, reasonCode: 'INVALID_CREDENTIALS' }]);
+  });
+
+  it('completes registration, verification, login, recovery, and refresh reuse containment', async () => {
+    const services = authLifecycleServices(source);
+    const context = {
+      ip: '203.0.113.80',
+      requestId: 'auth-integration-1',
+      traceId: '0123456789abcdef0123456789abcdef',
+      deviceLabel: 'Integration Browser',
+    };
+    const email = 'identity-person@example.test';
+    const initialPassword = 'initial-password-123';
+    const replacementPassword = 'replacement-password-456';
+
+    await services.lifecycle.register(email, initialPassword, context);
+    await services.lifecycle.register(email, 'duplicate-password-789', context);
+    expect(await countRows(source, 'users')).toBe(1);
+
+    const verification = await latestAuthAction(
+      source,
+      services.envelopes,
+      email,
+      'verify_email',
+    );
+    await services.lifecycle.verifyEmail(verification, context);
+    await expect(
+      services.lifecycle.verifyEmail(verification, context),
+    ).rejects.toMatchObject({ code: 'INVALID_ACTION_TOKEN' });
+
+    await expect(
+      services.lifecycle.login(email, 'incorrect-password-123', context),
+    ).rejects.toMatchObject({ code: 'INVALID_CREDENTIALS' });
+    const firstSession = await services.lifecycle.login(
+      email,
+      initialPassword,
+      context,
+    );
+    await expect(
+      services.accessTokens.verify(firstSession.accessToken),
+    ).resolves.toMatchObject({
+      userId: firstSession.user.id,
+      sessionId: firstSession.sessionId,
+      authzVersion: 1,
+    });
+    expect(firstSession.user).not.toHaveProperty('passwordHash');
+    expect(JSON.stringify(firstSession.user)).not.toContain('passwordHash');
+    expect(Object.keys(firstSession.user).sort()).toEqual([
+      'createdAt',
+      'email',
+      'emailVerifiedAt',
+      'id',
+      'role',
+      'status',
+      'updatedAt',
+      'version',
+    ]);
+
+    const existingRecoveryStartedAt = performance.now();
+    await services.lifecycle.requestPasswordReset(email, context);
+    const existingRecoveryDuration =
+      performance.now() - existingRecoveryStartedAt;
+    const absentRecoveryStartedAt = performance.now();
+    await services.lifecycle.requestPasswordReset(
+      'absent-identity@example.test',
+      context,
+    );
+    const absentRecoveryDuration = performance.now() - absentRecoveryStartedAt;
+    expect(existingRecoveryDuration).toBeGreaterThanOrEqual(275);
+    expect(absentRecoveryDuration).toBeGreaterThanOrEqual(275);
+    const reset = await latestAuthAction(
+      source,
+      services.envelopes,
+      email,
+      'reset_password',
+    );
+    const resetReplacement = reset.endsWith('A') ? 'B' : 'A';
+    await expect(
+      services.lifecycle.resetPassword(
+        `${reset.slice(0, -1)}${resetReplacement}`,
+        'short',
+        context,
+      ),
+    ).rejects.toMatchObject({ code: 'INVALID_ACTION_TOKEN' });
+    await services.lifecycle.resetPassword(reset, replacementPassword, context);
+    await expect(
+      services.lifecycle.refresh(firstSession.refreshToken, context),
+    ).rejects.toMatchObject({ code: 'INVALID_SESSION' });
+    await expect(
+      services.lifecycle.login(email, initialPassword, context),
+    ).rejects.toMatchObject({ code: 'INVALID_CREDENTIALS' });
+
+    const secondSession = await services.lifecycle.login(
+      email,
+      replacementPassword,
+      context,
+    );
+    const concurrent = await Promise.allSettled([
+      services.lifecycle.refresh(secondSession.refreshToken, context),
+      services.lifecycle.refresh(secondSession.refreshToken, context),
+    ]);
+    const successes = concurrent.filter(
+      (
+        result,
+      ): result is PromiseFulfilledResult<
+        Awaited<ReturnType<AuthLifecycleService['refresh']>>
+      > => result.status === 'fulfilled',
+    );
+    expect(successes).toHaveLength(1);
+    expect(
+      concurrent.filter((result) => result.status === 'rejected'),
+    ).toHaveLength(1);
+    await expect(
+      services.lifecycle.refresh(successes[0]!.value.refreshToken, context),
+    ).rejects.toMatchObject({ code: 'INVALID_SESSION' });
+
+    const sessionRows: unknown = await source.query(
+      `SELECT revoke_reason AS "revokeReason" FROM auth_sessions
+       WHERE id = $1`,
+      [secondSession.sessionId],
+    );
+    expect(sessionRows).toEqual([{ revokeReason: 'REFRESH_REUSE' }]);
+  });
+
+  it('revokes an action token after its bounded invalid attempts', async () => {
+    const services = authLifecycleServices(source);
+    const context = { ip: '198.51.100.81' };
+    const email = 'bounded-action@example.test';
+    await services.lifecycle.register(
+      email,
+      'bounded-action-password-123',
+      context,
+    );
+    const verification = await latestAuthAction(
+      source,
+      services.envelopes,
+      email,
+      'verify_email',
+    );
+    const replacement = verification.endsWith('A') ? 'B' : 'A';
+    const tampered = `${verification.slice(0, -1)}${replacement}`;
+
+    for (let attempt = 0; attempt < 5; attempt += 1) {
+      await expect(
+        services.lifecycle.verifyEmail(tampered, context),
+      ).rejects.toMatchObject({ code: 'INVALID_ACTION_TOKEN' });
+    }
+    const rows: unknown = await source.query(
+      `SELECT attempt_count AS "attemptCount", revoked_at IS NOT NULL AS revoked
+       FROM auth_action_tokens`,
+    );
+    expect(rows).toEqual([{ attemptCount: 5, revoked: true }]);
+    await expect(
+      services.lifecycle.verifyEmail(verification, context),
+    ).rejects.toMatchObject({ code: 'INVALID_ACTION_TOKEN' });
   });
 
   it('reserves, completes, replays, and conflicts by canonical payload', async () => {
@@ -569,6 +733,59 @@ async function countRows(source: DataSource, table: string): Promise<number> {
   const count = Reflect.get(result[0], 'count') as unknown;
   if (typeof count !== 'number') throw new Error('Count query is not numeric');
   return count;
+}
+
+function authLifecycleServices(source: DataSource) {
+  const options = configuration().auth;
+  const accessTokens = new AccessTokenService(options);
+  const envelopes = new MailOutboxEnvelopeService(options);
+  return {
+    accessTokens,
+    envelopes,
+    lifecycle: new AuthLifecycleService(
+      source,
+      new PasswordService(options),
+      new OpaqueTokenService(options),
+      accessTokens,
+      new AuthRateLimitService(source, options),
+      new AuthAuditRepository(),
+      new AuthMailOutboxService(new OutboxRepository(), envelopes),
+      options,
+    ),
+  };
+}
+
+async function latestAuthAction(
+  source: DataSource,
+  envelopes: MailOutboxEnvelopeService,
+  email: string,
+  purpose: AuthMailPurpose,
+): Promise<string> {
+  const eventType =
+    purpose === 'verify_email'
+      ? 'identity.mail.verification.requested'
+      : 'identity.mail.password.reset.requested';
+  const rows: unknown = await source.query(
+    `SELECT event.aggregate_id AS "userId", event.payload
+     FROM outbox_events event
+     JOIN users u ON u.id = event.aggregate_id
+     WHERE u.email_normalized = $1 AND event.event_type = $2
+     ORDER BY event.created_at DESC, event.id DESC LIMIT 1`,
+    [email, eventType],
+  );
+  if (!Array.isArray(rows) || !rows[0]) {
+    throw new Error('Expected an auth mail outbox event');
+  }
+  const row = rows[0] as {
+    readonly userId: string;
+    readonly payload: { readonly sealed: SealedMailEnvelope };
+  };
+  return envelopes.open(row.payload.sealed, {
+    userId: row.userId,
+    purpose,
+    eventType,
+    eventVersion: 1,
+  }).actionValue;
 }
 
 function authSecurityOptions(): AuthSecurityOptions {

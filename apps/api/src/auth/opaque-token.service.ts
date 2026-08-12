@@ -31,10 +31,17 @@ export class OpaqueTokenService {
     );
   }
 
-  issue(purpose: OpaqueTokenPurpose): IssuedOpaqueToken {
+  issue(purpose: OpaqueTokenPurpose, recordId?: string): IssuedOpaqueToken {
     const keys = this.keysFor(purpose);
     const random = randomBytes(32).toString('base64url');
-    const value = `${keys.current.id}.${random}`;
+    if (purpose !== 'refresh') assertUuid(recordId);
+    if (purpose === 'refresh' && recordId !== undefined) {
+      throw new TypeError('Refresh token must not contain a record ID');
+    }
+    const value =
+      purpose === 'refresh'
+        ? `${keys.current.id}.${random}`
+        : `${keys.current.id}.${recordId}.${random}`;
     return {
       value,
       hash: hashToken(keys.current.secret, purpose, value),
@@ -76,16 +83,34 @@ export class OpaqueTokenService {
     }
   }
 
+  actionReference(value: string): {
+    readonly keyVersion: string;
+    readonly recordId: string;
+  } {
+    const parts = value.split('.');
+    if (
+      parts.length !== 3 ||
+      !validKeyVersion(parts[0]) ||
+      !isUuid(parts[1]) ||
+      !/^[A-Za-z0-9_-]{43}$/.test(parts[2] ?? '')
+    ) {
+      throw new InvalidAuthTokenError();
+    }
+    return { keyVersion: parts[0], recordId: parts[1].toLowerCase() };
+  }
+
   private resolve(
     purpose: OpaqueTokenPurpose,
     value: string,
   ): { readonly key: DecodedKey; readonly canonicalValue: string } {
     if (value.length > 256) throw new InvalidAuthTokenError();
     const parts = value.split('.');
+    const action = purpose !== 'refresh';
     if (
-      parts.length !== 2 ||
-      !/^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$/.test(parts[0] ?? '') ||
-      !/^[A-Za-z0-9_-]{43}$/.test(parts[1] ?? '')
+      parts.length !== (action ? 3 : 2) ||
+      !validKeyVersion(parts[0]) ||
+      (action && !isUuid(parts[1])) ||
+      !/^[A-Za-z0-9_-]{43}$/.test(parts[action ? 2 : 1] ?? '')
     ) {
       throw new InvalidAuthTokenError();
     }
@@ -100,6 +125,21 @@ export class OpaqueTokenService {
   private keysFor(purpose: OpaqueTokenPurpose): KeySet {
     return purpose === 'refresh' ? this.refreshKeys : this.actionKeys;
   }
+}
+
+function validKeyVersion(value: string | undefined): value is string {
+  return /^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$/.test(value ?? '');
+}
+
+function isUuid(value: string | undefined): value is string {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+    value ?? '',
+  );
+}
+
+function assertUuid(value: string | undefined): asserts value is string {
+  if (!isUuid(value))
+    throw new TypeError('Action token record ID must be UUID v4');
 }
 
 interface DecodedKey {

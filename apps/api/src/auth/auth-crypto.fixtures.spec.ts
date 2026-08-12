@@ -184,7 +184,10 @@ describe('OpaqueTokenService', () => {
     const oldOptions = options();
     oldOptions.actionToken.current = oldOptions.actionToken.previous!;
     oldOptions.actionToken.previous = undefined;
-    const issued = new OpaqueTokenService(oldOptions).issue('reset_password');
+    const issued = new OpaqueTokenService(oldOptions).issue(
+      'reset_password',
+      userId,
+    );
 
     expect(
       new OpaqueTokenService(options()).matches(
@@ -194,6 +197,9 @@ describe('OpaqueTokenService', () => {
         issued.keyVersion,
       ),
     ).toBe(true);
+    expect(
+      new OpaqueTokenService(options()).actionReference(issued.value),
+    ).toEqual({ keyVersion: 'action-v1', recordId: userId });
   });
 });
 

@@ -13,10 +13,12 @@ export const authAuditEventTypes = [
   'identity.password.changed',
   'identity.password.reset',
   'identity.refresh.reused',
+  'identity.refresh.failed',
   'identity.role.changed',
   'identity.session.revoked',
   'identity.status.changed',
   'identity.user.deleted',
+  'identity.user.registered',
 ] as const;
 
 export type AuthAuditEventType = (typeof authAuditEventTypes)[number];
@@ -37,14 +39,14 @@ export interface AuthAuditMetadata {
 
 export interface AuthAuditInput {
   readonly eventType: AuthAuditEventType;
-  readonly actorId?: string;
-  readonly subjectId?: string;
-  readonly resourceId?: string;
+  readonly actorId?: string | undefined;
+  readonly subjectId?: string | undefined;
+  readonly resourceId?: string | undefined;
   readonly outcome: AuditOutcome;
-  readonly reasonCode?: string;
-  readonly requestId?: string;
-  readonly traceId?: string;
-  readonly metadata?: AuthAuditMetadata;
+  readonly reasonCode?: string | undefined;
+  readonly requestId?: string | undefined;
+  readonly traceId?: string | undefined;
+  readonly metadata?: AuthAuditMetadata | undefined;
 }
 
 @Injectable()

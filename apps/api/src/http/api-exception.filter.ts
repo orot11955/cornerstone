@@ -5,6 +5,7 @@ import {
   type ExceptionFilter,
 } from '@nestjs/common';
 import type { Response } from 'express';
+import { AuthLifecycleError } from '../auth/auth-lifecycle.error.js';
 import { getRequestContext } from '../observability/request-context.js';
 
 @Catch()
@@ -12,19 +13,45 @@ export class ApiExceptionFilter implements ExceptionFilter {
   catch(exception: unknown, host: ArgumentsHost): void {
     const response = host.switchToHttp().getResponse<Response>();
     const requestContext = getRequestContext();
-    const status =
-      exception instanceof HttpException ? exception.getStatus() : 500;
-    const code = statusCode(status);
+    const mapped = mapException(exception);
 
     response.locals.errorType = safeErrorType(exception);
-    response.status(status).json({
+    if (
+      exception instanceof AuthLifecycleError &&
+      exception.code === 'RATE_LIMITED' &&
+      exception.retryAfterSeconds !== undefined
+    ) {
+      response.setHeader('Retry-After', String(exception.retryAfterSeconds));
+    }
+    response.status(mapped.status).json({
       error: {
-        code,
-        message: statusMessage(status),
+        code: mapped.code,
+        message: statusMessage(mapped.status),
         requestId: requestContext?.requestId ?? 'unavailable',
       },
     });
   }
+}
+
+function mapException(exception: unknown): {
+  readonly status: number;
+  readonly code: string;
+} {
+  if (exception instanceof AuthLifecycleError) {
+    const status =
+      exception.code === 'RATE_LIMITED'
+        ? 429
+        : exception.code === 'SERVICE_UNAVAILABLE'
+          ? 503
+          : exception.code === 'INVALID_CREDENTIALS' ||
+              exception.code === 'INVALID_SESSION'
+            ? 401
+            : 400;
+    return { status, code: exception.code };
+  }
+  const status =
+    exception instanceof HttpException ? exception.getStatus() : 500;
+  return { status, code: statusCode(status) };
 }
 
 function statusCode(status: number): string {
