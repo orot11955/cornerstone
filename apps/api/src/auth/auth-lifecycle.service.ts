@@ -1,4 +1,9 @@
-import { Inject, Injectable, type OnModuleInit } from '@nestjs/common';
+import {
+  Inject,
+  Injectable,
+  NotFoundException,
+  type OnModuleInit,
+} from '@nestjs/common';
 import { randomBytes, randomInt, randomUUID } from 'node:crypto';
 import { performance } from 'node:perf_hooks';
 import { setTimeout as delay } from 'node:timers/promises';
@@ -56,6 +61,15 @@ export interface AuthenticatedPrincipal {
   readonly user: AuthenticatedUser;
   readonly sessionId: string;
   readonly lastPasswordAuthAt: Date;
+}
+
+export interface SessionSummary {
+  readonly id: string;
+  readonly deviceLabel: string | null;
+  readonly lastSeenAt: Date;
+  readonly idleExpiresAt: Date;
+  readonly absoluteExpiresAt: Date;
+  readonly current: boolean;
 }
 
 @Injectable()
@@ -129,19 +143,29 @@ export class AuthLifecycleService implements OnModuleInit {
       ipSubject(context.ip, authRateLimitPolicies.verificationIp),
       accountSubject(email, authRateLimitPolicies.verificationAccount),
     ]);
-    return this.enumerationSafe(() =>
-      this.source.transaction(async (manager) => {
+    return this.enumerationSafe(async () => {
+      const users = await queryRows<{ id: string }>(
+        this.source,
+        `SELECT id FROM users
+         WHERE email_normalized = $1 AND status = 'pending_verification'`,
+        [email],
+      );
+      const userId = users[0]?.id;
+      if (!userId) return;
+      await this.source.transaction(async (manager) => {
+        await lockAuthUser(manager, userId);
         const users = await queryRows<{ id: string }>(
           manager,
           `SELECT id FROM users
-         WHERE email_normalized = $1 AND status = 'pending_verification'
+         WHERE id = $1 AND email_normalized = $2
+           AND status = 'pending_verification'
          FOR UPDATE`,
-          [email],
+          [userId, email],
         );
         if (!users[0]) return;
         await this.issueAction(manager, users[0].id, email, 'verify_email');
-      }),
-    );
+      });
+    });
   }
 
   async verifyEmail(value: string, context: AuthRequestContext): Promise<void> {
@@ -150,7 +174,10 @@ export class AuthLifecycleService implements OnModuleInit {
     ]);
     const reference = this.actionReference(value);
     if (!reference) throw invalidActionToken();
+    const actionUserId = await this.actionUserId(reference.recordId);
+    if (!actionUserId) throw invalidActionToken();
     const success = await this.source.transaction(async (manager) => {
+      await lockAuthUser(manager, actionUserId);
       const candidate = await this.lockActionCandidate(
         manager,
         reference.recordId,
@@ -200,19 +227,28 @@ export class AuthLifecycleService implements OnModuleInit {
       ipSubject(context.ip, authRateLimitPolicies.recoveryIp),
       accountSubject(email, authRateLimitPolicies.recoveryAccount),
     ]);
-    return this.enumerationSafe(() =>
-      this.source.transaction(async (manager) => {
+    return this.enumerationSafe(async () => {
+      const users = await queryRows<{ id: string }>(
+        this.source,
+        `SELECT id FROM users
+         WHERE email_normalized = $1 AND status = 'active'`,
+        [email],
+      );
+      const userId = users[0]?.id;
+      if (!userId) return;
+      await this.source.transaction(async (manager) => {
+        await lockAuthUser(manager, userId);
         const users = await queryRows<{ id: string }>(
           manager,
           `SELECT id FROM users
-         WHERE email_normalized = $1 AND status = 'active'
+         WHERE id = $1 AND email_normalized = $2 AND status = 'active'
          FOR UPDATE`,
-          [email],
+          [userId, email],
         );
         if (!users[0]) return;
         await this.issueAction(manager, users[0].id, email, 'reset_password');
-      }),
-    );
+      });
+    });
   }
 
   async resetPassword(
@@ -236,7 +272,10 @@ export class AuthLifecycleService implements OnModuleInit {
       throw invalidActionToken();
     }
     const passwordHash = await this.hashPassword(newPassword);
+    const actionUserId = await this.actionUserId(reference.recordId);
+    if (!actionUserId) throw invalidActionToken();
     const success = await this.source.transaction(async (manager) => {
+      await lockAuthUser(manager, actionUserId);
       const candidate = await this.lockActionCandidate(
         manager,
         reference.recordId,
@@ -318,6 +357,7 @@ export class AuthLifecycleService implements OnModuleInit {
       ? await this.hashPassword(password)
       : undefined;
     const session = await this.source.transaction(async (manager) => {
+      await lockAuthUser(manager, user.id);
       const lockedUsers = await queryRows<UserRecord>(
         manager,
         `SELECT ${userColumns} FROM users u WHERE u.id = $1 FOR UPDATE`,
@@ -375,14 +415,17 @@ export class AuthLifecycleService implements OnModuleInit {
       await this.recordRefreshFailure(undefined, context, 'INVALID_TOKEN');
       throw invalidSession();
     }
-    const sessions = await queryRows<{ sessionId: string }>(
+    const sessions = await queryRows<{ sessionId: string; userId: string }>(
       this.source,
-      `SELECT session_id AS "sessionId" FROM auth_refresh_tokens
-       WHERE token_hash = $1 AND key_version = $2`,
+      `SELECT token.session_id AS "sessionId", session.user_id AS "userId"
+       FROM auth_refresh_tokens token
+       JOIN auth_sessions session ON session.id = token.session_id
+       WHERE token.token_hash = $1 AND token.key_version = $2`,
       [tokenHash, keyVersion],
     );
     const sessionId = sessions[0]?.sessionId;
-    if (!sessionId) {
+    const userId = sessions[0]?.userId;
+    if (!sessionId || !userId) {
       await this.recordRefreshFailure(undefined, context, 'INVALID_TOKEN');
       throw invalidSession();
     }
@@ -391,6 +434,7 @@ export class AuthLifecycleService implements OnModuleInit {
     ]);
 
     const result = await this.source.transaction(async (manager) => {
+      await lockAuthUser(manager, userId);
       const candidates = await queryRows<RefreshCandidate>(
         manager,
         `SELECT t.id, t.session_id AS "sessionId", t.generation,
@@ -557,10 +601,14 @@ export class AuthLifecycleService implements OnModuleInit {
     context: AuthRequestContext,
   ): Promise<void> {
     await this.source.transaction(async (manager) => {
+      await lockAuthUser(manager, principal.user.id);
       const rows = await queryRows<{ id: string }>(
         manager,
         `SELECT id FROM auth_sessions
-         WHERE id = $1 AND user_id = $2 FOR UPDATE`,
+         WHERE id = $1 AND user_id = $2 AND revoked_at IS NULL
+           AND idle_expires_at > CURRENT_TIMESTAMP
+           AND absolute_expires_at > CURRENT_TIMESTAMP
+         FOR UPDATE`,
         [principal.sessionId, principal.user.id],
       );
       if (!rows[0]) throw invalidSession();
@@ -576,6 +624,274 @@ export class AuthLifecycleService implements OnModuleInit {
         metadata: { scope: 'current' },
       });
     });
+  }
+
+  async changePassword(
+    principal: AuthenticatedPrincipal,
+    currentPassword: string,
+    newPassword: string,
+    context: AuthRequestContext,
+  ): Promise<void> {
+    await this.enforceRate([
+      sessionSubject(
+        principal.sessionId,
+        authRateLimitPolicies.sessionMutation,
+      ),
+    ]);
+    const candidates = await queryRows<UserRecord>(
+      this.source,
+      `SELECT ${userColumns} FROM users u WHERE u.id = $1`,
+      [principal.user.id],
+    );
+    const candidate = candidates[0];
+    if (
+      !candidate ||
+      candidate.status !== 'active' ||
+      candidate.passwordHash === null ||
+      !(await this.verifyPassword(candidate.passwordHash, currentPassword))
+    ) {
+      throw invalidCredentials();
+    }
+    const newPasswordHash = await this.hashPassword(newPassword);
+    const changed = await this.source.transaction(async (manager) => {
+      await lockAuthUser(manager, principal.user.id);
+      const rows = await queryRows<UserRecord>(
+        manager,
+        `SELECT ${userColumns} FROM users u WHERE u.id = $1 FOR UPDATE`,
+        [principal.user.id],
+      );
+      const user = rows[0];
+      if (
+        !user ||
+        user.status !== 'active' ||
+        user.passwordHash !== candidate.passwordHash
+      ) {
+        return false;
+      }
+      const sessions = await queryRows<{ id: string }>(
+        manager,
+        `SELECT id FROM auth_sessions
+         WHERE id = $1 AND user_id = $2 AND revoked_at IS NULL
+           AND idle_expires_at > CURRENT_TIMESTAMP
+           AND absolute_expires_at > CURRENT_TIMESTAMP
+         FOR UPDATE`,
+        [principal.sessionId, user.userId],
+      );
+      if (!sessions[0]) return false;
+      await manager.query(
+        `UPDATE users SET password_hash = $2,
+           authz_version = authz_version + 1, version = version + 1,
+           updated_at = CURRENT_TIMESTAMP
+         WHERE id = $1`,
+        [user.userId, newPasswordHash],
+      );
+      await revokeAllSessions(manager, user.userId, 'PASSWORD_CHANGE');
+      await this.audit.record(manager, {
+        eventType: 'identity.password.changed',
+        actorId: user.userId,
+        subjectId: user.userId,
+        resourceId: principal.sessionId,
+        outcome: 'success',
+        requestId: context.requestId,
+        traceId: context.traceId,
+        metadata: { factor: 'password', scope: 'all' },
+      });
+      return true;
+    });
+    if (!changed) throw invalidCredentials();
+  }
+
+  async confirmRecentAuthentication(
+    principal: AuthenticatedPrincipal,
+    password: string,
+    context: AuthRequestContext,
+  ): Promise<void> {
+    await this.enforceRate([
+      sessionSubject(
+        principal.sessionId,
+        authRateLimitPolicies.sessionMutation,
+      ),
+    ]);
+    const candidates = await queryRows<UserRecord>(
+      this.source,
+      `SELECT ${userColumns} FROM users u WHERE u.id = $1`,
+      [principal.user.id],
+    );
+    const candidate = candidates[0];
+    if (
+      !candidate ||
+      candidate.status !== 'active' ||
+      candidate.passwordHash === null ||
+      !(await this.verifyPassword(candidate.passwordHash, password))
+    ) {
+      throw invalidCredentials();
+    }
+    const confirmed = await this.source.transaction(async (manager) => {
+      await lockAuthUser(manager, principal.user.id);
+      const rows = await queryRows<UserRecord>(
+        manager,
+        `SELECT ${userColumns} FROM users u WHERE u.id = $1 FOR UPDATE`,
+        [principal.user.id],
+      );
+      const user = rows[0];
+      if (
+        !user ||
+        user.status !== 'active' ||
+        user.passwordHash !== candidate.passwordHash
+      ) {
+        return false;
+      }
+      const updated = await queryRows<{ id: string }>(
+        manager,
+        `UPDATE auth_sessions SET last_password_auth_at = CURRENT_TIMESTAMP,
+           updated_at = CURRENT_TIMESTAMP
+         WHERE id = $1 AND user_id = $2 AND revoked_at IS NULL
+           AND idle_expires_at > CURRENT_TIMESTAMP
+           AND absolute_expires_at > CURRENT_TIMESTAMP
+         RETURNING id`,
+        [principal.sessionId, user.userId],
+      );
+      if (updated.length !== 1) return false;
+      await this.audit.record(manager, {
+        eventType: 'identity.recent_auth.confirmed',
+        actorId: user.userId,
+        subjectId: user.userId,
+        resourceId: principal.sessionId,
+        outcome: 'success',
+        requestId: context.requestId,
+        traceId: context.traceId,
+        metadata: { factor: 'password', scope: 'current' },
+      });
+      return true;
+    });
+    if (!confirmed) throw invalidCredentials();
+  }
+
+  async listSessions(
+    principal: AuthenticatedPrincipal,
+  ): Promise<readonly SessionSummary[]> {
+    return queryRows<SessionSummary>(
+      this.source,
+      `SELECT id, device_label AS "deviceLabel", last_seen_at AS "lastSeenAt",
+         idle_expires_at AS "idleExpiresAt",
+         absolute_expires_at AS "absoluteExpiresAt",
+         id = $2 AS current
+       FROM auth_sessions
+       WHERE user_id = $1 AND revoked_at IS NULL
+         AND idle_expires_at > CURRENT_TIMESTAMP
+         AND absolute_expires_at > CURRENT_TIMESTAMP
+       ORDER BY (id = $2) DESC, last_seen_at DESC, id ASC`,
+      [principal.user.id, principal.sessionId],
+    );
+  }
+
+  async revokeSession(
+    principal: AuthenticatedPrincipal,
+    targetSessionId: string,
+    context: AuthRequestContext,
+  ): Promise<void> {
+    await this.enforceRate([
+      sessionSubject(
+        principal.sessionId,
+        authRateLimitPolicies.sessionMutation,
+      ),
+    ]);
+    await this.source.transaction(async (manager) => {
+      await lockAuthUser(manager, principal.user.id);
+      const actors = await queryRows<{ id: string }>(
+        manager,
+        `SELECT id FROM auth_sessions
+         WHERE id = $1 AND user_id = $2 AND revoked_at IS NULL
+           AND idle_expires_at > CURRENT_TIMESTAMP
+           AND absolute_expires_at > CURRENT_TIMESTAMP
+         FOR UPDATE`,
+        [principal.sessionId, principal.user.id],
+      );
+      if (!actors[0]) throw invalidSession();
+      const sessions = await queryRows<{ id: string }>(
+        manager,
+        `SELECT id FROM auth_sessions
+         WHERE id = $1 AND user_id = $2 AND revoked_at IS NULL
+           AND idle_expires_at > CURRENT_TIMESTAMP
+           AND absolute_expires_at > CURRENT_TIMESTAMP
+         FOR UPDATE`,
+        [targetSessionId, principal.user.id],
+      );
+      if (!sessions[0]) throw new NotFoundException();
+      await revokeSession(manager, targetSessionId, 'SESSION_REVOKED');
+      await this.audit.record(manager, {
+        eventType: 'identity.session.revoked',
+        actorId: principal.user.id,
+        subjectId: principal.user.id,
+        resourceId: targetSessionId,
+        outcome: 'success',
+        requestId: context.requestId,
+        traceId: context.traceId,
+        metadata: {
+          scope: 'target',
+          self: targetSessionId === principal.sessionId,
+        },
+      });
+    });
+  }
+
+  async revokeAllSessions(
+    principal: AuthenticatedPrincipal,
+    context: AuthRequestContext,
+  ): Promise<void> {
+    await this.enforceRate([
+      sessionSubject(
+        principal.sessionId,
+        authRateLimitPolicies.sessionMutation,
+      ),
+    ]);
+    const revoked = await this.source.transaction(async (manager) => {
+      await lockAuthUser(manager, principal.user.id);
+      const users = await queryRows<{ id: string }>(
+        manager,
+        `SELECT id FROM users WHERE id = $1 AND status = 'active' FOR UPDATE`,
+        [principal.user.id],
+      );
+      if (!users[0]) return false;
+      const sessions = await queryRows<{ id: string }>(
+        manager,
+        `SELECT id
+         FROM auth_sessions
+         WHERE id = $1 AND user_id = $2 AND revoked_at IS NULL
+           AND idle_expires_at > CURRENT_TIMESTAMP
+           AND absolute_expires_at > CURRENT_TIMESTAMP
+           AND last_password_auth_at >= CURRENT_TIMESTAMP - INTERVAL '10 minutes'
+         FOR UPDATE`,
+        [principal.sessionId, principal.user.id],
+      );
+      if (!sessions[0]) return false;
+      const updatedUsers = await queryRows<{ id: string }>(
+        manager,
+        `UPDATE users SET authz_version = authz_version + 1,
+           version = version + 1, updated_at = CURRENT_TIMESTAMP
+         WHERE id = $1
+         RETURNING id`,
+        [principal.user.id],
+      );
+      if (updatedUsers.length !== 1) return false;
+      const sessionCount = await revokeAllSessions(
+        manager,
+        principal.user.id,
+        'REVOKE_ALL',
+      );
+      await this.audit.record(manager, {
+        eventType: 'identity.session.revoked',
+        actorId: principal.user.id,
+        subjectId: principal.user.id,
+        resourceId: principal.sessionId,
+        outcome: 'success',
+        requestId: context.requestId,
+        traceId: context.traceId,
+        metadata: { scope: 'all', sessionCount },
+      });
+      return true;
+    });
+    if (!revoked) throw invalidSession();
   }
 
   private async createSession(
@@ -700,6 +1016,15 @@ export class AuthLifecycleService implements OnModuleInit {
     return rows[0];
   }
 
+  private async actionUserId(recordId: string): Promise<string | undefined> {
+    const rows = await queryRows<{ userId: string }>(
+      this.source,
+      `SELECT user_id AS "userId" FROM auth_action_tokens WHERE id = $1`,
+      [recordId],
+    );
+    return rows[0]?.userId;
+  }
+
   private async preflightAction(
     recordId: string,
     purpose: Exclude<OpaqueTokenPurpose, 'refresh'>,
@@ -740,7 +1065,10 @@ export class AuthLifecycleService implements OnModuleInit {
     purpose: Exclude<OpaqueTokenPurpose, 'refresh'>,
     value: string,
   ): Promise<void> {
+    const userId = await this.actionUserId(recordId);
+    if (!userId) return;
     await this.source.transaction(async (manager) => {
+      await lockAuthUser(manager, userId);
       const candidate = await this.lockActionCandidate(manager, recordId);
       if (!candidate) return;
       const valid = await this.validateActionCandidate(
@@ -1020,18 +1348,33 @@ async function revokeAllSessions(
   manager: EntityManager,
   userId: string,
   reason: string,
-): Promise<void> {
-  await manager.query(
+): Promise<number> {
+  const sessions = await queryRows<{ id: string }>(
+    manager,
     `UPDATE auth_sessions SET revoked_at = CURRENT_TIMESTAMP,
        revoke_reason = $2, version = version + 1,
        updated_at = CURRENT_TIMESTAMP
-     WHERE user_id = $1 AND revoked_at IS NULL`,
+     WHERE user_id = $1 AND revoked_at IS NULL
+     RETURNING id`,
     [userId, reason],
   );
   await manager.query(
     `UPDATE auth_refresh_tokens SET revoked_at = CURRENT_TIMESTAMP
      WHERE session_id IN (SELECT id FROM auth_sessions WHERE user_id = $1)
        AND revoked_at IS NULL`,
+    [userId],
+  );
+  return sessions.length;
+}
+
+async function lockAuthUser(
+  manager: EntityManager,
+  userId: string,
+): Promise<void> {
+  await manager.query(
+    `SELECT pg_advisory_xact_lock(
+       hashtextextended('cornerstone:auth-user:' || $1::text, 0)
+     )`,
     [userId],
   );
 }

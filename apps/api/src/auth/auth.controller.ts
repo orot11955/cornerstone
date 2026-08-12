@@ -1,10 +1,12 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   HttpCode,
   HttpStatus,
   Inject,
+  Param,
   Post,
   Req,
   Res,
@@ -13,12 +15,16 @@ import type { Request, Response } from 'express';
 import { AuthorizeRoute } from '../authorization/route-policy.decorator.js';
 import {
   AuthenticatedUserResponseDto,
+  ChangePasswordRequestDto,
+  ConfirmRecentAuthRequestDto,
   CsrfResponseDto,
   EmailRequestDto,
   LoginRequestDto,
   RefreshResponseDto,
   RegisterRequestDto,
   ResetPasswordRequestDto,
+  SessionIdParamsDto,
+  SessionListResponseDto,
   VerifyEmailRequestDto,
 } from '../contracts/auth.dto.js';
 import { AcceptedResponseDto } from '../contracts/common.dto.js';
@@ -176,6 +182,98 @@ export class AuthController {
       input.newPassword,
       authContext(request),
     );
+  }
+
+  @Post('password/change')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @AuthorizeRoute('changePassword')
+  async changePassword(
+    @Body() input: ChangePasswordRequestDto,
+    @Req() request: AuthenticatedRequest,
+    @Res({ passthrough: true }) response: Response,
+  ): Promise<void> {
+    await this.lifecycle.changePassword(
+      getAuthenticatedPrincipal(request),
+      input.currentPassword,
+      input.newPassword,
+      authContext(request),
+    );
+    response.setHeader('Cache-Control', 'no-store');
+    this.clearSessionCookies(response);
+  }
+
+  @Post('recent-auth')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @AuthorizeRoute('confirmRecentAuthentication')
+  async confirmRecentAuthentication(
+    @Body() input: ConfirmRecentAuthRequestDto,
+    @Req() request: AuthenticatedRequest,
+    @Res({ passthrough: true }) response: Response,
+  ): Promise<void> {
+    await this.lifecycle.confirmRecentAuthentication(
+      getAuthenticatedPrincipal(request),
+      input.password,
+      authContext(request),
+    );
+    response.setHeader('Cache-Control', 'no-store');
+  }
+
+  @Get('sessions')
+  @AuthorizeRoute('listSessions')
+  async listSessions(
+    @Req() request: AuthenticatedRequest,
+    @Res({ passthrough: true }) response: Response,
+  ): Promise<SessionListResponseDto> {
+    const sessions = await this.lifecycle.listSessions(
+      getAuthenticatedPrincipal(request),
+    );
+    response.setHeader('Cache-Control', 'private, no-store');
+    response.setHeader('Vary', 'Cookie');
+    return {
+      items: sessions.map((session) => ({
+        id: session.id,
+        deviceLabel: session.deviceLabel,
+        lastSeenAt: session.lastSeenAt.toISOString(),
+        idleExpiresAt: session.idleExpiresAt.toISOString(),
+        absoluteExpiresAt: session.absoluteExpiresAt.toISOString(),
+        current: session.current,
+      })),
+    };
+  }
+
+  @Delete('sessions/:sessionId')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @AuthorizeRoute('revokeSession')
+  async revokeSession(
+    @Param() params: SessionIdParamsDto,
+    @Req() request: AuthenticatedRequest,
+    @Res({ passthrough: true }) response: Response,
+  ): Promise<void> {
+    const principal = getAuthenticatedPrincipal(request);
+    await this.lifecycle.revokeSession(
+      principal,
+      params.sessionId,
+      authContext(request),
+    );
+    response.setHeader('Cache-Control', 'no-store');
+    if (params.sessionId.toLowerCase() === principal.sessionId.toLowerCase()) {
+      this.clearSessionCookies(response);
+    }
+  }
+
+  @Delete('sessions')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @AuthorizeRoute('revokeAllSessions')
+  async revokeAllSessions(
+    @Req() request: AuthenticatedRequest,
+    @Res({ passthrough: true }) response: Response,
+  ): Promise<void> {
+    await this.lifecycle.revokeAllSessions(
+      getAuthenticatedPrincipal(request),
+      authContext(request),
+    );
+    response.setHeader('Cache-Control', 'no-store');
+    this.clearSessionCookies(response);
   }
 
   private issueSessionCookies(

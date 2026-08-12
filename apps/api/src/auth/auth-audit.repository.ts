@@ -12,6 +12,7 @@ export const authAuditEventTypes = [
   'identity.logout.succeeded',
   'identity.password.changed',
   'identity.password.reset',
+  'identity.recent_auth.confirmed',
   'identity.refresh.reused',
   'identity.refresh.failed',
   'identity.role.changed',

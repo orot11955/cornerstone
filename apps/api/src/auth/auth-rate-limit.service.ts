@@ -21,7 +21,7 @@ export const authRateLimitPolicies = {
   refreshSession: policy('auth.refresh.session', 30, 60),
   refreshIp: policy('auth.refresh.ip', 120, 60),
   csrfIp: policy('auth.csrf.ip', 120, 60),
-  sessionMutation: policy('auth.session.mutation', 30, 60),
+  sessionMutation: policy('auth.session.mutation.session', 30, 60),
 } as const;
 
 export type AuthRateLimitPolicy =

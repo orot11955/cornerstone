@@ -345,11 +345,55 @@ describe('Auth runtime (e2e)', () => {
     const rotatedCsrf = responseCookie(refresh.headers, 'cs_csrf');
 
     await agent
-      .post('/api/v1/auth/logout')
+      .get('/api/v1/auth/sessions')
+      .set('Origin', origin)
+      .expect(200)
+      .expect(({ body }) => {
+        expect(body).toMatchObject({
+          items: [expect.objectContaining({ current: true })],
+        });
+      });
+    await agent
+      .post('/api/v1/auth/recent-auth')
+      .set('Origin', origin)
+      .set('X-CSRF-Token', rotatedCsrf)
+      .send({ password })
+      .expect(204);
+    await agent
+      .delete('/api/v1/auth/sessions')
       .set('Origin', origin)
       .set('X-CSRF-Token', rotatedCsrf)
       .expect(204);
     await agent.get('/api/v1/auth/me').set('Origin', origin).expect(401);
+
+    const nextCsrfResponse = await agent
+      .get('/api/v1/auth/csrf')
+      .set('Origin', origin)
+      .expect(200);
+    const nextPreauthCsrf = (nextCsrfResponse.body as { csrfToken: string })
+      .csrfToken;
+    const nextLogin = await agent
+      .post('/api/v1/auth/login')
+      .set('Origin', origin)
+      .set('X-CSRF-Token', nextPreauthCsrf)
+      .send({ email, password })
+      .expect(200);
+    const nextSessionCsrf = responseCookie(nextLogin.headers, 'cs_csrf');
+    const nextSessions = await agent
+      .get('/api/v1/auth/sessions')
+      .set('Origin', origin)
+      .expect(200);
+    const currentSessionId = (
+      nextSessions.body as { items: Array<{ id: string; current: boolean }> }
+    ).items.find((item) => item.current)?.id;
+    if (!currentSessionId) throw new Error('Missing current Session');
+    const revokeCurrent = await agent
+      .delete(`/api/v1/auth/sessions/${currentSessionId.toUpperCase()}`)
+      .set('Origin', origin)
+      .set('X-CSRF-Token', nextSessionCsrf)
+      .expect(204);
+    expect(responseCookie(revokeCurrent.headers, 'cs_access')).toBe('');
+    expect(responseCookie(revokeCurrent.headers, 'cs_csrf')).toBe('');
   });
 
   afterAll(async () => {

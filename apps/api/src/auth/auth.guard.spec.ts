@@ -41,6 +41,11 @@ describe('AuthGuard route policy boundary', () => {
       [AuthController, 'logout'],
       [AuthController, 'requestPasswordReset'],
       [AuthController, 'resetPassword'],
+      [AuthController, 'changePassword'],
+      [AuthController, 'confirmRecentAuthentication'],
+      [AuthController, 'listSessions'],
+      [AuthController, 'revokeSession'],
+      [AuthController, 'revokeAllSessions'],
       [HealthController, 'liveness'],
       [HealthController, 'readiness'],
     ] as const;

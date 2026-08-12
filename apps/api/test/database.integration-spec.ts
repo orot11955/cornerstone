@@ -336,6 +336,103 @@ describe('Database repositories (integration)', () => {
     expect(sessionRows).toEqual([{ revokeReason: 'REFRESH_REUSE' }]);
   });
 
+  it('manages only the authenticated user sessions and requires recent password authentication for global revoke', async () => {
+    const services = authLifecycleServices(source);
+    const context = { ip: '203.0.113.87' };
+    const email = 'session-runtime@example.test';
+    const password = 'session-runtime-password-123';
+    const changedPassword = 'session-runtime-changed-456';
+    await services.lifecycle.register(email, password, context);
+    await services.lifecycle.verifyEmail(
+      await latestAuthAction(source, services.envelopes, email, 'verify_email'),
+      context,
+    );
+    const current = await services.lifecycle.login(email, password, context);
+    const target = await services.lifecycle.login(email, password, context);
+    const principal = {
+      user: current.user,
+      sessionId: current.sessionId,
+      lastPasswordAuthAt: new Date(),
+    };
+
+    await expect(services.lifecycle.listSessions(principal)).resolves.toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ id: current.sessionId, current: true }),
+        expect.objectContaining({ id: target.sessionId, current: false }),
+      ]),
+    );
+    await expect(
+      services.lifecycle.confirmRecentAuthentication(
+        principal,
+        'incorrect-session-password-123',
+        context,
+      ),
+    ).rejects.toMatchObject({ code: 'INVALID_CREDENTIALS' });
+    await services.lifecycle.confirmRecentAuthentication(
+      principal,
+      password,
+      context,
+    );
+    await source.query(
+      `UPDATE auth_sessions SET last_password_auth_at = CURRENT_TIMESTAMP - INTERVAL '11 minutes'
+       WHERE id = $1`,
+      [current.sessionId],
+    );
+    await expect(
+      services.lifecycle.revokeAllSessions(principal, context),
+    ).rejects.toMatchObject({ code: 'INVALID_SESSION' });
+
+    await services.lifecycle.confirmRecentAuthentication(
+      principal,
+      password,
+      context,
+    );
+    const refreshAndRevoke = await Promise.allSettled([
+      services.lifecycle.refresh(target.refreshToken, context),
+      services.lifecycle.revokeSession(principal, target.sessionId, context),
+    ]);
+    expect(refreshAndRevoke[1]).toMatchObject({ status: 'fulfilled' });
+    if (refreshAndRevoke[0]?.status === 'rejected') {
+      expect(refreshAndRevoke[0].reason).toMatchObject({
+        code: 'INVALID_SESSION',
+      });
+    }
+    await expect(services.lifecycle.listSessions(principal)).resolves.toEqual([
+      expect.objectContaining({ id: current.sessionId, current: true }),
+    ]);
+    await services.lifecycle.changePassword(
+      principal,
+      password,
+      changedPassword,
+      context,
+    );
+    await expect(
+      services.lifecycle.refresh(current.refreshToken, context),
+    ).rejects.toMatchObject({ code: 'INVALID_SESSION' });
+    await expect(
+      services.lifecycle.login(email, changedPassword, context),
+    ).resolves.toMatchObject({ user: { id: current.user.id } });
+    expect(
+      await source.query(
+        `SELECT authz_version AS "authzVersion", version FROM users WHERE id = $1`,
+        [current.user.id],
+      ),
+    ).toEqual([{ authzVersion: 2, version: 2 }]);
+    expect(
+      await migrationSource.query(
+        `SELECT event_type AS "eventType" FROM audit_events
+         WHERE subject_id = $1 ORDER BY occurred_at, id`,
+        [current.user.id],
+      ),
+    ).toEqual(
+      expect.arrayContaining([
+        { eventType: 'identity.recent_auth.confirmed' },
+        { eventType: 'identity.session.revoked' },
+        { eventType: 'identity.password.changed' },
+      ]),
+    );
+  });
+
   it('revokes an action token after its bounded invalid attempts', async () => {
     const services = authLifecycleServices(source);
     const context = { ip: '198.51.100.81' };
