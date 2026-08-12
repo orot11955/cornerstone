@@ -3,6 +3,7 @@
     "participants": [
       "api",
       "create-cornerstone",
+      "web",
       "@cornerstone/api-client",
       "@cornerstone/config",
       "@cornerstone/eslint-config",
@@ -12,8 +13,7 @@
       "@cornerstone/utils"
     ],
     "excluded": {
-      "web": "Web unit runner is introduced with WPF/UIF.",
-      "@cornerstone/ui": "Component tests are introduced with UIF."
+      "@cornerstone/ui": "UI behavior is covered by its component-test boundary."
     }
   },
   "test:component": {

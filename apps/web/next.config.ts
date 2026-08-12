@@ -1,5 +1,17 @@
 import type { NextConfig } from 'next'
+import { PHASE_PRODUCTION_SERVER } from 'next/constants'
+import { resolveWebConfig } from './src/config/web'
 
-const nextConfig: NextConfig = {/* config options here */}
+export default function nextConfig(phase: string): NextConfig {
+  const webConfig = resolveWebConfig(process.env)
+  if (phase === PHASE_PRODUCTION_SERVER) {
+    resolveWebConfig(process.env, { requireSecureOrigin: true })
+  }
 
-export default nextConfig
+  return {
+    env: {
+      NEXT_PUBLIC_APP_LOCALE: webConfig.locale,
+    },
+    poweredByHeader: false,
+  }
+}

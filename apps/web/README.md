@@ -2,7 +2,15 @@
 
 Cornerstone의 Next.js Frontend 앱이다. 사용자 흐름과 SSR/CSR 경계를 담당하며 API의 인증·권한 검증을 대신하지 않는다.
 
-현재는 기본 scaffold 단계다. 공통 API client, 인증 UI와 일반적인 제품 화면 대부분을 구성할 `packages/ui` 범용 UI Kit은 [구현 계획](../../docs/cornerstone_implementation_plan.md)에 따라 추가한다.
+공통 UI Foundation과 Web Platform 경계를 실제 consumer로 검증하는 reference app이다.
+
+## 환경 설정
+
+```bash
+cp apps/web/.env.example apps/web/.env.local
+```
+
+`SITE_URL`은 metadata, sitemap과 canonical URL의 기준이다. `pnpm --filter web start`로 Production 서버를 시작할 때는 HTTPS origin이어야 하며 credential, query와 hash를 포함할 수 없다.
 
 ## 실행
 
@@ -13,11 +21,12 @@ pnpm --filter web dev
 pnpm --filter web build
 pnpm --filter web lint
 pnpm --filter web typecheck
+pnpm --filter web test:unit
 ```
 
 - 개발 URL: `http://localhost:3000`
 - Production 실행: `pnpm --filter web start` (`build` 선행)
-- Web 전용 test script는 아직 없다.
+- Production 환경은 HTTPS `SITE_URL`이 없으면 기동을 거절한다.
 
 ## 경계
 
