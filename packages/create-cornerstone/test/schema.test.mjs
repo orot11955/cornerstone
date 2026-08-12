@@ -2,6 +2,7 @@ import assert from 'node:assert/strict'
 import { mkdtemp, mkdir, readFile, readdir, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { spawnSync } from 'node:child_process'
 import test from 'node:test'
 import { stringify } from 'yaml'
 import { createProject, resolveManifest, verifyProject } from '../dist/index.js'
@@ -124,4 +125,31 @@ test('rejects an unknown lock field before trusting its contents', async () => {
   lock.secret = 'unexpected'
   await writeFile(lockPath, `${JSON.stringify(lock, null, 2)}\n`)
   await assert.rejects(verifyProject(target), /unrecognized key/i)
+})
+
+test('interactive and manifest create use the same resolved plan', async () => {
+  const fixture = await mkdtemp(join(tmpdir(), 'cornerstone-create-test-'))
+  const interactiveTarget = join(fixture, 'interactive-app')
+  const result = spawnSync(process.execPath, ['dist/cli.js', 'create', interactiveTarget], {
+    cwd: new URL('..', import.meta.url),
+    input: '\n\nISC\n',
+    encoding: 'utf8',
+  })
+  assert.equal(result.status, 0, result.stderr)
+
+  const manifestPath = join(fixture, 'manifest.yml')
+  const manifestTarget = join(fixture, 'manifest-app')
+  await writeFile(
+    manifestPath,
+    stringify({
+      schemaVersion: 1,
+      name: 'interactive-app',
+      profile: 'minimal',
+      license: 'ISC',
+    }),
+  )
+  const manifestLock = await createProject(manifestTarget, manifestPath)
+  const interactiveLock = await verifyProject(interactiveTarget)
+  assert.equal(interactiveLock.userManifestDigest, manifestLock.userManifestDigest)
+  assert.deepEqual(interactiveLock.resolved, manifestLock.resolved)
 })

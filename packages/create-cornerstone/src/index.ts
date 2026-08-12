@@ -1,4 +1,10 @@
-export { createProject, planProject, readManifest, verifyProject } from './generator.js'
+export {
+  createProject,
+  createProjectFromManifest,
+  planProject,
+  readManifest,
+  verifyProject,
+} from './generator.js'
 export type { ProjectLock } from './generator.js'
 export {
   projectLockSchema,

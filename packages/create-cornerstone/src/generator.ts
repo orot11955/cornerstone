@@ -52,8 +52,16 @@ export async function createProject(
   targetPath: string,
   manifestPath: string,
 ): Promise<ProjectLock> {
-  const target = resolve(targetPath)
   const userManifest = await readManifest(resolve(manifestPath))
+  return createProjectFromManifest(targetPath, userManifest)
+}
+
+export async function createProjectFromManifest(
+  targetPath: string,
+  input: unknown,
+): Promise<ProjectLock> {
+  const target = resolve(targetPath)
+  const userManifest = projectManifestSchema.parse(input)
   const manifest = resolveManifest(userManifest)
   assertCertifiedComposition(manifest)
   await assertTargetAvailable(target)

@@ -1,6 +1,9 @@
 #!/usr/bin/env node
+import { createInterface } from 'node:readline/promises'
+import { basename, resolve } from 'node:path'
 import {
   createProject,
+  createProjectFromManifest,
   planProject,
   readManifest,
   resolveManifest,
@@ -18,8 +21,10 @@ try {
     )
   } else if (command === 'create') {
     const target = positional(args)
-    const manifestPath = option(args, '--manifest')
-    const lock = await createProject(target, manifestPath)
+    const manifestPath = optionalOption(args, '--manifest')
+    const lock = manifestPath
+      ? await createProject(target, manifestPath)
+      : await createProjectFromManifest(target, await promptManifest(target))
     console.log(`Created ${lock.resolved.name} (${lock.resolved.profile})`)
   } else if (command === 'verify') {
     const target = positional(args)
@@ -46,9 +51,59 @@ function option(args: string[], name: string): string {
   return value
 }
 
+function optionalOption(args: string[], name: string): string | undefined {
+  const index = args.indexOf(name)
+  if (index < 0) return undefined
+  const value = args[index + 1]
+  if (!value) usage()
+  return value
+}
+
+async function promptManifest(target: string) {
+  const suggestedName = basename(resolve(target))
+    .toLowerCase()
+    .replace(/[^a-z0-9-]+/g, '-')
+
+  if (!process.stdin.isTTY) {
+    process.stdin.setEncoding('utf8')
+    let content = ''
+    for await (const chunk of process.stdin) content += chunk
+    const [name = '', profile = '', license = ''] = content.split(/\r?\n/)
+    return promptAnswers(suggestedName, name, profile, license)
+  }
+
+  const prompt = createInterface({ input: process.stdin, output: process.stdout })
+  try {
+    return promptAnswers(
+      suggestedName,
+      await prompt.question(`Project name [${suggestedName}]: `),
+      await prompt.question('Profile [minimal]: '),
+      await prompt.question('License (ISC/MIT/UNLICENSED) [UNLICENSED]: '),
+    )
+  } finally {
+    prompt.close()
+  }
+}
+
+function promptAnswers(
+  suggestedName: string,
+  nameInput: string,
+  profileInput: string,
+  licenseInput: string,
+) {
+  return {
+    schemaVersion: 1,
+    name: nameInput.trim() || suggestedName,
+    profile: profileInput.trim() || 'minimal',
+    capabilities: [],
+    license: licenseInput.trim().toUpperCase() || 'UNLICENSED',
+    providers: {},
+  }
+}
+
 function usage(): never {
   console.error(
-    'Usage:\n  create-cornerstone plan --manifest <file>\n  create-cornerstone create <target> --manifest <file>\n  create-cornerstone verify <target>',
+    'Usage:\n  create-cornerstone plan --manifest <file>\n  create-cornerstone create <target> [--manifest <file>]\n  create-cornerstone verify <target>',
   )
   process.exit(2)
 }
