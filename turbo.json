@@ -1,5 +1,6 @@
 {
   "$schema": "https://turborepo.dev/schema.json",
+  "globalDependencies": ["pnpm-lock.yaml"],
   "tasks": {
     "dev": {
       "cache": false,
@@ -8,11 +9,7 @@
 
     "build": {
       "dependsOn": ["^build"],
-      "outputs": [
-        ".next/**",
-        "!.next/cache/**",
-        "dist/**"
-      ]
+      "outputs": [".next/**", "!.next/cache/**", "dist/**"]
     },
 
     "lint": {
@@ -23,9 +20,22 @@
       "dependsOn": ["^typecheck"]
     },
 
-    "test": {
-      "dependsOn": ["^test"],
-      "outputs": ["coverage/**"]
+    "test:unit": {
+      "dependsOn": ["^test:unit"]
+    },
+
+    "test:component": {
+      "dependsOn": ["^test:component"]
+    },
+
+    "test:integration": {
+      "dependsOn": ["^test:integration"],
+      "cache": false
+    },
+
+    "test:e2e": {
+      "dependsOn": ["^test:e2e"],
+      "cache": false
     }
   }
 }

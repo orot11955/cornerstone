@@ -9,6 +9,7 @@ build/
 out/
 .turbo/
 coverage/
+.artifacts/
 *.tsbuildinfo
 next-env.d.ts
 

@@ -14,7 +14,11 @@
     "build": "turbo build",
     "lint": "turbo lint",
     "typecheck": "turbo typecheck",
-    "test": "turbo test",
+    "test": "pnpm test:unit && pnpm test:component && pnpm test:integration",
+    "test:unit": "node scripts/test-scope.mjs test:unit --run",
+    "test:component": "node scripts/test-scope.mjs test:component --run",
+    "test:integration": "node scripts/test-scope.mjs test:integration --run",
+    "test:e2e": "node scripts/test-scope.mjs test:e2e --run",
     "format": "prettier --write .",
     "format:check": "prettier --check ."
   },
