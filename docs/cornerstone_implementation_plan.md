@@ -82,12 +82,12 @@ ADR 상태와 확정 원문은 [ADR Index](./adr/README.md)를 기준으로 한�
 
 | ADR                                                  | 상태     | 결정할 계약                                                              | 완료되어야 하는 시점      |
 | ---------------------------------------------------- | -------- | ------------------------------------------------------------------------ | ------------------------- |
-| 001 Runtime                                          | Proposed | Node/pnpm/TypeScript 지원·고정·CI matrix                                 | M0                        |
+| [001 Runtime](./adr/0001-runtime.md)                 | Accepted | Node/pnpm/TypeScript 지원·고정·CI matrix                                 | M0                        |
 | 002 Package                                          | Proposed | source export/build artifact, CSS, peer dependency, external consumption | M1                        |
 | 003 API                                              | Proposed | Nest DTO/OpenAPI Source of Truth와 client 생성·drift 검증                | M2                        |
 | 004 Network                                          | Proposed | Direct API/BFF, Browser·SSR 흐름, CORS, proxy와 cache                    | M2                        |
 | 005 Auth                                             | Proposed | Cookie, CSRF, JWT/session, rotation/revoke/key transition                | M2, M3 전에 필수          |
-| 006 Test                                             | Proposed | runner, DB 격리, fixture, clock와 artifact                               | M0                        |
+| [006 Test](./adr/0006-test-kernel.md)                | Accepted | runner, DB 격리, fixture, clock와 artifact                               | M0                        |
 | 007 Migration/Release                                | Proposed | expand/backfill/contract, deploy와 restore                               | M3                        |
 | 008 Operations                                       | Proposed | 지원 browser/OS/AT, TLS, hosting, secret, registry와 관측                | UIF 전/M9 전 분리         |
 | 009 Distribution/Trust                               | Proposed | package+template release, SemVer, provenance와 update                    | M1, M9 전에 필수          |

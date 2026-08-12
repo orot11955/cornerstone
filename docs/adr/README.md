@@ -11,8 +11,10 @@ ADR은 장기간 유지되는 아키텍처 결정을 기록한다. 구현 순서
 
 | ADR                                       | 상태     | 결정                                                    |
 | ----------------------------------------- | -------- | ------------------------------------------------------- |
+| [ADR-0001](./0001-runtime.md)             | Accepted | Runtime과 TypeScript 지원 정책                          |
+| [ADR-0006](./0006-test-kernel.md)         | Accepted | Test와 CI Kernel                                        |
 | [ADR-0015](./0015-project-composition.md) | Accepted | Canonical Template과 Capability Manifest                |
 | [ADR-0016](./0016-identity-scope.md)      | Accepted | Global Identity 기반 Single-tenant Core                 |
 | [ADR-0017](./0017-release-gates.md)       | Accepted | Foundation·Standard·Production·Regulated·Extension Gate |
 
-ADR-001~014는 구현 계획에 필요한 결정 주제로 먼저 등록되어 있다. 실제 선택이 승인되면 이 디렉터리에 개별 ADR을 만들고 `Accepted` 전에는 해당 진입 Gate를 통과한 것으로 간주하지 않는다.
+아직 문서가 없는 ADR-001~014 항목은 구현 계획에 필요한 결정 주제로 먼저 등록되어 있다. 실제 선택이 승인되면 이 디렉터리에 개별 ADR을 만들고 `Accepted` 전에는 해당 진입 Gate를 통과한 것으로 간주하지 않는다.
