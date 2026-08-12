@@ -1,9 +1,23 @@
 <!DOCTYPE html>
-<html lang="ko">
+<html
+  lang="ko"
+  data-theme="dark"
+  data-style="industrial"
+  data-brand="signal-violet"
+  data-density="default"
+>
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta
+    name="description"
+    content="Cornerstone의 dark + industrial + signal-violet + default 조합을 보여주는 비규범적 ATLAS 시각 레퍼런스"
+  />
   <title>ATLAS Terminal — Signal Violet Edition</title>
+  <!--
+    Reference only: this standalone prototype is not Cornerstone's default theme
+    or the source of truth for packages/ui tokens. See cornerstone_assembly_diagram.md.
+  -->
   <style>
     :root {
       /* ------------------------------
@@ -1249,7 +1263,7 @@
     }
   </style>
 </head>
-<body data-theme="dark" data-density="default">
+<body>
 <div class="app">
   <header class="topbar">
     <div class="brand">
@@ -1809,7 +1823,7 @@
 
   function updateThemeButton() {
     const btn = document.getElementById("themeBtn");
-    const isLight = document.body.dataset.theme === "light";
+    const isLight = document.documentElement.dataset.theme === "light";
     btn.textContent = isLight ? i18n[currentLang].darkMode : i18n[currentLang].lightMode;
   }
 
@@ -1844,11 +1858,12 @@
   renderBook(document.getElementById("bids"), bids, "bid");
 
   document.getElementById("densitySelect").addEventListener("change", e => {
-    document.body.dataset.density = e.target.value;
+    document.documentElement.dataset.density = e.target.value;
   });
 
   document.getElementById("themeBtn").addEventListener("click", () => {
-    document.body.dataset.theme = document.body.dataset.theme === "light" ? "dark" : "light";
+    const root = document.documentElement;
+    root.dataset.theme = root.dataset.theme === "light" ? "dark" : "light";
     updateThemeButton();
   });
 
