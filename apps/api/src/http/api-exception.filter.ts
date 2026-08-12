@@ -5,7 +5,7 @@ import {
   type ExceptionFilter,
 } from '@nestjs/common';
 import type { Response } from 'express';
-import { getRequestContext } from '../observability/request-context';
+import { getRequestContext } from '../observability/request-context.js';
 
 @Catch()
 export class ApiExceptionFilter implements ExceptionFilter {

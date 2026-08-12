@@ -1,8 +1,8 @@
-import { MetricsService } from './metrics.service';
+import { MetricsService } from './metrics.service.js';
 import {
   sanitizeLogMessage,
   StructuredLogger,
-} from './structured-logger.service';
+} from './structured-logger.service.js';
 
 describe('StructuredLogger', () => {
   it('redacts secret-like values and omits non-string errors', () => {

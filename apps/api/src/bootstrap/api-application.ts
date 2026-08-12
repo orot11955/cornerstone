@@ -12,12 +12,12 @@ import express, {
   type Response,
 } from 'express';
 import helmet from 'helmet';
-import { MetricsService } from '../observability/metrics.service';
+import { MetricsService } from '../observability/metrics.service.js';
 import {
   requestContextMiddleware,
   requestLifecycleMiddleware,
-} from '../observability/request-context';
-import { StructuredLogger } from '../observability/structured-logger.service';
+} from '../observability/request-context.js';
+import { StructuredLogger } from '../observability/structured-logger.service.js';
 
 const API_PREFIX = 'api/v1';
 const BODY_LIMIT = 1024 * 1024;

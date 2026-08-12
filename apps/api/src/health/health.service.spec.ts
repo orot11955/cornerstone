@@ -1,5 +1,5 @@
 import { ServiceUnavailableException } from '@nestjs/common';
-import { HealthService } from './health.service';
+import { HealthService } from './health.service.js';
 
 describe('HealthService', () => {
   it('lowers readiness before application shutdown while liveness remains available', () => {

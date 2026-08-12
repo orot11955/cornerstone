@@ -8,10 +8,10 @@ import {
   Query,
 } from '@nestjs/common';
 import { IsString, MaxLength } from 'class-validator';
+import type { Server } from 'node:http';
 import request from 'supertest';
-import { App } from 'supertest/types';
-import { AppModule } from './../src/app.module';
-import { configureApiApplication } from './../src/bootstrap/api-application';
+import { AppModule } from './../src/app.module.js';
+import { configureApiApplication } from './../src/bootstrap/api-application.js';
 
 class ValidationProbeDto {
   @IsString()
@@ -44,7 +44,7 @@ class ValidationProbeController {
 }
 
 describe('AppController (e2e)', () => {
-  let app: INestApplication<App> | undefined;
+  let app: INestApplication | undefined;
 
   beforeEach(async () => {
     const moduleFixture: TestingModule = await Test.createTestingModule({
@@ -60,9 +60,9 @@ describe('AppController (e2e)', () => {
     app = application;
   });
 
-  const server = () => {
+  const server = (): Server => {
     if (!app) throw new Error('Test application is not initialized');
-    return app.getHttpServer();
+    return app.getHttpServer() as Server;
   };
 
   it('/api/v1 (GET)', () => {

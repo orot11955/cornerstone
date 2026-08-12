@@ -1,8 +1,8 @@
 import { NestFactory } from '@nestjs/core';
 import { ConfigService } from '@nestjs/config';
-import { AppModule } from './app.module';
-import { configureApiApplication } from './bootstrap/api-application';
-import { StructuredLogger } from './observability/structured-logger.service';
+import { AppModule } from './app.module.js';
+import { configureApiApplication } from './bootstrap/api-application.js';
+import { StructuredLogger } from './observability/structured-logger.service.js';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule, { bodyParser: false });

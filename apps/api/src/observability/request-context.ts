@@ -1,8 +1,8 @@
 import { AsyncLocalStorage } from 'node:async_hooks';
 import { randomUUID } from 'node:crypto';
 import type { NextFunction, Request, Response } from 'express';
-import { MetricsService } from './metrics.service';
-import { StructuredLogger } from './structured-logger.service';
+import { MetricsService } from './metrics.service.js';
+import { StructuredLogger } from './structured-logger.service.js';
 
 export interface RequestContext {
   readonly requestId: string;

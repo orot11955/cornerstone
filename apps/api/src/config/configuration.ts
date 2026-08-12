@@ -1,4 +1,4 @@
-import { envSchema } from './env.schema';
+import { envSchema } from './env.schema.js';
 
 export const configuration = () => {
   const environment = envSchema.parse(process.env);

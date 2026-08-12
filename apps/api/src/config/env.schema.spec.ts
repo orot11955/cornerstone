@@ -1,4 +1,4 @@
-import { validateEnvironment } from './env.schema';
+import { validateEnvironment } from './env.schema.js';
 
 const requiredEnvironment = {
   WEB_URL: 'http://localhost:3000',

@@ -1,15 +1,15 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { APP_FILTER, APP_INTERCEPTOR } from '@nestjs/core';
-import { AppController } from './app.controller';
-import { AppService } from './app.service';
-import { configuration } from './config/configuration';
-import { validateEnvironment } from './config/env.schema';
-import { ApiExceptionFilter } from './http/api-exception.filter';
-import { HealthModule } from './health/health.module';
-import { MetricsService } from './observability/metrics.service';
-import { RequestLoggingInterceptor } from './observability/request-logging.interceptor';
-import { StructuredLogger } from './observability/structured-logger.service';
+import { AppController } from './app.controller.js';
+import { AppService } from './app.service.js';
+import { configuration } from './config/configuration.js';
+import { validateEnvironment } from './config/env.schema.js';
+import { ApiExceptionFilter } from './http/api-exception.filter.js';
+import { HealthModule } from './health/health.module.js';
+import { MetricsService } from './observability/metrics.service.js';
+import { RequestLoggingInterceptor } from './observability/request-logging.interceptor.js';
+import { StructuredLogger } from './observability/structured-logger.service.js';
 
 @Module({
   imports: [

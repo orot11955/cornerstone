@@ -1,13 +1,13 @@
 import {
   OutboundHttpClient,
   OutboundRequestError,
-} from './outbound-http.client';
+} from './outbound-http.client.js';
 import {
   formatStrongEtag,
   hashCanonicalPayload,
   parseStrongEtag,
   validateIdempotencyKey,
-} from './request-contract';
+} from './request-contract.js';
 
 describe('request contract', () => {
   it('hashes equivalent JSON payloads deterministically', () => {
