@@ -43,13 +43,15 @@ export class OutboxRepository {
   ): Promise<string> {
     validateEvent(event);
     const id = randomUUID();
-    const now = new Date();
     await manager.query(
       `INSERT INTO outbox_events (
          id, event_type, event_version, aggregate_id, payload,
          attempts, max_attempts, available_at, locked_at, locked_by,
          processed_at, last_error_code, created_at, updated_at
-       ) VALUES ($1, $2, $3, $4, $5, 0, $6, $7, NULL, NULL, NULL, NULL, $8, $8)`,
+       ) VALUES (
+         $1, $2, $3, $4, $5, 0, $6, COALESCE($7, CURRENT_TIMESTAMP),
+         NULL, NULL, NULL, NULL, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+       )`,
       [
         id,
         event.eventType,
@@ -57,8 +59,7 @@ export class OutboxRepository {
         event.aggregateId,
         event.payload,
         event.maxAttempts ?? 10,
-        event.availableAt ?? now,
-        now,
+        event.availableAt ?? null,
       ],
     );
     return id;
