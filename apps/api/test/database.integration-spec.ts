@@ -4,6 +4,10 @@ import { validateDatabaseEnvironment } from '../src/config/env.schema.js';
 import { buildDatabaseOptions } from '../src/database/database-options.js';
 import { IdempotencyRepository } from '../src/database/idempotency.repository.js';
 import { OutboxRepository } from '../src/database/outbox.repository.js';
+import {
+  OutboxWorker,
+  TypeOrmOutboxWorkStore,
+} from '../src/database/outbox.worker.js';
 
 const digest = (value: string) =>
   createHash('sha256').update(value).digest('hex');
@@ -199,6 +203,54 @@ describe('Database repositories (integration)', () => {
     expect(
       await repository.leaseBatch(source, {
         workerId: 'worker-5',
+        limit: 10,
+        leaseMs: 1_000,
+      }),
+    ).toEqual([]);
+  });
+
+  it('delivers outbox events with the event ID as provider idempotency key', async () => {
+    const repository = new OutboxRepository();
+    const aggregateId = randomUUID();
+    const eventId = await source.transaction((manager) =>
+      repository.enqueue(manager, {
+        eventType: 'identity.user.changed',
+        eventVersion: 1,
+        aggregateId,
+        payload: { userId: aggregateId, changes: ['status'] },
+      }),
+    );
+    const deliveredKeys: string[] = [];
+    const worker = new OutboxWorker(
+      new TypeOrmOutboxWorkStore(source, repository),
+      {
+        'identity.user.changed': (_event, context) => {
+          deliveredKeys.push(context.idempotencyKey);
+          return Promise.resolve();
+        },
+      },
+      {
+        workerId: 'integration-worker',
+        batchSize: 10,
+        leaseMs: 30_000,
+        baseRetryMs: 1_000,
+        maxRetryMs: 60_000,
+      },
+    );
+
+    await expect(
+      worker.drain(new AbortController().signal, 10),
+    ).resolves.toEqual({
+      leased: 1,
+      processed: 1,
+      retry: 0,
+      poison: 0,
+      interrupted: 0,
+    });
+    expect(deliveredKeys).toEqual([eventId]);
+    expect(
+      await repository.leaseBatch(source, {
+        workerId: 'verification-worker',
         limit: 10,
         leaseMs: 1_000,
       }),
