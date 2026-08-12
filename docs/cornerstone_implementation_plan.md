@@ -90,7 +90,7 @@ ADR 상태와 확정 원문은 [ADR Index](./adr/README.md)를 기준으로 한�
 | 007 Migration/Release                                              | Proposed | expand/backfill/contract, deploy와 restore                               | M3                        |
 | [008 Supported Environments](./adr/0008-supported-environments.md) | Accepted | 지원 browser/OS/AT와 responsive 검증 matrix                              | UIF 전                    |
 | [009 Distribution/Trust](./adr/0009-distribution-trust.md)         | Accepted | package+template release, SemVer, provenance와 update                    | M1, M9 전에 필수          |
-| 010 Identity/Authz                                                 | Proposed | User lifecycle, Role·ownership, default-deny와 revoke SLA                | IDC, M3 전에 필수         |
+| [010 Identity/Authz](./adr/0010-identity-authorization.md)         | Accepted | User lifecycle, Role·ownership, default-deny와 revoke SLA                | IDC, M3 전에 필수         |
 | [011 Web Platform](./adr/0011-web-platform.md)                     | Accepted | i18n, SEO/metadata, error, performance, Frontend observability           | WPF 전에 필수             |
 | 012 Documentation                                                  | Proposed | 정보 구조, versioning, example source, search와 artifact delivery        | DOC 전에 필수             |
 | 013 Data Governance                                                | Proposed | privacy, retention, encryption과 residency                               | Regulated Profile 전 필수 |
