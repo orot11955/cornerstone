@@ -69,7 +69,7 @@
 | UI Foundation      | token/Appearance/responsive Core component와 Web reference 구현              | 실제 browser hydration/axe/visual/AT matrix                     |
 | Web Platform       | i18n/metadata/error/offline/CSP/telemetry/performance Gate 구현              | locale route 전략과 실제 browser/404/500/a11y E2E               |
 | API Foundation     | prefix/CORS/validation/error/request context/log/metric/health/outbound 구현 | OpenAPI snapshot, DB idempotency와 shutdown drain integration   |
-| DB/Auth            | 계약 전 단계이며 runtime 구현 미착수                                         | ADR-007/010과 IDC 뒤 PostgreSQL Migration부터 순차 구현         |
+| DB/Auth            | ADR-005/007/010/016과 versioned IDC 확정, runtime 구현 미착수                | M3 PostgreSQL Migration부터 순차 구현                           |
 | Distribution       | package/generator tarball·license consumer 검증 완료                         | registry namespace/OIDC, signing/provenance와 immutable publish |
 | Docs Portal        | 저장소 내부 ADR/계획과 HTML reference만 존재                                 | ADR-012, `apps/docs`, version/search/download 배포              |
 
@@ -406,6 +406,12 @@ M1 이후 Backend M2~M5와 병렬 진행할 수 있다. M6의 인증 화면보�
 ### IDC. Identity Data Contract
 
 진입 Gate: ADR-005/010과 [ADR-0016](./adr/0016-identity-scope.md) 승인. 첫 User/AuthSession Migration보다 먼저 완료한다.
+
+현재 완료:
+
+- [`identity_data_contract.md`](./identity_data_contract.md)에 User/AuthSession/refresh/action token, idempotency/rate-limit/outbox/audit column·index·retention 입력 고정
+- `identity.contract.ts`에 상태 전이, closed Role/permission registry, security event별 authzVersion/Session revoke 효과와 deleted email 규칙 구현
+- 공통 email schema를 NFKC → trim → lowercase 순서로 고정하고 API가 ESM package artifact를 직접 소비
 
 목표:
 

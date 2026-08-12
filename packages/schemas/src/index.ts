@@ -1,6 +1,10 @@
 import { z } from 'zod'
 
-export const emailSchema = z.string().trim().toLowerCase().email().max(254)
+export const emailSchema = z
+  .string()
+  .max(1024)
+  .transform((value) => value.normalize('NFKC').trim().toLowerCase())
+  .pipe(z.string().email().max(254))
 
 export const urlSchema = z.string().url()
 

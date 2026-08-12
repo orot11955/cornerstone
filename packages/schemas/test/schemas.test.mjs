@@ -4,6 +4,7 @@ import { dateRangeSchema, emailSchema, paginationSchema } from '../dist/index.js
 
 test('normalizes an email address before validating it', () => {
   assert.equal(emailSchema.parse(' USER@EXAMPLE.COM '), 'user@example.com')
+  assert.equal(emailSchema.parse('ＵＳＥＲ@example.com'), 'user@example.com')
 })
 
 test('rejects unsafe pagination boundaries and unknown fields', () => {
