@@ -29,4 +29,23 @@ describe('validateEnvironment', () => {
       validateEnvironment({ ...requiredEnvironment, PORT: '70000' }),
     ).toThrow();
   });
+
+  it('rejects a web URL that is not an exact HTTP origin', () => {
+    for (const webUrl of [
+      'javascript:alert(1)',
+      'https://user@example.com',
+      'https://example.com/path',
+      'https://example.com?redirect=evil',
+    ]) {
+      expect(() =>
+        validateEnvironment({ ...requiredEnvironment, WEB_URL: webUrl }),
+      ).toThrow();
+    }
+  });
+
+  it('requires an HTTPS web origin in production', () => {
+    expect(() =>
+      validateEnvironment({ ...requiredEnvironment, NODE_ENV: 'production' }),
+    ).toThrow();
+  });
 });

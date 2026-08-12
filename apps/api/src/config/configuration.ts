@@ -7,6 +7,7 @@ export const configuration = () => {
     app: {
       environment: environment.NODE_ENV,
       port: environment.PORT,
+      trustProxyHops: environment.TRUST_PROXY_HOPS,
       webUrl: environment.WEB_URL,
     },
     database: {
