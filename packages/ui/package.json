@@ -8,7 +8,8 @@
   },
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
-    "typecheck": "tsc -p tsconfig.build.json --noEmit"
+    "typecheck": "tsc -p tsconfig.build.json --noEmit",
+    "test:component": "pnpm build && node --test test/*.test.mjs"
   },
   "exports": {
     ".": {
@@ -35,5 +36,11 @@
   "peerDependencies": {
     "react": ">=19.0.0 <20",
     "react-dom": ">=19.0.0 <20"
+  },
+  "devDependencies": {
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "react": "19.2.8",
+    "react-dom": "19.2.8"
   }
 }

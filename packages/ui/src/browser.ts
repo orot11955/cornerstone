@@ -1,4 +1,4 @@
-import type { Appearance } from './index.js'
+import { resolveAppearance, type Appearance } from './appearance.js'
 
 export function applyAppearance(
   appearance: Appearance,
@@ -9,3 +9,19 @@ export function applyAppearance(
   element.dataset.brand = appearance.brand
   element.dataset.density = appearance.density
 }
+
+export function readStoredAppearance(
+  storage: Pick<Storage, 'getItem'>,
+  key = 'cornerstone.appearance',
+  fallback?: Appearance,
+): Appearance {
+  try {
+    const value: unknown = JSON.parse(storage.getItem(key) ?? '{}')
+    return resolveAppearance(value && typeof value === 'object' ? value : {}, fallback)
+  } catch {
+    return resolveAppearance({}, fallback)
+  }
+}
+
+export { Portal } from './portal.js'
+export type { PortalProps } from './portal.js'

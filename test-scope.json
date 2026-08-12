@@ -17,7 +17,7 @@
     }
   },
   "test:component": {
-    "participants": [],
+    "participants": ["@cornerstone/ui"],
     "excluded": {
       "api": "The API has no component-test boundary.",
       "create-cornerstone": "The generator has no component-test boundary.",
@@ -28,7 +28,6 @@
       "@cornerstone/schemas": "The package has no component-test boundary.",
       "@cornerstone/tsconfig": "The package has no component-test boundary.",
       "@cornerstone/types": "The package has no component-test boundary.",
-      "@cornerstone/ui": "Component tests are introduced with UIF.",
       "@cornerstone/utils": "The package has no component-test boundary."
     }
   },
