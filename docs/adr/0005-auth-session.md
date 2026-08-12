@@ -48,6 +48,7 @@
 
 - password는 Argon2id를 사용하고 최소 12자, 최대 128 Unicode code point를 허용한다. blocklist/유출 password 검사는 provider port로 분리하며 임의 조합 규칙은 강제하지 않는다.
 - Argon2 memory/time/parallelism은 지원 최소 Production class에서 login p95 목표를 만족하도록 benchmark한 값으로 release manifest에 기록하고, 더 낮은 parameter hash는 성공 login 뒤 갱신한다.
+- Release 전 `pnpm --filter api benchmark:password`를 실행한다. 이 명령은 `apps/api/release/auth-password-policy.json`의 Argon2id parameter와 hash/verify p95 목표를 검증하고, 정책 digest·표본 수·p50/p95/max·runtime/OS/CPU 메타데이터만 JSON evidence로 출력한다. 기본 출력은 release evidence이며 `benchmark:password:fast`는 개발 확인용 `non-production-test` evidence이므로 release 증거로 사용할 수 없다.
 - verification/recovery token은 purpose, User, expiry와 attempt count에 bind한 256-bit opaque value이며 원문 대신 hash만 저장한다. verification은 24시간, password reset은 30분, 최대 검증 실패는 5회다.
 - token은 single-use다. purpose swap, replay와 만료를 거절하고 password reset 성공은 모든 Session revoke와 authzVersion 증가를 같은 transaction에서 수행한다.
 - register/resend/forgot는 존재/부재 계정에 같은 status와 일반 message를 반환한다. response time 차이는 rate-limit queue와 일정한 작업 경계로 줄이며 provider 상태를 노출하지 않는다.

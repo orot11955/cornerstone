@@ -1,4 +1,5 @@
 import { validateEnvironment } from './env.schema.js';
+import { resolvePasswordRuntimeParameters } from '../auth/password-runtime-policy.js';
 
 export const configuration = () => {
   const environment = validateEnvironment(process.env);
@@ -107,10 +108,7 @@ export const configuration = () => {
         reference: environment.AUTH_SECRET_PROVENANCE_REF,
       },
       password: {
-        memoryCostKib: environment.ARGON2_MEMORY_KIB,
-        timeCost: environment.ARGON2_TIME_COST,
-        parallelism: environment.ARGON2_PARALLELISM,
-        hashLength: 32,
+        ...resolvePasswordRuntimeParameters(environment),
         maxConcurrent: environment.ARGON2_MAX_CONCURRENT,
         maxQueue: environment.ARGON2_MAX_QUEUE,
       },

@@ -1,4 +1,8 @@
 import { z } from 'zod';
+import {
+  passwordRuntimeBounds,
+  passwordRuntimeDefaults,
+} from '../auth/password-runtime-policy.js';
 
 const httpOrigin = z
   .string()
@@ -180,11 +184,21 @@ const authEnvironmentShape = {
   ARGON2_MEMORY_KIB: z.coerce
     .number()
     .int()
-    .min(19_456)
-    .max(262_144)
-    .default(65_536),
-  ARGON2_TIME_COST: z.coerce.number().int().min(2).max(5).default(3),
-  ARGON2_PARALLELISM: z.coerce.number().int().min(1).max(4).default(1),
+    .min(passwordRuntimeBounds.memoryCostKib.min)
+    .max(passwordRuntimeBounds.memoryCostKib.max)
+    .default(passwordRuntimeDefaults.memoryCostKib),
+  ARGON2_TIME_COST: z.coerce
+    .number()
+    .int()
+    .min(passwordRuntimeBounds.timeCost.min)
+    .max(passwordRuntimeBounds.timeCost.max)
+    .default(passwordRuntimeDefaults.timeCost),
+  ARGON2_PARALLELISM: z.coerce
+    .number()
+    .int()
+    .min(passwordRuntimeBounds.parallelism.min)
+    .max(passwordRuntimeBounds.parallelism.max)
+    .default(passwordRuntimeDefaults.parallelism),
   ARGON2_MAX_CONCURRENT: z.coerce.number().int().min(1).max(8).default(2),
   ARGON2_MAX_QUEUE: z.coerce.number().int().min(0).max(1_000).default(100),
 };

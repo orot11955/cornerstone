@@ -27,6 +27,8 @@
     "test:debug": "node --experimental-vm-modules --inspect-brk node_modules/jest/bin/jest.js --runInBand",
     "test:e2e": "node --experimental-vm-modules node_modules/jest/bin/jest.js --config ./test/jest-e2e.json",
     "test:integration": "pnpm database:verify && node --experimental-vm-modules node_modules/jest/bin/jest.js --config ./test/jest-integration.json",
+    "benchmark:password": "pnpm build && node ./scripts/password-benchmark.mjs",
+    "benchmark:password:fast": "pnpm build && node ./scripts/password-benchmark.mjs --mode fast --warmup 0 --samples 1",
     "typeorm": "typeorm-ts-node-esm -d src/database/data-source.ts",
     "migration:create": "typeorm migration:create src/database/migrations",
     "migration:generate": "pnpm typeorm migration:generate",
