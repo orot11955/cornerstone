@@ -44,6 +44,7 @@ jobs:
       - run: pnpm test
       - run: pnpm build
       - run: pnpm package:verify
+      - run: pnpm license:check
 
   e2e:
     name: E2E
