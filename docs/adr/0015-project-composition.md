@@ -20,9 +20,12 @@ Cornerstone은 프로젝트마다 필요한 기반을 조합하는 Starter Kit�
 - `regulated`는 compliance 인증이 아니라 `production` 위에 privacy/audit/residency/encryption 계약과 검증 harness를 추가하는 preset이다.
 - Generator는 capability dependency/conflict, runtime/package/schema compatibility, 필수 provider 누락과 Production의 fake adapter 사용을 생성 전에 거절한다.
 - `cornerstone.config.yml`과 lock manifest에는 secret·credential·개인정보 값을 저장하지 않고 환경 변수 이름이나 외부 secret reference만 기록한다.
-- 생성 결과의 lock manifest에 resolved capability, generator/template/package version, schema baseline, compatibility 기준과 적용한 template/fragment checksum을 보존한다.
+- 생성 결과의 lock manifest에 normalized user manifest digest, resolved capability, generator/template/package version, schema baseline, compatibility 기준과 적용한 template/fragment checksum을 보존한다.
+- Lock manifest는 생성 프로젝트에 포함해 버전 관리하고 Generator만 갱신한다. 사용자 manifest와 digest가 다르면 `verify`와 update를 중단하며, 성공한 apply가 끝난 뒤 lock manifest를 atomic write한다.
 - 여러 capability가 공유 파일을 변경할 때는 파일별 단일 owner와 versioned structured composer를 사용한다. 적용 순서, dependency/env/module/route 충돌과 병합 결과는 결정적이어야 하며 임의 text patch를 public extension 계약으로 사용하지 않는다.
 - Starter v1 Generator는 동일 release manifest에 포함된 bundled capability만 실행한다. 임의 remote plugin이나 신뢰하지 않은 Generator code 실행은 지원하지 않는다.
+- Extension runtime package는 독립 배포하지만 초기 생성에 필요한 fragment/composer는 Core Generator release가 소유한다. 새 Extension 생성 지원이나 fragment 변경에는 호환되는 Generator release가 필요하다.
+- 새 프로젝트는 staging directory에서 완성·검증한 뒤 비어 있는 target으로 승격한다. 기존 프로젝트 update는 사전 계산한 change set과 복구 journal을 사용하며 실패 시 touched file을 복원하고 lock manifest를 갱신하지 않는다.
 - 생성 뒤 사용자 파일을 자동 덮어쓰지 않는다. 추가·변경은 dry-run, 예상 diff, package update와 migration guide를 우선한다.
 
 용어:

@@ -89,10 +89,13 @@ appearance:
 - Generator는 dependency/conflict, runtime/package/schema compatibility, Production 필수 provider 누락과 fake adapter 사용을 파일 생성 전에 거절한다.
 - 선택하지 않은 capability의 코드, dependency, 환경 변수, 인프라와 문서는 생성 프로젝트에 포함하지 않는다.
 - 사용자 소유 `cornerstone.config.yml`에는 Profile, capability, Appearance와 provider reference 같은 생성 의도만 기록한다.
-- Generator 소유 `.cornerstone/manifest.lock.json`에는 resolved capability, generator/template/package version, schema baseline, compatibility와 적용한 template/fragment checksum을 기록한다.
+- Generator 소유 `.cornerstone/manifest.lock.json`에는 normalized user manifest digest, resolved capability, generator/template/package version, schema baseline, compatibility와 적용한 template/fragment checksum을 기록하고 생성 프로젝트와 함께 버전 관리한다.
+- `verify`와 update는 사용자 manifest digest가 lock과 다르면 중단한다. 성공한 apply가 끝난 뒤에만 lock을 atomic write해 실패한 생성 plan이 완료 이력으로 남지 않게 한다.
 - 두 manifest에는 secret·credential·개인정보 값을 저장하지 않고 환경 변수 이름이나 외부 secret reference만 허용한다.
 - `production`은 운영 요구를 활성화하는 overlay다. Mail, hosting, registry, secret store와 backup 등 필수 slot은 생성 시 구체적인 provider/version으로 해소하고 그 exact matrix를 검증해야 Certified가 된다.
 - 여러 capability가 공유 파일을 수정하면 파일별 단일 owner의 versioned structured composer가 결정적인 순서로 병합한다. 임의 text patch와 신뢰하지 않은 remote Generator plugin은 Starter v1 계약에 포함하지 않는다.
+- Extension runtime package는 독립 SemVer로 배포하지만 초기 생성 fragment/composer는 Core Generator가 함께 배포한다. 새 Extension 생성 지원은 호환 Core Generator release를 통해 제공한다.
+- 새 프로젝트는 staging directory에서 검증한 뒤 비어 있는 target으로 승격한다. 기존 프로젝트 update는 change set과 복구 journal로 실행하고 실패하면 touched file을 복원하며 lock을 갱신하지 않는다.
 - 공통 수정은 package update로 전달하고 사용자 파일은 자동 덮어쓰지 않는다. 구조 변경은 dry-run, 예상 diff와 migration guide를 우선한다.
 - Docs는 사용자 manifest와 lock manifest를 읽어 현재 구성에 해당하는 설치·운영·upgrade 문서를 필터링할 수 있다.
 

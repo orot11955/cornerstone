@@ -284,15 +284,17 @@ pnpm build
 목표:
 
 - `packages/create-cornerstone`, `templates/canonical`, versioned `cornerstone.config.yml` schema와 `.cornerstone/manifest.lock.json` schema를 구현한다.
-- 사용자 manifest에는 생성 의도만, lock manifest에는 resolved capability, exact generator/template/package version, schema baseline, compatibility와 적용한 template/fragment checksum만 기록한다. 두 파일에 secret·credential·개인정보 값을 허용하지 않는다.
+- 사용자 manifest에는 생성 의도만, lock manifest에는 normalized user manifest digest, resolved capability, exact generator/template/package version, schema baseline, compatibility와 적용한 template/fragment checksum만 기록한다. 두 파일에 secret·credential·개인정보 값을 허용하지 않는다.
+- Lock manifest는 생성 프로젝트와 함께 version control에 포함하고 Generator만 갱신한다. 성공한 apply 뒤 atomic write하며 사용자 manifest digest가 다르거나 lock이 수동 변경되면 `verify`와 update를 중단한다.
 - `minimal`, `standard`, `production`, `regulated` preset을 별도 Template 복제 없이 capability manifest로 해석한다. `production`은 필수 provider slot을 해소해야 생성 가능한 overlay로 취급한다.
 - Interactive prompt와 `--manifest` non-interactive 실행이 같은 생성 plan을 사용한다.
 - Capability dependency/conflict, 지원 수준, runtime/package/schema compatibility, 필수 provider 누락과 Production fake adapter를 생성 전에 검증한다.
-- Starter v1은 동일 release manifest에 포함된 bundled capability만 실행하고 arbitrary remote plugin이나 신뢰하지 않은 Generator code를 실행하지 않는다.
+- Starter v1은 동일 release manifest에 포함된 bundled capability만 실행하고 arbitrary remote plugin이나 신뢰하지 않은 Generator code를 실행하지 않는다. Extension runtime package는 독립 배포하되 초기 생성 fragment/composer는 호환 Core Generator release가 소유한다.
 - 선택된 fragment만 적용하고 dependency, env example, compose/CI, Docs link와 project lock manifest를 함께 생성한다.
 - `package.json`, env example, compose/CI, Nest module과 Next provider 같은 공유 파일은 파일별 단일 owner의 versioned structured composer가 소유한다. 적용 순서와 dependency/env/module/route 충돌 규칙을 schema로 고정하고 임의 text patch를 금지한다.
 - Feature/package/API/Migration generator는 각 Milestone의 공개 경계와 naming을 재사용하고 생성 직후 format/typecheck/test가 가능한 결과를 만든다.
 - 기존 프로젝트 변경은 `plan --dry-run`과 예상 diff를 먼저 제공하며 사용자 파일을 자동 overwrite하지 않는다.
+- 신규 create는 staging directory에서 검증한 뒤 비어 있는 target으로 승격한다. 기존 update는 사전 계산한 change set, touched-file backup과 복구 journal을 사용하고 실패 시 복원하며 lock을 갱신하지 않는다.
 - `verify` 명령은 lock manifest의 필수·금지 package/env/infra와 compatibility를 검사하되 사용자 소유 코드를 원본 Template과 동일하게 만들도록 강제하지 않는다.
 - 생성 프로젝트의 제품 license는 manifest나 prompt에서 사용자가 선택하고, 미선택 시 임의 license를 부여하지 않는다. Cornerstone 재배포 파일의 필수 `NOTICE`와 attribution은 항상 보존한다.
 
@@ -303,8 +305,10 @@ pnpm build
 - 선택하지 않은 capability의 source/dependency/env/infra/Docs 잔존 0건
 - 누락 dependency, conflict, Experimental 선택, schema/runtime 비호환과 Production fake adapter 거절
 - 필수 provider 미해소, 공유 파일 composer 충돌, manifest/lock secret 값과 untrusted plugin 입력 거절
+- 사용자 manifest/lock digest drift, lock 수동 변경과 실패한 apply의 lock 갱신 거절
 - Windows/macOS/Linux path·권한·line ending과 archive traversal/symlink 안전성
 - 사용자 수정 fixture의 dry-run 예상 diff와 취소 시 파일 변경 0건
+- create 실패 시 target 변경 0건, update 중간 실패 시 touched file 복원과 lock 불변
 - 선택 license와 Cornerstone `NOTICE`/attribution 결과 검증
 
 완료: 사용자가 초기 설정 또는 manifest로 검증된 구성을 정의하고 선택된 기반만 재현 가능하게 생성한다. M1/UIF의 Foundation artifact와 Preview Docs가 일치하면 Foundation Release rehearsal을 실행할 수 있다.
