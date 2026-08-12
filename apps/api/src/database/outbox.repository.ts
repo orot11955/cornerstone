@@ -180,7 +180,10 @@ export class OutboxRepository {
       manager,
       `UPDATE outbox_events
        SET processed_at = CASE WHEN attempts >= max_attempts THEN CURRENT_TIMESTAMP ELSE NULL END,
-         available_at = CASE WHEN attempts >= max_attempts THEN available_at ELSE $4 END,
+         available_at = CASE
+           WHEN attempts >= max_attempts THEN available_at
+           ELSE GREATEST($4, CURRENT_TIMESTAMP)
+         END,
          locked_at = NULL, locked_by = NULL, last_error_code = $3,
          updated_at = CURRENT_TIMESTAMP
        WHERE id = $1 AND locked_by = $2 AND processed_at IS NULL
