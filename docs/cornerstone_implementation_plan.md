@@ -13,7 +13,7 @@
 
 - 지원 Node/pnpm 환경에서 frozen install과 Root package 품질 명령 통과
 - Shared package export, UI Foundation, SSR/browser 경계와 외부 소비 tarball 검증
-- 생성 CLI가 manifest를 읽고 최소 Certified Profile을 재현
+- 생성 CLI가 사용자 manifest를 읽고 resolved lock manifest와 최소 Certified Profile을 재현
 - 검증된 Foundation artifact와 일치하는 versioned package/API/UI stable Docs 제공
 
 ### Standard Starter Release
@@ -27,6 +27,7 @@
 
 ### Production Ready Release
 
+- Mail, hosting, registry, secret store와 backup 등 필수 provider slot을 구체적인 지원 provider/version으로 해소
 - `production` Profile의 image와 one-off Migration 배포, readiness, traffic 전환과 rollback/restore 검증
 - Project가 선언한 SLI/SLO·capacity 값에 대한 load/soak와 alert/incident rehearsal
 - Backup, secret/key rotation, SBOM/provenance/signing과 동일 digest 승격
@@ -41,7 +42,7 @@
 ### Extension Release
 
 - 활성 capability별 port/adapter, provider config, local fake와 contract test 검증
-- Core/Profile compatibility, deprecation, 장애 정책과 migration guide 제공
+- 독립 SemVer와 Core/Profile compatibility, deprecation, 장애 정책과 migration guide 제공
 - 비활성 extension은 생성 코드, dependency, env와 인프라에 포함하지 않음
 
 인증·권한, secret, Migration 안전성, provenance와 artifact 무결성처럼 활성 capability에 적용되는 필수 Gate에는 waiver를 허용하지 않는다. 입력 검증, secret scan, default-deny, build 재현성과 artifact integrity는 모든 Profile의 공통 Gate다. 그 밖의 기존 실패는 위험 근거, 보상 통제, 소유자, 노출 환경과 만료일이 있는 명시적 waiver가 승인된 경우에만 한시적으로 허용하며 만료 시 자동으로 다시 차단한다.
@@ -174,13 +175,13 @@ ADR 상태와 확정 원문은 [ADR Index](./adr/README.md)를 기준으로 한�
 
 ### ADR-009 최소 결정
 
-- `@cornerstone/*` synchronized package release, 생성 CLI와 versioned canonical template artifact
-- Template이 고정할 package/runtime/schema compatibility manifest
+- Core `@cornerstone/*` synchronized package release, Extension 독립 SemVer, 생성 CLI와 versioned canonical template artifact
+- Release manifest가 고정할 package/runtime/schema compatibility와 project lock schema
 - Local tarball·빈 소비자 검증과 registry publish 기준
 - 생성 프로젝트 자동 overwrite 금지와 migration guide 정책
 - Build 뒤 immutable staging digest를 고정하고 builder와 분리된 signer가 attest/sign한 뒤 별도 protected verifier가 pinned policy로 검증한 artifact만 publish/promote
 - PR/release/deploy 신뢰 경계, OIDC 단기 자격증명과 protected environment
-- Root/package/template/example/docs의 license와 SPDX, `LICENSE`/`NOTICE`, attribution과 dependency license policy
+- Root/package/template/example/docs의 license와 SPDX, `LICENSE`/`NOTICE`, attribution, 생성 프로젝트 license 선택과 dependency license policy
 - `CODEOWNERS`, protected branch, required review/status check와 break-glass audit
 
 ## 4. 소유권
@@ -195,7 +196,7 @@ ADR 상태와 확정 원문은 [ADR Index](./adr/README.md)를 기준으로 한�
 | Frontend endpoint adapter와 Query hook                             | Frontend owner   | Backend               |
 | Migration과 DB metadata                                            | Backend owner    | Operations            |
 | UI token, public component API와 CSS entry                         | UI owner         | Frontend              |
-| Root lockfile, compatibility manifest와 release metadata           | Release owner    | 각 package owner      |
+| Root lockfile, project lock manifest와 release metadata            | Release owner    | 각 package owner      |
 | Capability manifest schema, preset, generator와 canonical template | Release owner    | 각 capability owner   |
 | Identity lifecycle, route authorization matrix와 revoke SLA        | Backend owner    | Security              |
 | Next/BFF trust policy와 Web security header                        | Frontend owner   | Security, Operations  |
@@ -282,14 +283,18 @@ pnpm build
 
 목표:
 
-- `packages/create-cornerstone`, `templates/canonical`과 versioned `cornerstone.config.yml` schema를 구현한다.
-- `minimal`, `standard`, `production`, `regulated` preset을 별도 Template 복제 없이 capability manifest로 해석한다.
+- `packages/create-cornerstone`, `templates/canonical`, versioned `cornerstone.config.yml` schema와 `.cornerstone/manifest.lock.json` schema를 구현한다.
+- 사용자 manifest에는 생성 의도만, lock manifest에는 resolved capability, exact generator/template/package version, schema baseline, compatibility와 적용한 template/fragment checksum만 기록한다. 두 파일에 secret·credential·개인정보 값을 허용하지 않는다.
+- `minimal`, `standard`, `production`, `regulated` preset을 별도 Template 복제 없이 capability manifest로 해석한다. `production`은 필수 provider slot을 해소해야 생성 가능한 overlay로 취급한다.
 - Interactive prompt와 `--manifest` non-interactive 실행이 같은 생성 plan을 사용한다.
-- Capability dependency/conflict, 지원 수준, runtime/package/schema compatibility와 Production fake adapter를 생성 전에 검증한다.
-- 선택된 fragment만 적용하고 dependency, env example, compose/CI, Docs link와 compatibility manifest를 함께 생성한다.
+- Capability dependency/conflict, 지원 수준, runtime/package/schema compatibility, 필수 provider 누락과 Production fake adapter를 생성 전에 검증한다.
+- Starter v1은 동일 release manifest에 포함된 bundled capability만 실행하고 arbitrary remote plugin이나 신뢰하지 않은 Generator code를 실행하지 않는다.
+- 선택된 fragment만 적용하고 dependency, env example, compose/CI, Docs link와 project lock manifest를 함께 생성한다.
+- `package.json`, env example, compose/CI, Nest module과 Next provider 같은 공유 파일은 파일별 단일 owner의 versioned structured composer가 소유한다. 적용 순서와 dependency/env/module/route 충돌 규칙을 schema로 고정하고 임의 text patch를 금지한다.
 - Feature/package/API/Migration generator는 각 Milestone의 공개 경계와 naming을 재사용하고 생성 직후 format/typecheck/test가 가능한 결과를 만든다.
 - 기존 프로젝트 변경은 `plan --dry-run`과 예상 diff를 먼저 제공하며 사용자 파일을 자동 overwrite하지 않는다.
-- `verify` 명령은 resolved manifest의 필수·금지 package/env/infra와 compatibility를 검사하되 사용자 소유 코드를 원본 Template과 동일하게 만들도록 강제하지 않는다.
+- `verify` 명령은 lock manifest의 필수·금지 package/env/infra와 compatibility를 검사하되 사용자 소유 코드를 원본 Template과 동일하게 만들도록 강제하지 않는다.
+- 생성 프로젝트의 제품 license는 manifest나 prompt에서 사용자가 선택하고, 미선택 시 임의 license를 부여하지 않는다. Cornerstone 재배포 파일의 필수 `NOTICE`와 attribution은 항상 보존한다.
 
 검증:
 
@@ -297,8 +302,10 @@ pnpm build
 - 같은 manifest/generator version의 byte-stable 생성 또는 승인된 non-determinism 목록
 - 선택하지 않은 capability의 source/dependency/env/infra/Docs 잔존 0건
 - 누락 dependency, conflict, Experimental 선택, schema/runtime 비호환과 Production fake adapter 거절
+- 필수 provider 미해소, 공유 파일 composer 충돌, manifest/lock secret 값과 untrusted plugin 입력 거절
 - Windows/macOS/Linux path·권한·line ending과 archive traversal/symlink 안전성
 - 사용자 수정 fixture의 dry-run 예상 diff와 취소 시 파일 변경 0건
+- 선택 license와 Cornerstone `NOTICE`/attribution 결과 검증
 
 완료: 사용자가 초기 설정 또는 manifest로 검증된 구성을 정의하고 선택된 기반만 재현 가능하게 생성한다. M1/UIF의 Foundation artifact와 Preview Docs가 일치하면 Foundation Release rehearsal을 실행할 수 있다.
 
@@ -621,24 +628,27 @@ Preview 진입 Gate: M1/DXF와 ADR-012 승인. Package/API/UI Milestone마다 �
 
 앞 단계에서 만든 harness를 새로 만드는 단계가 아니라 통합·강화한다.
 
-목표:
+공통 목표:
 
-- Auth/Role/Appearance/Migration 핵심 Playwright E2E를 완성한다.
-- Locale/RTL/metadata/error recovery와 성능·접근성 budget E2E를 완성한다.
 - DB worker 격리, fixture, clock, concurrency와 multi-replica scenario를 안정화한다.
 - Flaky retry, coverage gap과 실패 artifact 보존 정책을 확정한다.
 - Log, trace, screenshot, video와 `storageState`의 secret/PII를 제거한다.
-- Login 실패, refresh reuse, Role/status 변경, admin bootstrap, key rotation과 publish/deploy security audit event를 검증한다.
-- Verification/recovery, recent-auth, Session revoke, idempotent mutation과 outbox crash/replay를 검증하고 활성 Tenant capability에서는 tenant 격리를 추가한다.
-- Regulated Profile에서는 Data export/delete/retention 전파와 consent 변경의 audit·privacy fixture를 추가 검증한다.
-- 승인된 load/soak/burst profile에서 SLI/SLO, pool/memory와 활성 Queue의 한계 및 graceful degradation을 검증한다.
-- Metric cardinality와 log/trace retention·sampling budget을 machine-readable report로 검증한다.
 
-완료: 로컬/CI 명령이 같고 병렬 실행이 충돌하지 않으며 실패 artifact로 원인을 재현할 수 있다. 기본 `standard` Profile의 Core E2E와 applicable distribution rehearsal이 통과하면 Standard Starter Release를 공개할 수 있다.
+Profile별 Gate:
+
+- M8S Standard: Auth/Role/Appearance/Migration, Locale/RTL/metadata/error recovery와 성능·접근성 budget Playwright E2E를 완성한다.
+- M8S Standard: Login 실패, refresh reuse, Role/status 변경, admin bootstrap과 key rotation을 검증한다.
+- M8S Standard: Verification/recovery, recent-auth, Session revoke, idempotent mutation과 outbox crash/replay를 검증한다.
+- M8P Production: M9가 만든 immutable candidate를 대상으로 승인된 load/soak/burst profile에서 SLI/SLO, pool/memory, graceful degradation, restore, publish/deploy security audit와 incident rehearsal을 검증한다.
+- M8P Production: Metric cardinality와 log/trace retention·sampling budget을 machine-readable report로 검증한다.
+- M8R Regulated: Data export/delete/retention 전파와 consent 변경의 audit·privacy fixture를 검증한다.
+- M8E Extension: 활성 Tenant/Queue/Realtime/Mail/Storage 등 capability별 격리, 장애와 contract scenario를 검증한다.
+
+완료: 모든 Gate는 로컬/CI 명령이 같고 병렬 실행이 충돌하지 않으며 실패 artifact로 원인을 재현할 수 있어야 한다. M8S가 통과하면 Standard Starter Release를 공개할 수 있고 M8P/M8R/M8E는 각각 Production, Regulated와 활성 Extension release만 차단한다.
 
 ### M9. Production + Release Pipeline
 
-진입 Gate: ADR-008/009 승인과 M3/M8 완료.
+진입 Gate: ADR-008/009 승인과 M3/M8S 완료. M9가 immutable candidate와 검증 환경을 만든 뒤 M8P를 실행하고, Production publish와 M10 전에 통과시킨다.
 
 PR Gate:
 
@@ -651,8 +661,9 @@ Release/Deploy:
 
 ```text
 build once → immutable staging digest → isolated attest/sign
-→ protected verifier의 fail-closed 검증 → publish/promote
-→ compatible migration → deploy → readiness → traffic
+→ protected verifier의 fail-closed 검증 → candidate 환경 배포
+→ compatible migration → readiness → M8P 검증
+→ 승인된 동일 digest publish/promote → production deploy → traffic
 → post-deploy verify → rollback window
 → 별도 승인 release에서 contract migration
 ```
@@ -680,20 +691,20 @@ build once → immutable staging digest → isolated attest/sign
 - Regulated Profile은 Data residency, encryption/key rotation, access/export/delete와 retention 전파 evidence를 release에 보존
 - License/SPDX, `LICENSE`/`NOTICE`, attribution과 dependency license policy를 package/template/image/docs에 검증
 
-완료: 검증한 동일 digest가 승격되고 권한·artifact·Migration·rollback/restore 증거가 release에 보존된다.
+완료: M8P가 검증한 동일 digest가 승격되고 권한·artifact·Migration·rollback/restore 증거가 release에 보존된다.
 
 ### M10. Production Distribution Rehearsal
 
 목표:
 
-- Package tarball, 생성 CLI, versioned canonical template와 compatibility manifest를 release한다.
+- Package tarball, 생성 CLI, versioned canonical template와 release manifest를 공개한다.
 - README, changelog, migration guide와 운영 runbook을 실제 artifact에 맞춰 갱신한다.
 - 별도 Docs release에서 해당 version의 reference, examples, download manifest와 search index를 공개한다.
 - 임시 디렉터리에서 package/template 소비 전 과정을 리허설한다.
 
 검증:
 
-1. Interactive 설정과 동일 manifest의 non-interactive 실행 결과가 일치하고 Certified Profile별 frozen install
+1. Interactive 설정과 동일 사용자 manifest의 non-interactive 실행 결과 및 lock manifest가 일치하고 Certified Profile별 frozen install
 2. 자체 호스팅용 승인 명령으로 provenance가 있는 32-byte 이상 CSPRNG secret 생성과 운영 secret store 주입·rotation dry-run
 3. Production placeholder/equal-key/default credential, 수동·형식 미달 secret 거절과 server-only env 확인
 4. 별도 단기 principal로 protected one-time admin bootstrap을 실행하고 runtime image 비포함·credential 폐기·재실행 거절 확인
@@ -702,11 +713,11 @@ build once → immutable staging digest → isolated attest/sign
 7. 직전 release schema/data에서 upgrade, 구·신 앱 호환과 backfill 재시작
 8. Contract 전 N-1 rollback과 contract 후 corrective roll-forward 경계를 구분해 검증
 9. 직전 생성 결과 + 대표 사용자 변경 fixture에 package update와 migration guide 적용
-10. 사용자 소유 파일 보존과 compatibility manifest 기준의 예상 diff 확인
+10. 사용자 소유 파일 보존과 project lock/release manifest 기준의 예상 diff 확인
 11. Auth/Role/Appearance/Web Platform reference E2E
 12. Production image 실행, readiness와 `snapshot → token 발급/revoke·사용자 삭제 → restore` 뒤 기존 access/refresh가 모두 거절되는 secure rollback/restore
 13. Bundle, source map, image layer, log, trace와 fixture secret/PII scan
-14. Release candidate의 immutable digest를 독립 signer/verifier가 fail-closed 검증한 뒤에만 최종 publish하고 compatibility manifest와 실행 log 보존
+14. Release candidate의 immutable digest를 독립 signer/verifier가 fail-closed 검증한 뒤에만 최종 publish하고 release manifest와 실행 log 보존
 15. Docs의 version URL에서 manifest가 가리키는 artifact를 내려받아 checksum/provenance 검증 후 설치·build
 16. Package/template publish 실패, Docs deploy 실패와 artifact 철회 각각에서 노출·cache·search·rollback 정합성 확인
 17. Package/template/example/docs의 license, `NOTICE`, attribution과 dependency license report 일치
@@ -721,15 +732,16 @@ build once → immutable staging digest → isolated attest/sign
 M0 → M1 ─┬→ DXF ─────────────────────────┐
          ├→ UIF ─────────────────────────┤
          ├→ WPF ─────────────────────────┤
-         └→ M2 → IDC → M3 → M4 → M5 ────┼→ M6 → M7 → M8 → M9 → M10
-                                          └───────────────────────────┘
+         └→ M2 → IDC → M3 → M4 → M5 ────┼→ M6 → M7 → M8S ─┬→ Standard
+                                          └─────────────────┴→ M9 candidate → M8P → M10
 
 Docs: M1/DXF → Preview
-      UIF/WPF → Foundation stable
-      M2~M8 → Standard stable
-      M9 → Production candidate → M10 rehearsal/publish → Production stable
+      M1/DXF/UIF → Foundation stable
+      WPF/M2~M8S → Standard stable
+      M9 candidate → M8P → M10 rehearsal/publish → Production stable
 
 M7A는 M7 뒤 독립 release
+M8R은 Regulated release, M8E는 활성 Extension release만 차단
 EXT는 ADR-014와 필요한 Core 계약 뒤 독립 release
 ```
 
@@ -741,7 +753,7 @@ EXT는 ADR-014와 필요한 Core 계약 뒤 독립 release
 - M6는 OpenAPI/Cookie/UIF/WPF/DXF 계약을 입력으로 받는다.
 - DOC Preview는 M1/DXF 뒤 지속 배포하고 stable Docs는 각 Foundation/Standard/Production Gate의 검증된 artifact만 노출한다.
 - EXT는 M1/M2와 extension별 M3/M5 계약 뒤 개별 진행하며 Core v1 완료를 차단하지 않는다.
-- M9는 실제 DB·E2E 검증과 배포 신뢰 계약 없이는 시작하지 않는다.
+- M9는 M8S의 실제 DB·E2E와 배포 신뢰 계약 없이는 시작하지 않는다. M9 candidate를 M8P가 검증하고 M10이 같은 digest를 publish한다.
 
 ## 7. 주요 위험과 대응
 
@@ -776,8 +788,12 @@ EXT는 ADR-014와 필요한 Core 계약 뒤 독립 release
 | 문서상 owner 우회                | CODEOWNERS, protected branch와 required review    |
 | Optional provider 결합           | Port/adapter, local fake와 contract test          |
 | Capability 조합 폭증             | Certified Profile 우선과 지원 수준 명시           |
-| Manifest와 생성 결과 drift       | Resolved manifest, generator version과 verify CI  |
+| Manifest와 생성 결과 drift       | Project lock manifest와 verify CI                 |
 | 미선택 기능 잔존                 | Source/dependency/env/infra negative scan         |
+| Manifest의 secret·의도/결과 혼합 | 사용자 config와 secret-free lock manifest 분리    |
+| 공유 파일 fragment 충돌          | 단일 owner와 versioned structured composer        |
+| 신뢰하지 않은 Generator 실행     | Release-bundled capability만 실행                 |
+| Production provider 미해소       | 필수 provider slot과 exact Certified matrix       |
 
 ## 8. 다음 실행 범위
 
@@ -785,7 +801,7 @@ EXT는 ADR-014와 필요한 Core 계약 뒤 독립 release
 2. Accepted ADR-0015~0017을 기준으로 ADR-001/002/006/008/009/011/012의 runtime, package, test, 지원 환경, distribution, Web Platform과 Docs 계약을 확정한다.
 3. 추적 API `dist`, read-only lint, E2E TypeScript project와 Turbo task/output을 정리한다.
 4. 기존 API environment 변경을 관련 unit test로 별도 마감한다.
-5. M1 package export/external-consumer harness 뒤 DXF manifest schema, canonical template와 최소 Profile 생성을 구현한다.
+5. M1 package export/external-consumer harness 뒤 DXF 사용자 manifest/lock schema, structured composer, canonical template와 최소 Profile 생성을 구현한다.
 6. ADR-003/004/005/010 승인 후 M2·IDC와 UIF/WPF를 병렬 시작한다.
 7. Production/Regulated 준비 시 ADR-008/013, Optional capability 착수 전 ADR-014를 각각 승인한다.
 

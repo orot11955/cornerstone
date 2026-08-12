@@ -56,10 +56,10 @@ Template 원천은 하나만 유지하고 프로젝트 초기 설정에서 capab
 | ------------ | -------------------------------------------------------------- | ----------------------------------------- |
 | `minimal`    | Web, API, Config, UI Foundation                                | 작은 서비스와 실험용 Certified Profile    |
 | `standard`   | Minimal + PostgreSQL/TypeORM + password-session Auth + Core UI | 기본 Certified Profile                    |
-| `production` | Standard + 운영 관측·배포·복구·공급망                          | Production Ready Profile                  |
+| `production` | Standard + 운영 관측·배포·복구·공급망                          | 필수 provider를 해소한 Production overlay |
 | `regulated`  | Production + privacy/audit/residency 확장점                    | 규제 대응 Foundation, 법적 준수 보증 아님 |
 
-Profile은 별도 Template이 아니라 자주 쓰는 manifest preset이다. 고급 사용자는 지원되는 capability를 조합할 수 있지만 Certified, Supported와 Experimental 수준을 명시한다.
+Profile은 별도 Template이 아니라 자주 쓰는 capability 선택 preset이다. Capability는 선택 가능한 기능 단위, Adapter는 기술 구현, Provider는 Adapter가 연결하는 외부 서비스나 실행 환경, Extension은 Core와 독립 배포되는 optional capability를 뜻한다. 고급 사용자는 지원되는 capability를 조합할 수 있지만 Certified, Supported와 Experimental 수준을 명시한다.
 
 ```yaml
 schemaVersion: 1
@@ -86,11 +86,15 @@ appearance:
   density: default
 ```
 
-- Generator는 dependency/conflict, runtime/package/schema compatibility와 Production의 fake adapter 사용을 파일 생성 전에 거절한다.
+- Generator는 dependency/conflict, runtime/package/schema compatibility, Production 필수 provider 누락과 fake adapter 사용을 파일 생성 전에 거절한다.
 - 선택하지 않은 capability의 코드, dependency, 환경 변수, 인프라와 문서는 생성 프로젝트에 포함하지 않는다.
-- 생성 결과의 `cornerstone.config.yml`에 선택값, generator version과 compatibility 기준을 보존한다.
+- 사용자 소유 `cornerstone.config.yml`에는 Profile, capability, Appearance와 provider reference 같은 생성 의도만 기록한다.
+- Generator 소유 `.cornerstone/manifest.lock.json`에는 resolved capability, generator/template/package version, schema baseline, compatibility와 적용한 template/fragment checksum을 기록한다.
+- 두 manifest에는 secret·credential·개인정보 값을 저장하지 않고 환경 변수 이름이나 외부 secret reference만 허용한다.
+- `production`은 운영 요구를 활성화하는 overlay다. Mail, hosting, registry, secret store와 backup 등 필수 slot은 생성 시 구체적인 provider/version으로 해소하고 그 exact matrix를 검증해야 Certified가 된다.
+- 여러 capability가 공유 파일을 수정하면 파일별 단일 owner의 versioned structured composer가 결정적인 순서로 병합한다. 임의 text patch와 신뢰하지 않은 remote Generator plugin은 Starter v1 계약에 포함하지 않는다.
 - 공통 수정은 package update로 전달하고 사용자 파일은 자동 덮어쓰지 않는다. 구조 변경은 dry-run, 예상 diff와 migration guide를 우선한다.
-- Docs는 manifest를 읽어 현재 구성에 해당하는 설치·운영·upgrade 문서를 필터링할 수 있다.
+- Docs는 사용자 manifest와 lock manifest를 읽어 현재 구성에 해당하는 설치·운영·upgrade 문서를 필터링할 수 있다.
 
 ### Starter에서 제외
 
@@ -202,18 +206,20 @@ Cornerstone은 저장소 복제본 하나가 아니라 버전이 있는 공통 �
 @cornerstone/* packages       버전이 있는 재사용 계약과 구현
 create-cornerstone            Manifest 검증, preset 해석과 생성 CLI
 Canonical template            apps, infra, root config의 단일 원천
-Compatibility manifest       package/template/runtime/schema 기준
+Project lock manifest        생성 결과의 resolved capability와 정확한 버전
+Release manifest             공개 artifact의 호환성·checksum·provenance
 Migration guide              복사된 파일의 수동 업그레이드 절차
 ```
 
-- Starter v1은 공통 패키지를 같은 버전으로 묶는 synchronized release를 기본으로 한다.
-- 생성 프로젝트는 정확한 package 버전, generator version, 선택 capability, 지원 Node/pnpm 범위와 DB schema baseline을 기록한다.
+- Starter v1 Core package는 같은 버전으로 묶는 synchronized release를 사용한다. Extension package는 독립 SemVer로 배포하고 지원 Core/Profile 범위를 release manifest에 선언한다.
+- 생성 프로젝트는 `.cornerstone/manifest.lock.json`에 정확한 package/generator/template 버전, resolved capability, 지원 Node/pnpm 범위와 DB schema baseline을 기록한다.
 - 공통 수정은 package update로 전달하고 생성된 프로젝트의 앱·인프라 파일을 자동 덮어쓰지 않는다.
 - 공개 package는 workspace link가 없는 임시 소비자에서 tarball 설치, typecheck와 build를 검증한다.
 - Certified Profile은 빈 디렉터리에서 생성, 설치, 필요한 Migration, 핵심 E2E와 해당 Profile의 release Gate까지 검증한다.
-- 직전 Template에 대표 사용자 변경을 적용한 fixture에서 package update와 migration guide를 각각 리허설하고 사용자 소유 파일을 보존한다.
+- 직전 생성 결과에 대표 사용자 변경을 적용한 fixture에서 package update와 migration guide를 각각 리허설하고 사용자 소유 파일을 보존한다.
 - Registry와 배포 provider가 정해지기 전에도 local tarball과 versioned template archive로 같은 계약을 검증한다.
 - Root, 공개 package, Template, example과 Docs content의 license, SPDX identifier, attribution과 재배포 범위를 일관되게 고정한다.
+- 생성 프로젝트의 제품 코드 license는 사용자가 명시적으로 선택하고, Cornerstone에서 유래한 package·재배포 파일의 필수 `NOTICE`와 attribution은 보존한다. 선택하지 않으면 임의의 제품 license를 자동 부여하지 않는다.
 - Release artifact에 `LICENSE`, 필요한 `NOTICE`와 third-party attribution을 포함하고 dependency license allow/deny 정책을 CI에서 검사한다.
 
 ### 3.4 Documentation Portal 배포 모델
@@ -274,18 +280,19 @@ Artifact storage/CDN ───┴─> package/template 다운로드
 
 모든 기능을 하나의 v1 완료 조건에 묶지 않는다. 상세 결정은 [ADR-0017](./adr/0017-release-gates.md)을 따른다.
 
-| Gate             | 완료 범위                                                       | 주요 Artifact                           |
-| ---------------- | --------------------------------------------------------------- | --------------------------------------- |
-| Foundation       | Workspace, shared package, UI Foundation, 외부 소비 검증        | Package tarball, Foundation stable Docs |
-| Standard Starter | 기본 Certified Profile의 Web/API/Data/Auth/Core UI              | 생성 CLI, standard Profile artifact     |
-| Production Ready | Image, Migration 배포, 관측, SLO 선언, load/restore, provenance | Production Profile과 운영 evidence      |
-| Regulated        | Privacy/audit/residency/encryption 확장점                       | Regulated manifest와 검증 harness       |
-| Extension        | 활성 capability별 adapter와 contract                            | 독립 extension package                  |
+| Gate             | 완료 범위                                                        | 주요 Artifact                           |
+| ---------------- | ---------------------------------------------------------------- | --------------------------------------- |
+| Foundation       | Workspace, shared package, UI Foundation, 외부 소비 검증         | Package tarball, Foundation stable Docs |
+| Standard Starter | 기본 Certified Profile의 Web/API/Data/Auth/Core UI               | 생성 CLI, standard Profile artifact     |
+| Production Ready | Provider-resolved image, Migration 배포, 관측, SLO, load/restore | Production Profile과 운영 evidence      |
+| Regulated        | Privacy/audit/residency/encryption 확장점                        | Regulated manifest와 검증 harness       |
+| Extension        | 활성 capability별 adapter와 contract                             | 독립 extension package                  |
 
 - Capability별 Gate는 해당 기능이 활성화될 때 필수다.
 - 입력 검증, secret scan, default-deny, build 재현성과 artifact integrity는 모든 Profile의 공통 Gate다.
 - SLO, retention과 residency의 실제 값은 프로젝트가 manifest/운영 설정으로 선언하고 Starter는 schema, 기본값, harness와 검증 방법을 제공한다.
 - Regulated Profile은 법적 준수를 보증하지 않고 프로젝트가 적용 법률과 provider에 맞게 완성할 Foundation을 제공한다.
+- Standard Core E2E, Production load/restore/SLO, Regulated privacy/audit와 Extension contract Gate는 별도로 판정하며 상위 Profile 실패가 하위 release를 차단하지 않는다.
 - Docs preview는 package/API/UI 변경과 함께 배포하고 stable version만 artifact publish 후 공개한다.
 
 ## 4. 애플리케이션 경계
@@ -412,7 +419,7 @@ Core는 분류·redaction·삭제 확장점만 보장하고 아래 전체 운영
 ### 개발 생산성
 
 - Feature/package/Migration generator는 프로젝트 구조와 공개 경계를 강제하고 생성 직후 typecheck/test가 가능해야 한다.
-- OpenAPI client, token, compatibility manifest와 release note 생성은 재현 가능한 명령으로 제공한다.
+- OpenAPI client, token, project lock/release manifest와 release note 생성은 재현 가능한 명령으로 제공한다.
 - Dependency update, deprecation, changelog와 migration guide를 package/template release 흐름에 연결한다.
 - 공통 명령은 check와 fix를 분리하고 로컬·CI가 같은 script와 artifact를 사용한다.
 - Cornerstone release 저장소는 `CODEOWNERS`, protected branch와 required review/status check로 Migration, Auth/권한, OpenAPI, lockfile, release workflow와 manifest의 문서상 소유권을 강제한다.

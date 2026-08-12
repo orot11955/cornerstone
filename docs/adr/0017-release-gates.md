@@ -15,7 +15,9 @@ Package Foundation, 기본 Starter, Production 운영과 규제 대응을 하나
 - Production Ready Release는 image, Migration 배포, 관측, SLO 선언, load/restore, provenance와 incident rehearsal을 완료한다.
 - Regulated Profile은 compliance를 보증하지 않고 data classification, consent, export/delete, residency, encryption과 audit를 구현·검증할 Foundation을 제공한다.
 - Extension Release는 활성 capability별 독립 Gate와 compatibility 범위를 사용하며 Core release를 차단하지 않는다.
+- Core package는 synchronized release를 사용하고 Extension package는 독립 SemVer와 지원 Core 범위를 선언한다.
 - 기능별 Gate는 해당 capability가 활성화될 때 필수다. 입력 검증, secret scan, default-deny, build 재현성과 artifact integrity 같은 공통 보안 Gate는 모든 Profile에서 유지한다.
+- Cross-layer 검증은 Standard Core E2E, Production load/restore/SLO, Regulated privacy/audit와 Extension contract로 분리한다. 상위 Profile 검증이 Foundation이나 Standard release를 차단하지 않는다.
 - Docs preview는 package/API/UI 변경과 함께 배포하고 stable Docs만 검증된 artifact publish 후 version manifest로 공개한다.
 
 ## Consequences
