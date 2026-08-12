@@ -1,0 +1,53 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Cornerstone resolved project lock",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "generatorVersion",
+    "templateVersion",
+    "userManifestDigest",
+    "resolved",
+    "compatibility",
+    "fragments",
+    "integrity"
+  ],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "generatorVersion": { "const": "0.1.0" },
+    "templateVersion": { "const": "0.1.0" },
+    "userManifestDigest": { "$ref": "#/$defs/digest" },
+    "resolved": {
+      "allOf": [
+        { "$ref": "./cornerstone.config.schema.json" },
+        { "required": ["profile", "capabilities", "providers"] }
+      ]
+    },
+    "compatibility": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["node", "pnpm"],
+      "properties": {
+        "node": { "const": ">=22.20.0 <25" },
+        "pnpm": { "const": "11.20.0" }
+      }
+    },
+    "fragments": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "checksum"],
+        "properties": {
+          "id": { "type": "string", "minLength": 1 },
+          "checksum": { "$ref": "#/$defs/digest" }
+        }
+      }
+    },
+    "integrity": { "$ref": "#/$defs/digest" }
+  },
+  "$defs": {
+    "digest": { "type": "string", "pattern": "^sha256:[a-f0-9]{64}$" }
+  }
+}

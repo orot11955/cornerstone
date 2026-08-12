@@ -14,29 +14,19 @@ import { basename, dirname, join, resolve } from 'node:path'
 import { parse, stringify } from 'yaml'
 import { sha256, stableJson } from './hash.js'
 import {
+  projectLockSchema,
   projectManifestSchema,
   resolveManifest,
+  type ProjectLockData,
   type ProjectManifest,
   type ResolvedManifest,
 } from './schema.js'
 
-const generatorVersion = '0.1.0'
-const templateVersion = '0.1.0'
+const generatorVersion = '0.1.0' as const
+const templateVersion = '0.1.0' as const
 const templateRoot = resolve(import.meta.dirname, 'templates', 'canonical')
 
-export interface ProjectLock {
-  readonly schemaVersion: 1
-  readonly generatorVersion: string
-  readonly templateVersion: string
-  readonly userManifestDigest: string
-  readonly resolved: ResolvedManifest
-  readonly compatibility: {
-    readonly node: '>=22.20.0 <25'
-    readonly pnpm: '11.20.0'
-  }
-  readonly fragments: readonly { readonly id: string; readonly checksum: string }[]
-  readonly integrity: string
-}
+export type ProjectLock = ProjectLockData
 
 export async function readManifest(path: string): Promise<ProjectManifest> {
   return projectManifestSchema.parse(parse(await readFile(path, 'utf8')))
@@ -95,7 +85,7 @@ export async function createProject(
 export async function verifyProject(targetPath: string): Promise<ProjectLock> {
   const target = resolve(targetPath)
   const lockPath = join(target, '.cornerstone', 'manifest.lock.json')
-  const lock = JSON.parse(await readFile(lockPath, 'utf8')) as ProjectLock
+  const lock = projectLockSchema.parse(JSON.parse(await readFile(lockPath, 'utf8')))
   const { integrity, ...unsigned } = lock
   if (sha256(stableJson(unsigned)) !== integrity) {
     throw new Error('Lock manifest integrity mismatch')

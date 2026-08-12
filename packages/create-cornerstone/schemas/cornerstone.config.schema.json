@@ -1,0 +1,43 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Cornerstone project manifest",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "name"],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "name": { "type": "string", "pattern": "^[a-z][a-z0-9-]{1,62}$" },
+    "profile": {
+      "enum": ["minimal", "standard", "production", "regulated"],
+      "default": "standard"
+    },
+    "capabilities": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "enum": ["web", "api", "ui", "database", "auth", "observability", "privacy"]
+      },
+      "default": []
+    },
+    "license": { "enum": ["ISC", "MIT", "UNLICENSED"] },
+    "providers": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "hosting": { "$ref": "#/$defs/provider" },
+        "registry": { "$ref": "#/$defs/provider" },
+        "secretStore": { "$ref": "#/$defs/provider" },
+        "backup": { "$ref": "#/$defs/provider" },
+        "mail": { "$ref": "#/$defs/provider" }
+      },
+      "default": {}
+    }
+  },
+  "$defs": {
+    "provider": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9.-]{1,63}$",
+      "description": "Public provider identifier only. Never place credentials here."
+    }
+  }
+}

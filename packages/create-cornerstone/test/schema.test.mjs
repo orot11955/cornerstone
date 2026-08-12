@@ -107,5 +107,21 @@ test('rejects a manually edited lock manifest', async () => {
   const lock = JSON.parse(await readFile(lockPath, 'utf8'))
   lock.generatorVersion = '9.9.9'
   await writeFile(lockPath, `${JSON.stringify(lock, null, 2)}\n`)
-  await assert.rejects(verifyProject(target), /integrity/)
+  await assert.rejects(verifyProject(target), /generatorVersion|0\.1\.0/)
+})
+
+test('rejects an unknown lock field before trusting its contents', async () => {
+  const fixture = await mkdtemp(join(tmpdir(), 'cornerstone-create-test-'))
+  const manifestPath = join(fixture, 'manifest.yml')
+  const target = join(fixture, 'project')
+  await writeFile(
+    manifestPath,
+    stringify({ schemaVersion: 1, name: 'sample-app', profile: 'minimal' }),
+  )
+  await createProject(target, manifestPath)
+  const lockPath = join(target, '.cornerstone', 'manifest.lock.json')
+  const lock = JSON.parse(await readFile(lockPath, 'utf8'))
+  lock.secret = 'unexpected'
+  await writeFile(lockPath, `${JSON.stringify(lock, null, 2)}\n`)
+  await assert.rejects(verifyProject(target), /unrecognized key/i)
 })

@@ -37,8 +37,34 @@ export const projectManifestSchema = z
 
 export type ProjectManifest = z.infer<typeof projectManifestSchema>
 export type ResolvedManifest = Omit<ProjectManifest, 'capabilities'> & {
-  readonly capabilities: readonly z.infer<typeof capabilitySchema>[]
+  capabilities: z.infer<typeof capabilitySchema>[]
 }
+
+export const resolvedManifestSchema = projectManifestSchema.extend({
+  capabilities: z.array(capabilitySchema),
+})
+
+const digestSchema = z.string().regex(/^sha256:[a-f0-9]{64}$/)
+
+export const projectLockSchema = z
+  .object({
+    schemaVersion: z.literal(1),
+    generatorVersion: z.literal('0.1.0'),
+    templateVersion: z.literal('0.1.0'),
+    userManifestDigest: digestSchema,
+    resolved: resolvedManifestSchema,
+    compatibility: z
+      .object({
+        node: z.literal('>=22.20.0 <25'),
+        pnpm: z.literal('11.20.0'),
+      })
+      .strict(),
+    fragments: z.array(z.object({ id: z.string().min(1), checksum: digestSchema }).strict()),
+    integrity: digestSchema,
+  })
+  .strict()
+
+export type ProjectLockData = z.infer<typeof projectLockSchema>
 
 const profileCapabilities: Record<
   ProjectManifest['profile'],

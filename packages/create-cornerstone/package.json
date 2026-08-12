@@ -13,13 +13,16 @@
     ".": {
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js"
-    }
+    },
+    "./schemas/cornerstone.config.schema.json": "./schemas/cornerstone.config.schema.json",
+    "./schemas/manifest.lock.schema.json": "./schemas/manifest.lock.schema.json"
   },
   "files": [
     "dist",
     "LICENSE",
     "NOTICE",
-    "README.md"
+    "README.md",
+    "schemas"
   ],
   "scripts": {
     "build": "tsc -p tsconfig.build.json && node scripts/copy-templates.mjs",
