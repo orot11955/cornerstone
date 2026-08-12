@@ -12,6 +12,16 @@ export const configuration = () => {
     },
     database: {
       url: environment.DATABASE_URL,
+      migrationUrl: environment.DATABASE_MIGRATION_URL,
+      sslMode: environment.DATABASE_SSL_MODE,
+      sslCa: environment.DATABASE_SSL_CA,
+      poolMax: environment.DATABASE_POOL_MAX,
+      connectTimeoutMs: environment.DATABASE_CONNECT_TIMEOUT_MS,
+      statementTimeoutMs: environment.DATABASE_STATEMENT_TIMEOUT_MS,
+      lockTimeoutMs: environment.DATABASE_LOCK_TIMEOUT_MS,
+      idleTransactionTimeoutMs:
+        environment.DATABASE_IDLE_TRANSACTION_TIMEOUT_MS,
+      migrationLockWaitMs: environment.MIGRATION_LOCK_WAIT_MS,
     },
     auth: {
       jwtAccessSecret: environment.JWT_ACCESS_SECRET,

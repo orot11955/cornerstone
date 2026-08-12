@@ -431,6 +431,20 @@ M1 이후 Backend M2~M5와 병렬 진행할 수 있다. M6의 인증 화면보�
 
 진입 Gate: ADR-005/007/010, [ADR-0016](./adr/0016-identity-scope.md)과 IDC 완료.
 
+현재 완료:
+
+- PostgreSQL runtime/migration principal, TLS·pool·timeout 환경 검증과 source/dist 공용 TypeORM `DataSourceOptions`
+- `synchronize=false`, `migrationsRun=false`, production revert 거절과 bounded advisory lock Migration runner
+- PostgreSQL `16.14` dev/test Compose, database·port·credential·volume 격리와 runtime role의 schema DDL 미부여
+- Root `db:dev:*`, `db:test:*`, `migration:show/run/revert` 진입점과 production migration principal 분리 검증
+
+남은 완료 조건:
+
+- IDC 전체 Entity, 첫 expand Migration, metadata validator와 명시적 table별 runtime grant
+- 빈 DB forward → revert → forward, schema drift, runtime DDL 거절의 실제 PostgreSQL integration Gate
+- 멱등 Seed, 이전 release fixture upgrade와 production Seed 거절
+- idempotency/outbox repository, worker lease/retry/poison 격리와 transaction/관측 test
+
 목표:
 
 - 개발/test DB를 분리하고 runtime과 CLI가 같은 설정 원천을 사용한다.

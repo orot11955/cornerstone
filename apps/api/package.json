@@ -25,7 +25,13 @@
     "test:watch": "node --experimental-vm-modules node_modules/jest/bin/jest.js --watch",
     "test:cov": "node --experimental-vm-modules node_modules/jest/bin/jest.js --coverage",
     "test:debug": "node --experimental-vm-modules --inspect-brk node_modules/jest/bin/jest.js --runInBand",
-    "test:e2e": "node --experimental-vm-modules node_modules/jest/bin/jest.js --config ./test/jest-e2e.json"
+    "test:e2e": "node --experimental-vm-modules node_modules/jest/bin/jest.js --config ./test/jest-e2e.json",
+    "typeorm": "typeorm-ts-node-esm -d src/database/data-source.ts",
+    "migration:create": "typeorm migration:create src/database/migrations",
+    "migration:generate": "pnpm typeorm migration:generate",
+    "migration:show": "pnpm build && node dist/database/migration-runner.js show",
+    "migration:run": "pnpm build && node dist/database/migration-runner.js run",
+    "migration:revert": "pnpm build && node dist/database/migration-runner.js revert"
   },
   "dependencies": {
     "@cornerstone/schemas": "workspace:^",
@@ -33,13 +39,17 @@
     "@nestjs/config": "^4.0.4",
     "@nestjs/core": "^11.0.1",
     "@nestjs/platform-express": "^11.0.1",
+    "@nestjs/typeorm": "^11.0.3",
     "class-transformer": "^0.5.1",
     "class-validator": "^0.15.1",
     "cookie-parser": "^1.4.7",
+    "dotenv": "^17.4.2",
     "express": "^5.2.1",
     "helmet": "^8.3.0",
+    "pg": "^8.23.0",
     "reflect-metadata": "^0.2.2",
     "rxjs": "^7.8.1",
+    "typeorm": "^1.1.0",
     "zod": "^4.4.3"
   },
   "devDependencies": {

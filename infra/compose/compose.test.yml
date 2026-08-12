@@ -1,0 +1,21 @@
+name: cornerstone-test-db
+
+services:
+  postgres:
+    image: postgres:16.14
+    environment:
+      POSTGRES_DB: cornerstone_test
+      POSTGRES_USER: cornerstone_test_owner
+      POSTGRES_PASSWORD: cornerstone-test-owner
+    ports:
+      - '127.0.0.1:55432:5432'
+    volumes:
+      - type: tmpfs
+        target: /var/lib/postgresql/data
+      - ./init/test.sql:/docker-entrypoint-initdb.d/001-roles.sql:ro
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U cornerstone_test_owner -d cornerstone_test']
+      interval: 1s
+      timeout: 3s
+      retries: 30
+    restart: 'no'

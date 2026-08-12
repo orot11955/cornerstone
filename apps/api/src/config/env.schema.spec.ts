@@ -1,4 +1,7 @@
-import { validateEnvironment } from './env.schema.js';
+import {
+  validateDatabaseEnvironment,
+  validateEnvironment,
+} from './env.schema.js';
 
 const requiredEnvironment = {
   WEB_URL: 'http://localhost:3000',
@@ -46,6 +49,55 @@ describe('validateEnvironment', () => {
   it('requires an HTTPS web origin in production', () => {
     expect(() =>
       validateEnvironment({ ...requiredEnvironment, NODE_ENV: 'production' }),
+    ).toThrow();
+  });
+
+  it('requires verified database TLS and distinct production principals', () => {
+    expect(() =>
+      validateEnvironment({
+        ...requiredEnvironment,
+        NODE_ENV: 'production',
+        WEB_URL: 'https://example.com',
+      }),
+    ).toThrow();
+
+    expect(() =>
+      validateEnvironment({
+        ...requiredEnvironment,
+        NODE_ENV: 'production',
+        WEB_URL: 'https://example.com',
+        DATABASE_SSL_MODE: 'verify-full',
+        DATABASE_MIGRATION_URL:
+          'postgresql://app:migration@example.com:5432/app',
+      }),
+    ).toThrow();
+  });
+
+  it('validates the standalone database environment used by migration CLI', () => {
+    expect(
+      validateDatabaseEnvironment({
+        DATABASE_URL: requiredEnvironment.DATABASE_URL,
+      }),
+    ).toMatchObject({
+      NODE_ENV: 'development',
+      DATABASE_SSL_MODE: 'disable',
+      DATABASE_POOL_MAX: 20,
+    });
+  });
+
+  it('rejects database URL policy overrides and a different migration target', () => {
+    expect(() =>
+      validateDatabaseEnvironment({
+        DATABASE_URL: `${requiredEnvironment.DATABASE_URL}?sslmode=disable`,
+      }),
+    ).toThrow();
+
+    expect(() =>
+      validateDatabaseEnvironment({
+        DATABASE_URL: requiredEnvironment.DATABASE_URL,
+        DATABASE_MIGRATION_URL:
+          'postgresql://migrator:migrator@localhost:5432/other',
+      }),
     ).toThrow();
   });
 });
