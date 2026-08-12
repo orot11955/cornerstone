@@ -45,6 +45,17 @@ export async function composeStructuredOutputs(
   return outputs.sort((left, right) => left.path.localeCompare(right.path))
 }
 
+export function composePredecessorReadme(manifest: ResolvedManifest, matrix: string): Uint8Array {
+  return Buffer.from(
+    `# ${manifest.name}\n\n` +
+      `Generated from the Cornerstone **${manifest.profile} preview** composition.\n\n` +
+      `Support matrix: \`${matrix}\` (supported preview; not certified for production).\n\n` +
+      'The `production` and `regulated` profiles remain unavailable until their certification gates pass.\n\n' +
+      'Security warning: values in `.env.example`, including fixed secrets and database credentials, are local-development fixtures only. Before production or any external deployment, replace them with independent secrets and credentials and pass validation with `NODE_ENV=production`.\n\n' +
+      '`create-cornerstone verify` checks manifest resolution and composer-owned shared outputs. It does not require user-owned fragment source to remain byte-identical to the template or authenticate the entire project against tampering. Lock `integrity` is a self-consistency digest; release authenticity depends on package provenance and the M9 distribution-trust gate.\n',
+  )
+}
+
 async function composeOne(
   templateRoot: string,
   metadata: CanonicalTemplateMetadata,
@@ -85,7 +96,8 @@ async function composeOne(
         `Support matrix: \`${model.matrix as string}\` (supported preview; not certified for production).\n\n` +
         'The `production` and `regulated` profiles remain unavailable until their certification gates pass.\n\n' +
         'Security warning: values in `.env.example`, including fixed secrets and database credentials, are local-development fixtures only. Before production or any external deployment, replace them with independent secrets and credentials and pass validation with `NODE_ENV=production`.\n\n' +
-        '`create-cornerstone verify` checks manifest resolution and composer-owned shared outputs. It does not require user-owned fragment source to remain byte-identical to the template or authenticate the entire project against tampering. Lock `integrity` is a self-consistency digest; release authenticity depends on package provenance and the M9 distribution-trust gate.\n',
+        '`create-cornerstone verify` checks manifest resolution and composer-owned shared outputs. It does not require user-owned fragment source to remain byte-identical to the template or authenticate the entire project against tampering. Lock `integrity` is a self-consistency digest; release authenticity depends on package provenance and the M9 distribution-trust gate.\n' +
+        '\nUse `create-cornerstone plan <target> --dry-run` before `create-cornerstone update <target>`; interrupted journaled updates are recovered on the next lifecycle command.\n',
     )
   }
 

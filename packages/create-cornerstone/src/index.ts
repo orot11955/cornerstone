@@ -43,3 +43,5 @@ export {
   validateCanonicalOwnership,
 } from './composition/template.js'
 export type { CanonicalTemplateMetadata, ComposerDefinition } from './composition/template.js'
+export { planProjectUpdate, updateProject } from './update.js'
+export type { ProjectUpdatePlan } from './update.js'

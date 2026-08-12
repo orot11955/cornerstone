@@ -5,9 +5,11 @@ import {
   createProject,
   createProjectFromManifest,
   planProject,
+  planProjectUpdate,
   readManifest,
   resolveManifest,
   verifyProject,
+  updateProject,
 } from './index.js'
 
 const args = process.argv.slice(2)
@@ -15,10 +17,16 @@ const command = args.shift()
 
 try {
   if (command === 'plan') {
-    const manifestPath = option(args, '--manifest')
-    console.log(
-      JSON.stringify(planProject(resolveManifest(await readManifest(manifestPath))), null, 2),
-    )
+    if (args.includes('--manifest')) {
+      const manifestPath = option(args, '--manifest')
+      console.log(
+        JSON.stringify(planProject(resolveManifest(await readManifest(manifestPath))), null, 2),
+      )
+    } else {
+      const target = positional(args)
+      if (!args.includes('--dry-run')) usage()
+      console.log(JSON.stringify(await planProjectUpdate(target), null, 2))
+    }
   } else if (command === 'create') {
     const target = positional(args)
     const manifestPath = optionalOption(args, '--manifest')
@@ -38,6 +46,12 @@ try {
         ? `Verified ${lock.resolved.name} (supported preview; not certified)`
         : `Verified ${lock.resolved.name}`,
     )
+  } else if (command === 'update') {
+    const target = positional(args)
+    const dryRun = args.includes('--dry-run')
+    const plan = await updateProject(target, { dryRun })
+    console.log(JSON.stringify(plan, null, 2))
+    if (!dryRun) console.error(`Updated ${target} to template ${plan.toTemplateVersion}`)
   } else {
     usage()
   }
@@ -111,7 +125,7 @@ function promptAnswers(
 
 function usage(): never {
   console.error(
-    'Usage:\n  create-cornerstone plan --manifest <file>\n  create-cornerstone create <target> [--manifest <file>]\n  create-cornerstone verify <target>',
+    'Usage:\n  create-cornerstone plan --manifest <file>\n  create-cornerstone plan <target> --dry-run\n  create-cornerstone create <target> [--manifest <file>]\n  create-cornerstone update <target> [--dry-run]\n  create-cornerstone verify <target>',
   )
   process.exit(2)
 }

@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "templateVersion": "0.2.0",
+  "templateVersion": "0.2.1",
   "profiles": {
     "standard": {
       "capabilities": ["api", "auth", "database", "ui", "web"],
@@ -137,7 +137,7 @@
     },
     {
       "id": "project-readme",
-      "version": 1,
+      "version": 2,
       "format": "readme",
       "output": "README.md"
     },
