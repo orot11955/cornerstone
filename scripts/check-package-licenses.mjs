@@ -6,7 +6,9 @@ const root = resolve(import.meta.dirname, '..')
 const publishable = [
   '@cornerstone/api-client',
   '@cornerstone/config',
+  '@cornerstone/eslint-config',
   '@cornerstone/schemas',
+  '@cornerstone/tsconfig',
   '@cornerstone/types',
   '@cornerstone/ui',
   '@cornerstone/utils',

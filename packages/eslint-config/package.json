@@ -1,9 +1,32 @@
 {
   "name": "@cornerstone/eslint-config",
-  "version": "0.0.0",
-  "private": true,
+  "version": "0.1.0",
+  "license": "ISC",
   "type": "module",
+  "engines": {
+    "node": ">=22.20.0 <25"
+  },
+  "scripts": {
+    "test:unit": "node --test test/*.test.mjs"
+  },
   "exports": {
     ".": "./index.js"
+  },
+  "files": [
+    "index.js",
+    "NOTICE"
+  ],
+  "sideEffects": false,
+  "publishConfig": {
+    "access": "public"
+  },
+  "peerDependencies": {
+    "eslint": ">=9.0.0 <10"
+  },
+  "dependencies": {
+    "@eslint/js": "^9.18.0",
+    "eslint-config-prettier": "^10.1.0",
+    "globals": "^17.0.0",
+    "typescript-eslint": "^8.20.0"
   }
 }

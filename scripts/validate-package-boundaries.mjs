@@ -1,7 +1,16 @@
 import { existsSync, readFileSync, readdirSync } from 'node:fs'
 import { join } from 'node:path'
 
-const publishable = ['api-client', 'config', 'schemas', 'types', 'ui', 'utils']
+const publishable = [
+  'api-client',
+  'config',
+  'eslint-config',
+  'schemas',
+  'tsconfig',
+  'types',
+  'ui',
+  'utils',
+]
 const expectedVersion = '0.1.0'
 const errors = []
 

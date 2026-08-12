@@ -5,7 +5,16 @@ import { spawnSync } from 'node:child_process'
 
 const root = resolve(import.meta.dirname, '..')
 const artifacts = join(root, '.artifacts', 'packages')
-const packageDirectories = ['api-client', 'config', 'schemas', 'types', 'ui', 'utils']
+const packageDirectories = [
+  'api-client',
+  'config',
+  'eslint-config',
+  'schemas',
+  'tsconfig',
+  'types',
+  'ui',
+  'utils',
+]
 
 rmSync(artifacts, { recursive: true, force: true })
 mkdirSync(artifacts, { recursive: true })
@@ -83,6 +92,7 @@ writeFileSync(
   join(consumer, 'tsconfig.json'),
   `${JSON.stringify(
     {
+      extends: '@cornerstone/tsconfig/node.json',
       compilerOptions: {
         strict: true,
         module: 'NodeNext',
@@ -101,7 +111,7 @@ writeFileSync(
 )
 writeFileSync(
   join(consumer, 'index.mjs'),
-  "import { paginationSchema } from '@cornerstone/schemas'\nimport { ok } from '@cornerstone/utils'\nif (!ok(1).ok || paginationSchema.parse({}).page !== 1) process.exit(1)\nawait import('@cornerstone/config/server')\nawait import('@cornerstone/config/browser')\nawait import('@cornerstone/api-client/browser')\nawait import('@cornerstone/ui/browser')\nconsole.log('External consumer: OK')\n",
+  "import { createTypeScriptConfig } from '@cornerstone/eslint-config'\nimport { paginationSchema } from '@cornerstone/schemas'\nimport { ok } from '@cornerstone/utils'\nif (!ok(1).ok || paginationSchema.parse({}).page !== 1) process.exit(1)\nif (createTypeScriptConfig({ tsconfigRootDir: process.cwd() }).length < 1) process.exit(1)\nawait import('@cornerstone/config/server')\nawait import('@cornerstone/config/browser')\nawait import('@cornerstone/api-client/browser')\nawait import('@cornerstone/ui/browser')\nconsole.log('External consumer: OK')\n",
 )
 
 run('pnpm', ['install'], consumer)

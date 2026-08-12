@@ -1,7 +1,13 @@
 {
   "name": "@cornerstone/tsconfig",
-  "version": "0.0.0",
-  "private": true,
+  "version": "0.1.0",
+  "license": "ISC",
+  "engines": {
+    "node": ">=22.20.0 <25"
+  },
+  "scripts": {
+    "test:unit": "node --test test/*.test.mjs"
+  },
   "exports": {
     "./base.json": "./base.json",
     "./nest.json": "./nest.json",
@@ -12,6 +18,11 @@
     "base.json",
     "node.json",
     "nest.json",
-    "react.json"
-  ]
+    "react.json",
+    "NOTICE"
+  ],
+  "sideEffects": false,
+  "publishConfig": {
+    "access": "public"
+  }
 }

@@ -4,14 +4,14 @@
       "api",
       "@cornerstone/api-client",
       "@cornerstone/config",
+      "@cornerstone/eslint-config",
       "@cornerstone/schemas",
+      "@cornerstone/tsconfig",
       "@cornerstone/types",
       "@cornerstone/utils"
     ],
     "excluded": {
       "web": "Web unit runner is introduced with WPF/UIF.",
-      "@cornerstone/eslint-config": "Config fixtures are introduced with M1.",
-      "@cornerstone/tsconfig": "Config fixtures are introduced with M1.",
       "@cornerstone/ui": "Component tests are introduced with UIF."
     }
   },
