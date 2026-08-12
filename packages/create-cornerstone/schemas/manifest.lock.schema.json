@@ -1,53 +1,163 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "Cornerstone resolved project lock",
-  "type": "object",
-  "additionalProperties": false,
-  "required": [
-    "schemaVersion",
-    "generatorVersion",
-    "templateVersion",
-    "userManifestDigest",
-    "resolved",
-    "compatibility",
-    "fragments",
-    "integrity"
-  ],
-  "properties": {
-    "schemaVersion": { "const": 1 },
-    "generatorVersion": { "const": "0.1.0" },
-    "templateVersion": { "const": "0.1.0" },
-    "userManifestDigest": { "$ref": "#/$defs/digest" },
+  "oneOf": [{ "$ref": "#/$defs/v1" }, { "$ref": "#/$defs/v2" }],
+  "$defs": {
+    "digest": { "type": "string", "pattern": "^sha256:[a-f0-9]{64}$" },
+    "releaseBaseline": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._/-]*$"
+    },
+    "componentId": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9.-]{0,63}$"
+    },
     "resolved": {
       "allOf": [
         { "$ref": "./cornerstone.config.schema.json" },
         { "required": ["profile", "capabilities", "providers"] }
       ]
     },
-    "compatibility": {
+    "v1": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["node", "pnpm"],
+      "required": [
+        "schemaVersion",
+        "generatorVersion",
+        "templateVersion",
+        "userManifestDigest",
+        "resolved",
+        "compatibility",
+        "fragments",
+        "integrity"
+      ],
       "properties": {
-        "node": { "const": ">=22.20.0 <25" },
-        "pnpm": { "const": "11.20.0" }
+        "schemaVersion": { "const": 1 },
+        "generatorVersion": { "const": "0.1.0" },
+        "templateVersion": { "const": "0.1.0" },
+        "userManifestDigest": { "$ref": "#/$defs/digest" },
+        "resolved": { "$ref": "#/$defs/resolved" },
+        "compatibility": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["node", "pnpm"],
+          "properties": {
+            "node": { "const": ">=22.20.0 <25" },
+            "pnpm": { "const": "11.20.0" }
+          }
+        },
+        "fragments": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["id", "checksum"],
+            "properties": {
+              "id": { "type": "string", "minLength": 1 },
+              "checksum": { "$ref": "#/$defs/digest" }
+            }
+          }
+        },
+        "integrity": { "$ref": "#/$defs/digest" }
       }
     },
-    "fragments": {
-      "type": "array",
-      "items": {
-        "type": "object",
-        "additionalProperties": false,
-        "required": ["id", "checksum"],
-        "properties": {
-          "id": { "type": "string", "minLength": 1 },
-          "checksum": { "$ref": "#/$defs/digest" }
-        }
+    "versionedComponent": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "version", "checksum"],
+      "properties": {
+        "id": { "$ref": "#/$defs/componentId" },
+        "version": { "type": "integer", "minimum": 1 },
+        "checksum": { "$ref": "#/$defs/digest" }
       }
     },
-    "integrity": { "$ref": "#/$defs/digest" }
-  },
-  "$defs": {
-    "digest": { "type": "string", "pattern": "^sha256:[a-f0-9]{64}$" }
+    "v2": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schemaVersion",
+        "generatorVersion",
+        "templateVersion",
+        "userManifestDigest",
+        "resolved",
+        "compatibility",
+        "baselines",
+        "fragments",
+        "composers",
+        "outputs",
+        "certification",
+        "integrity"
+      ],
+      "properties": {
+        "schemaVersion": { "const": 2 },
+        "generatorVersion": { "$ref": "#/$defs/releaseBaseline" },
+        "templateVersion": { "$ref": "#/$defs/releaseBaseline" },
+        "userManifestDigest": { "$ref": "#/$defs/digest" },
+        "resolved": { "$ref": "#/$defs/resolved" },
+        "compatibility": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["node", "pnpm", "typescript"],
+          "properties": {
+            "node": { "type": "string", "minLength": 1, "maxLength": 128 },
+            "pnpm": { "type": "string", "minLength": 1, "maxLength": 128 },
+            "typescript": { "type": "string", "minLength": 1, "maxLength": 128 }
+          }
+        },
+        "baselines": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["manifest", "database", "openapi"],
+          "properties": {
+            "manifest": { "const": 1 },
+            "database": { "$ref": "#/$defs/releaseBaseline" },
+            "openapi": { "$ref": "#/$defs/releaseBaseline" }
+          }
+        },
+        "fragments": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/versionedComponent" }
+        },
+        "composers": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/versionedComponent" }
+        },
+        "outputs": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["path", "owner", "checksum", "mode"],
+            "properties": {
+              "path": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 512,
+                "pattern": "^(?!/)(?![A-Za-z]:)(?!.*\\\\)(?!.*(?:^|/)\\.{1,2}(?:/|$))(?!.*//)(?!.*[\\u0000])(?!.*/$).+$"
+              },
+              "owner": { "$ref": "#/$defs/componentId" },
+              "checksum": { "$ref": "#/$defs/digest" },
+              "mode": { "type": "integer", "minimum": 0, "maximum": 511 }
+            }
+          }
+        },
+        "certification": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["profile", "matrix", "status"],
+          "properties": {
+            "profile": { "enum": ["minimal", "standard", "production", "regulated"] },
+            "matrix": { "$ref": "#/$defs/releaseBaseline" },
+            "status": { "enum": ["certified", "supported", "experimental"] }
+          }
+        },
+        "integrity": { "$ref": "#/$defs/digest" }
+      }
+    }
   }
 }

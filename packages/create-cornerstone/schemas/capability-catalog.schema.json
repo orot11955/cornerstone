@@ -1,0 +1,72 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Cornerstone bundled capability catalog",
+  "type": "array",
+  "minItems": 7,
+  "maxItems": 7,
+  "allOf": [
+    {
+      "contains": { "type": "object", "properties": { "id": { "const": "web" } } },
+      "minContains": 1,
+      "maxContains": 1
+    },
+    {
+      "contains": { "type": "object", "properties": { "id": { "const": "api" } } },
+      "minContains": 1,
+      "maxContains": 1
+    },
+    {
+      "contains": { "type": "object", "properties": { "id": { "const": "ui" } } },
+      "minContains": 1,
+      "maxContains": 1
+    },
+    {
+      "contains": { "type": "object", "properties": { "id": { "const": "database" } } },
+      "minContains": 1,
+      "maxContains": 1
+    },
+    {
+      "contains": { "type": "object", "properties": { "id": { "const": "auth" } } },
+      "minContains": 1,
+      "maxContains": 1
+    },
+    {
+      "contains": {
+        "type": "object",
+        "properties": { "id": { "const": "observability" } }
+      },
+      "minContains": 1,
+      "maxContains": 1
+    },
+    {
+      "contains": { "type": "object", "properties": { "id": { "const": "privacy" } } },
+      "minContains": 1,
+      "maxContains": 1
+    }
+  ],
+  "items": {
+    "type": "object",
+    "additionalProperties": false,
+    "required": ["id", "version", "dependencies", "conflicts", "support"],
+    "properties": {
+      "id": { "$ref": "#/$defs/capability" },
+      "version": { "type": "integer", "minimum": 1 },
+      "dependencies": {
+        "type": "array",
+        "uniqueItems": true,
+        "items": { "$ref": "#/$defs/capability" }
+      },
+      "conflicts": {
+        "type": "array",
+        "uniqueItems": true,
+        "items": { "$ref": "#/$defs/capability" }
+      },
+      "support": { "enum": ["supported", "experimental"] }
+    }
+  },
+  "$defs": {
+    "capability": {
+      "enum": ["web", "api", "ui", "database", "auth", "observability", "privacy"]
+    }
+  }
+}

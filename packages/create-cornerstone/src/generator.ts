@@ -94,6 +94,11 @@ export async function verifyProject(targetPath: string): Promise<ProjectLock> {
   const target = resolve(targetPath)
   const lockPath = join(target, '.cornerstone', 'manifest.lock.json')
   const lock = projectLockSchema.parse(JSON.parse(await readFile(lockPath, 'utf8')))
+  if (lock.schemaVersion === 2) {
+    throw new Error(
+      'Project lock schemaVersion 2 is reader-only and unsupported by Generator 0.1.0',
+    )
+  }
   const { integrity, ...unsigned } = lock
   if (sha256(stableJson(unsigned)) !== integrity) {
     throw new Error('Lock manifest integrity mismatch')
