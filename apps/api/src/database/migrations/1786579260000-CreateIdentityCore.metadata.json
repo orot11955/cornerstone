@@ -1,0 +1,22 @@
+{
+  "schemaVersion": 1,
+  "migrationTimestamp": 1786579260000,
+  "phase": "expand",
+  "compatibleAppReleases": ["0.1.x"],
+  "transaction": "each",
+  "estimatedDurationSeconds": 5,
+  "lockRisk": "low",
+  "statementTimeoutMs": 30000,
+  "abortConditions": [
+    "lock_wait_ms > 5000",
+    "unexpected_existing_identity_table"
+  ],
+  "backfill": null,
+  "rollback": "revert-local-roll-forward-production",
+  "verification": [
+    "schema-diff",
+    "forward-revert-forward",
+    "runtime-ddl-denied",
+    "single-tenant-no-membership"
+  ]
+}

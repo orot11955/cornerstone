@@ -31,7 +31,8 @@
     "migration:generate": "pnpm typeorm migration:generate",
     "migration:show": "pnpm build && node dist/database/migration-runner.js show",
     "migration:run": "pnpm build && node dist/database/migration-runner.js run",
-    "migration:revert": "pnpm build && node dist/database/migration-runner.js revert"
+    "migration:revert": "pnpm build && node dist/database/migration-runner.js revert",
+    "database:verify": "pnpm build && node dist/database/database-verifier.js"
   },
   "dependencies": {
     "@cornerstone/schemas": "workspace:^",

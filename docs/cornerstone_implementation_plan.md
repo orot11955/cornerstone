@@ -435,14 +435,18 @@ M1 이후 Backend M2~M5와 병렬 진행할 수 있다. M6의 인증 화면보�
 
 - PostgreSQL runtime/migration principal, TLS·pool·timeout 환경 검증과 source/dist 공용 TypeORM `DataSourceOptions`
 - `synchronize=false`, `migrationsRun=false`, production revert 거절과 bounded advisory lock Migration runner
-- PostgreSQL `16.14` dev/test Compose, database·port·credential·volume 격리와 runtime role의 schema DDL 미부여
+- PostgreSQL `17.10-alpine` dev/test Compose, database·port·credential·volume 격리와 runtime role의 schema DDL 미부여
 - Root `db:dev:*`, `db:test:*`, `migration:show/run/revert` 진입점과 production migration principal 분리 검증
+- IDC의 8개 table·index·FK·check를 고정한 첫 expand Migration과 같은 계약의 TypeORM Entity
+- filename과 13자리 epoch millisecond를 대조하는 metadata validator, production build metadata asset과 Root `migration:check`
+- 실제 PostgreSQL `forward → revert → forward`, pending 0, Entity/Migration schema drift 0과 single-tenant schema 검증
+- `cornerstone_runtime` table별 DML grant와 User 물리 삭제·Audit 변경·Migration 이력 변경·schema DDL 거절을 확인하는 Root `database:verify`
 
 남은 완료 조건:
 
-- IDC 전체 Entity, 첫 expand Migration, metadata validator와 명시적 table별 runtime grant
-- 빈 DB forward → revert → forward, schema drift, runtime DDL 거절의 실제 PostgreSQL integration Gate
-- 멱등 Seed, 이전 release fixture upgrade와 production Seed 거절
+- 직전 release fixture upgrade와 expand schema의 N/N-1 application read/write 호환 Gate
+- advisory lock 경쟁과 timeout을 포함한 자동 DB integration test participant
+- 멱등 Seed와 production Seed 거절
 - idempotency/outbox repository, worker lease/retry/poison 격리와 transaction/관측 test
 
 목표:

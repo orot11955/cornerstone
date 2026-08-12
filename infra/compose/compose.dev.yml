@@ -2,7 +2,7 @@ name: cornerstone-dev-db
 
 services:
   postgres:
-    image: postgres:16.14
+    image: postgres:17.10-alpine
     environment:
       POSTGRES_DB: cornerstone_dev
       POSTGRES_USER: cornerstone_dev_owner

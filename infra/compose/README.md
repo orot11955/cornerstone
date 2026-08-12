@@ -8,6 +8,7 @@
 pnpm db:dev:up
 cp apps/api/.env.example apps/api/.env
 pnpm migration:run
+pnpm database:verify
 pnpm db:dev:down
 ```
 
@@ -21,6 +22,10 @@ NODE_ENV=test \
 DATABASE_URL=postgresql://cornerstone_test_app:cornerstone-test-app@localhost:55432/cornerstone_test \
 DATABASE_MIGRATION_URL=postgresql://cornerstone_test_migrator:cornerstone-test-migrator@localhost:55432/cornerstone_test \
 pnpm migration:run
+NODE_ENV=test \
+DATABASE_URL=postgresql://cornerstone_test_app:cornerstone-test-app@localhost:55432/cornerstone_test \
+DATABASE_MIGRATION_URL=postgresql://cornerstone_test_migrator:cornerstone-test-migrator@localhost:55432/cornerstone_test \
+pnpm database:verify
 pnpm db:test:down
 ```
 
@@ -31,4 +36,5 @@ Test 데이터는 tmpfs에만 저장된다. `cornerstone_test_app`은 schema DDL
 - Compose fixture는 운영 배포용이 아니다.
 - 운영은 `DATABASE_SSL_MODE=verify-full`과 서로 다른 runtime/migration principal을 요구한다.
 - runtime과 migration URL은 동일 host/port/database를 가리켜야 한다.
+- 운영 DB provisioning은 Migration 전에 `cornerstone_runtime` NOLOGIN group role을 만들고 runtime principal에 membership만 부여해야 한다.
 - `migration:revert`는 production에서 fail closed한다. 운영 복구는 ADR-0007의 roll-forward 절차를 따른다.

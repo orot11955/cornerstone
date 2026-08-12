@@ -7,7 +7,7 @@
 
 - PostgreSQL schema는 `apps/api/src/database/migrations`의 versioned TypeORM Migration만 변경한다. Entity metadata, `synchronize`, application startup DDL과 수동 운영 SQL을 schema 원천으로 사용하지 않는다.
 - runtime과 CLI는 `apps/api/src/database/data-source.ts`의 같은 option builder와 environment schema를 사용한다. 모든 환경에서 `synchronize=false`, `migrationsRun=false`다.
-- Migration 파일은 UTC timestamp와 의도를 포함한 `<timestamp>-<PascalName>.ts`, Seed는 `apps/api/src/database/seeds`에 둔다. 생성 파일을 적용 전에 review하며 이미 release된 Migration을 수정하지 않는다.
+- Migration 파일은 TypeORM이 요구하는 13자리 UTC epoch milliseconds와 의도를 포함한 `<timestamp>-<PascalName>.ts`, Seed는 `apps/api/src/database/seeds`에 둔다. 생성 파일을 적용 전에 review하며 이미 release된 Migration을 수정하지 않는다.
 - 각 Migration은 같은 basename의 `.metadata.json`을 가져야 하며 schema가 단계, 호환 release, lock/시간/abort, rollback과 검증을 machine-readable하게 고정한다.
 
 ## 단계와 호환성
@@ -40,6 +40,7 @@
 ```json
 {
   "schemaVersion": 1,
+  "migrationTimestamp": 1786579260000,
   "phase": "expand",
   "compatibleAppReleases": ["0.1.x"],
   "transaction": "each",
@@ -53,7 +54,7 @@
 }
 ```
 
-- `phase`, duration, risk, timeout, abort, N/N-1 compatibility, backfill checkpoint와 verification 누락을 CI가 거절한다.
+- filename과 같은 `migrationTimestamp`, `phase`, duration, risk, timeout, abort, N/N-1 compatibility, backfill checkpoint와 verification 누락을 CI가 거절한다.
 - destructive SQL, non-concurrent large index, table rewrite 또는 unbounded update는 risk를 `high`로 분류하고 explicit Operations approval 없이는 candidate를 만들지 않는다.
 - metadata는 실행 SQL을 대신하지 않으며 실제 catalog/row count와 dry-run 결과로 추정치를 갱신한다.
 
