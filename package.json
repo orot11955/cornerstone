@@ -19,6 +19,8 @@
     "test:component": "node scripts/test-scope.mjs test:component --run",
     "test:integration": "node scripts/test-scope.mjs test:integration --run",
     "test:e2e": "node scripts/test-scope.mjs test:e2e --run",
+    "governance:check": "node scripts/validate-governance.mjs",
+    "security:secrets": "node scripts/scan-secrets.mjs --history --self-test",
     "format": "prettier --write .",
     "format:check": "prettier --check ."
   },

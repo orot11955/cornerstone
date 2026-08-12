@@ -1,0 +1,18 @@
+# Default owner. Verify that @orot has write access before enabling required CODEOWNER review.
+* @orot
+
+# Release, dependency and trust contracts
+/.github/ @orot
+/package.json @orot
+/pnpm-lock.yaml @orot
+/pnpm-workspace.yaml @orot
+/turbo.json @orot
+/scripts/ @orot
+/templates/ @orot
+
+# Public contracts, security boundaries and data changes
+/packages/ @orot
+/apps/api/src/config/ @orot
+/apps/api/src/auth/ @orot
+/apps/api/src/database/migrations/ @orot
+/docs/adr/ @orot
