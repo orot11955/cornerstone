@@ -19,6 +19,7 @@ import {
   AuthenticatedUserResponseDto,
   ChangePasswordRequestDto,
   ConfirmRecentAuthRequestDto,
+  CsrfResponseDto,
   EmailRequestDto,
   LoginRequestDto,
   RefreshResponseDto,
@@ -34,6 +35,16 @@ import { ApiCsrfHeader, ApiStandardErrors } from './contract-decorators.js';
 @ApiTags('Authentication')
 @Controller('auth')
 export class AuthContractController {
+  @Get('csrf')
+  @ApiOperation({ operationId: 'getCsrfToken' })
+  @ApiOkResponse({
+    type: CsrfResponseDto,
+    headers: { 'Set-Cookie': { description: 'Signed CSRF cookie.' } },
+  })
+  getCsrfToken(): CsrfResponseDto {
+    return contractOnly();
+  }
+
   @Post('register')
   @HttpCode(HttpStatus.ACCEPTED)
   @ApiOperation({ operationId: 'register' })

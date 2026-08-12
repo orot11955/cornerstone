@@ -88,6 +88,14 @@
         "required": ["password"],
         "type": "object"
       },
+      "CsrfResponseDto": {
+        "additionalProperties": false,
+        "properties": {
+          "csrfToken": { "maxLength": 256, "minLength": 32, "type": "string" }
+        },
+        "required": ["csrfToken"],
+        "type": "object"
+      },
       "EmailRequestDto": {
         "additionalProperties": false,
         "properties": {
@@ -290,6 +298,11 @@
         "name": "X-CSRF-Token",
         "type": "apiKey"
       },
+      "preauthCsrfCookie": {
+        "in": "cookie",
+        "name": "__Host-cs_preauth_csrf",
+        "type": "apiKey"
+      },
       "refreshCookie": {
         "in": "cookie",
         "name": "__Host-cs_refresh",
@@ -310,6 +323,34 @@
   },
   "openapi": "3.0.3",
   "paths": {
+    "/api/v1/auth/csrf": {
+      "get": {
+        "operationId": "getCsrfToken",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/CsrfResponseDto" }
+              }
+            },
+            "description": "",
+            "headers": {
+              "Set-Cookie": { "description": "Signed CSRF cookie." }
+            }
+          }
+        },
+        "security": [],
+        "summary": "",
+        "tags": ["Authentication"],
+        "x-cornerstone-authorization": {
+          "owner": "backend",
+          "ownership": "none",
+          "permission": null,
+          "roles": []
+        }
+      }
+    },
     "/api/v1/auth/login": {
       "post": {
         "operationId": "login",
@@ -369,7 +410,7 @@
             "description": ""
           }
         },
-        "security": [{ "csrfCookie": [], "csrfHeader": [] }],
+        "security": [{ "csrfHeader": [], "preauthCsrfCookie": [] }],
         "summary": "",
         "tags": ["Authentication"],
         "x-cornerstone-authorization": {
@@ -596,7 +637,7 @@
             "description": ""
           }
         },
-        "security": [{ "csrfCookie": [], "csrfHeader": [] }],
+        "security": [{ "csrfHeader": [], "preauthCsrfCookie": [] }],
         "summary": "",
         "tags": ["Authentication"],
         "x-cornerstone-authorization": {
@@ -656,7 +697,7 @@
             "description": ""
           }
         },
-        "security": [{ "csrfCookie": [], "csrfHeader": [] }],
+        "security": [{ "csrfHeader": [], "preauthCsrfCookie": [] }],
         "summary": "",
         "tags": ["Authentication"],
         "x-cornerstone-authorization": {
@@ -845,7 +886,7 @@
             "description": ""
           }
         },
-        "security": [{ "csrfCookie": [], "csrfHeader": [] }],
+        "security": [{ "csrfHeader": [], "preauthCsrfCookie": [] }],
         "summary": "",
         "tags": ["Authentication"],
         "x-cornerstone-authorization": {
@@ -1053,7 +1094,7 @@
             "description": ""
           }
         },
-        "security": [{ "csrfCookie": [], "csrfHeader": [] }],
+        "security": [{ "csrfHeader": [], "preauthCsrfCookie": [] }],
         "summary": "",
         "tags": ["Authentication"],
         "x-cornerstone-authorization": {
@@ -1118,7 +1159,7 @@
             "description": ""
           }
         },
-        "security": [{ "csrfCookie": [], "csrfHeader": [] }],
+        "security": [{ "csrfHeader": [], "preauthCsrfCookie": [] }],
         "summary": "",
         "tags": ["Authentication"],
         "x-cornerstone-authorization": {

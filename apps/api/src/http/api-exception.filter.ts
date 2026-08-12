@@ -47,7 +47,14 @@ function mapException(exception: unknown): {
               exception.code === 'INVALID_SESSION'
             ? 401
             : 400;
-    return { status, code: exception.code };
+    const code =
+      exception.code === 'INVALID_ACTION_TOKEN'
+        ? 'VALIDATION_FAILED'
+        : exception.code === 'INVALID_CREDENTIALS' ||
+            exception.code === 'INVALID_SESSION'
+          ? 'UNAUTHENTICATED'
+          : exception.code;
+    return { status, code };
   }
   const status =
     exception instanceof HttpException ? exception.getStatus() : 500;

@@ -85,6 +85,11 @@ export class AuthenticatedUserResponseDto {
   user!: UserResponseDto;
 }
 
+export class CsrfResponseDto {
+  @ApiProperty({ minLength: 32, maxLength: 256 })
+  csrfToken!: string;
+}
+
 export class RefreshResponseDto {
   @ApiProperty({ example: true })
   refreshed!: true;

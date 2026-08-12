@@ -1,6 +1,6 @@
 import type { CookieOptions } from 'express';
 
-export type AuthCookieKind = 'access' | 'csrf' | 'refresh';
+export type AuthCookieKind = 'access' | 'csrf' | 'preauthCsrf' | 'refresh';
 
 export interface AuthCookieDefinition {
   readonly name: string;
@@ -24,6 +24,13 @@ export function createAuthCookiePolicy(
   const prefix = secure ? '__Host-' : '';
   return {
     access: definition(`${prefix}cs_access`, secure, true, 'lax', 600),
+    preauthCsrf: definition(
+      `${prefix}cs_preauth_csrf`,
+      secure,
+      false,
+      'strict',
+      60 * 60,
+    ),
     refresh: definition(
       `${prefix}cs_refresh`,
       secure,

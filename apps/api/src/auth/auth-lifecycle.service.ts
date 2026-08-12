@@ -52,6 +52,12 @@ export interface AuthenticatedSessionResult {
 
 export type AuthenticatedUser = UserResponseDto;
 
+export interface AuthenticatedPrincipal {
+  readonly user: AuthenticatedUser;
+  readonly sessionId: string;
+  readonly lastPasswordAuthAt: Date;
+}
+
 @Injectable()
 export class AuthLifecycleService implements OnModuleInit {
   private dummyHash: Promise<string> | undefined;
@@ -358,9 +364,6 @@ export class AuthLifecycleService implements OnModuleInit {
     refreshValue: string,
     context: AuthRequestContext,
   ): Promise<AuthenticatedSessionResult> {
-    await this.enforceRate([
-      ipSubject(context.ip, authRateLimitPolicies.refreshIp),
-    ]);
     let tokenHash: string;
     let keyVersion: string;
     try {
@@ -495,6 +498,84 @@ export class AuthLifecycleService implements OnModuleInit {
     }
     if (result.kind === 'reuse') throw invalidSession();
     return result.session;
+  }
+
+  async authorizeRefresh(
+    value: string,
+    ip: string,
+  ): Promise<string | undefined> {
+    await this.enforceRate([ipSubject(ip, authRateLimitPolicies.refreshIp)]);
+    let token: { readonly hash: string; readonly keyVersion: string };
+    try {
+      token = this.opaqueTokens.hash('refresh', value);
+    } catch {
+      return undefined;
+    }
+    const rows = await queryRows<{ sessionId: string }>(
+      this.source,
+      `SELECT session_id AS "sessionId" FROM auth_refresh_tokens
+       WHERE token_hash = $1 AND key_version = $2`,
+      [token.hash, token.keyVersion],
+    );
+    return rows[0]?.sessionId;
+  }
+
+  async authenticateAccess(value: string): Promise<AuthenticatedPrincipal> {
+    let token: Awaited<ReturnType<AccessTokenService['verify']>>;
+    try {
+      token = await this.accessTokens.verify(value);
+    } catch {
+      throw invalidSession();
+    }
+    const rows = await queryRows<
+      UserRecord & {
+        readonly sessionId: string;
+        readonly lastPasswordAuthAt: Date;
+      }
+    >(
+      this.source,
+      `SELECT ${userColumns}, s.id AS "sessionId",
+         s.last_password_auth_at AS "lastPasswordAuthAt"
+       FROM auth_sessions s JOIN users u ON u.id = s.user_id
+       WHERE s.id = $1 AND u.id = $2 AND u.authz_version = $3
+         AND u.status = 'active' AND s.revoked_at IS NULL
+         AND s.idle_expires_at > CURRENT_TIMESTAMP
+         AND s.absolute_expires_at > CURRENT_TIMESTAMP`,
+      [token.sessionId, token.userId, token.authzVersion],
+    );
+    const row = rows[0];
+    if (!row) throw invalidSession();
+    return {
+      user: toAuthenticatedUser(candidateToUser(row)),
+      sessionId: row.sessionId,
+      lastPasswordAuthAt: row.lastPasswordAuthAt,
+    };
+  }
+
+  async logout(
+    principal: AuthenticatedPrincipal,
+    context: AuthRequestContext,
+  ): Promise<void> {
+    await this.source.transaction(async (manager) => {
+      const rows = await queryRows<{ id: string }>(
+        manager,
+        `SELECT id FROM auth_sessions
+         WHERE id = $1 AND user_id = $2 FOR UPDATE`,
+        [principal.sessionId, principal.user.id],
+      );
+      if (!rows[0]) throw invalidSession();
+      await revokeSession(manager, principal.sessionId, 'LOGOUT');
+      await this.audit.record(manager, {
+        eventType: 'identity.logout.succeeded',
+        actorId: principal.user.id,
+        subjectId: principal.user.id,
+        resourceId: principal.sessionId,
+        outcome: 'success',
+        requestId: context.requestId,
+        traceId: context.traceId,
+        metadata: { scope: 'current' },
+      });
+    });
   }
 
   private async createSession(

@@ -316,6 +316,7 @@ describe('createAuthCookiePolicy', () => {
     expect(policy.access.name).toBe('__Host-cs_access');
     expect(policy.refresh.name).toBe('__Host-cs_refresh');
     expect(policy.csrf.name).toBe('__Host-cs_csrf');
+    expect(policy.preauthCsrf.name).toBe('__Host-cs_preauth_csrf');
     expect(policy.access.issue).toMatchObject({
       secure: true,
       httpOnly: true,

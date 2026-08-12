@@ -1,6 +1,7 @@
 import type { ArgumentsHost } from '@nestjs/common';
 import type { Response } from 'express';
 import {
+  invalidActionToken,
   invalidCredentials,
   rateLimited,
   serviceUnavailable,
@@ -10,9 +11,15 @@ import { ApiExceptionFilter } from './api-exception.filter.js';
 describe('ApiExceptionFilter auth mapping', () => {
   it.each([
     [
+      invalidActionToken(),
+      400,
+      'VALIDATION_FAILED',
+      'The request could not be processed.',
+    ],
+    [
       invalidCredentials(),
       401,
-      'INVALID_CREDENTIALS',
+      'UNAUTHENTICATED',
       'The request could not be processed.',
     ],
     [

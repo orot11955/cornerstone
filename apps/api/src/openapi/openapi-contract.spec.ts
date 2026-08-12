@@ -36,7 +36,9 @@ describe('OpenAPI snapshot', () => {
       }
       if (policy.csrf) {
         expect(operation?.security?.[0]).toMatchObject({
-          csrfCookie: [],
+          [policy.authentication === 'anonymous'
+            ? 'preauthCsrfCookie'
+            : 'csrfCookie']: [],
           csrfHeader: [],
         });
       }
@@ -50,7 +52,7 @@ describe('OpenAPI snapshot', () => {
     expect(register?.responses?.['200']).toBeUndefined();
     expect(register?.responses?.['409']).toBeUndefined();
     expect(register?.security?.[0]).toMatchObject({
-      csrfCookie: [],
+      preauthCsrfCookie: [],
       csrfHeader: [],
     });
 
@@ -63,6 +65,11 @@ describe('OpenAPI snapshot', () => {
     expect(
       securitySchemeName(snapshot.components?.securitySchemes?.csrfCookie),
     ).toBe('__Host-cs_csrf');
+    expect(
+      securitySchemeName(
+        snapshot.components?.securitySchemes?.preauthCsrfCookie,
+      ),
+    ).toBe('__Host-cs_preauth_csrf');
 
     const listUsers = snapshot.paths?.['/api/v1/users']?.[
       'get'

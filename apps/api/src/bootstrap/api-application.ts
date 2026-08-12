@@ -95,7 +95,11 @@ export function configureApiApplication(app: INestApplication): void {
 function enforceOrigin(allowedOrigin: string) {
   return (request: Request, response: Response, next: NextFunction): void => {
     const origin = request.get('origin');
-    if (!origin || origin === allowedOrigin) {
+    if (
+      (!UNSAFE_METHODS.has(request.method) &&
+        (!origin || origin === allowedOrigin)) ||
+      (UNSAFE_METHODS.has(request.method) && origin === allowedOrigin)
+    ) {
       next();
       return;
     }

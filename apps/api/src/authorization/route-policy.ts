@@ -31,6 +31,12 @@ export const routePolicies = [
     'Load balancer readiness probe.',
   ),
   publicPolicy(
+    'get',
+    '/api/v1/auth/csrf',
+    'getCsrfToken',
+    'Signed pre-authentication CSRF bootstrap.',
+  ),
+  publicPolicy(
     'post',
     '/api/v1/auth/register',
     'register',

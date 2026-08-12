@@ -35,6 +35,11 @@ export function createOpenApiDocument(app: INestApplication): OpenAPIObject {
       { type: 'apiKey', in: 'cookie' },
       'csrfCookie',
     )
+    .addCookieAuth(
+      '__Host-cs_preauth_csrf',
+      { type: 'apiKey', in: 'cookie' },
+      'preauthCsrfCookie',
+    )
     .addApiKey(
       {
         type: 'apiKey',
@@ -104,7 +109,9 @@ function operationSecurity(
     ] = [];
   }
   if (policy.csrf) {
-    requirement.csrfCookie = [];
+    requirement[
+      policy.authentication === 'anonymous' ? 'preauthCsrfCookie' : 'csrfCookie'
+    ] = [];
     requirement.csrfHeader = [];
   }
   return [requirement];
