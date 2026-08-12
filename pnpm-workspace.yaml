@@ -4,4 +4,5 @@ packages:
 verifyDepsBeforeRun: error
 enableGlobalVirtualStore: false
 allowBuilds:
+  '@scarf/scarf': false
   unrs-resolver: true

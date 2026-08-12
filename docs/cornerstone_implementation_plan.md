@@ -59,19 +59,19 @@
 
 아래는 파일과 최근 검증을 기준으로 한 상태다. 전체 구현 완료를 의미하지 않는다.
 
-| 영역               | 현재 상태                                                                    | 먼저 해결할 항목                                                |
-| ------------------ | ---------------------------------------------------------------------------- | --------------------------------------------------------------- |
-| Workspace/Lockfile | Root 단일 workspace/lockfile, clean frozen install과 Node/pnpm/TS 고정       | Profile·DB 의존성 추가 때 동일 기준 유지                        |
-| Turbo/Quality      | read-only format/lint, 명시적 test scope와 CI quality/security Gate 적용     | Milestone별 integration/Playwright 참여 승격                    |
-| Repository hygiene | 추적 build/cache output 제거, Root artifact 경로와 package boundary 검사     | 이후 image/SBOM artifact 정책 연결                              |
-| Shared packages    | M1 export/build/test/license 및 9개 tarball 외부 소비 검증 완료              | API/UI 공개 계약 추가 때 generated/export drift 검사            |
-| Composition        | secret-free manifest/lock과 `minimal` Certified Profile 생성·검증            | dry-run/update journal과 standard/production/regulated fragment |
-| UI Foundation      | token/Appearance/responsive Core component와 Web reference 구현              | 실제 browser hydration/axe/visual/AT matrix                     |
-| Web Platform       | i18n/metadata/error/offline/CSP/telemetry/performance Gate 구현              | locale route 전략과 실제 browser/404/500/a11y E2E               |
-| API Foundation     | prefix/CORS/validation/error/request context/log/metric/health/outbound 구현 | OpenAPI snapshot, DB idempotency와 shutdown drain integration   |
-| DB/Auth            | ADR-005/007/010/016과 versioned IDC 확정, runtime 구현 미착수                | M3 PostgreSQL Migration부터 순차 구현                           |
-| Distribution       | package/generator tarball·license consumer 검증 완료                         | registry namespace/OIDC, signing/provenance와 immutable publish |
-| Docs Portal        | 저장소 내부 ADR/계획과 HTML reference만 존재                                 | ADR-012, `apps/docs`, version/search/download 배포              |
+| 영역               | 현재 상태                                                                | 먼저 해결할 항목                                                |
+| ------------------ | ------------------------------------------------------------------------ | --------------------------------------------------------------- |
+| Workspace/Lockfile | Root 단일 workspace/lockfile, clean frozen install과 Node/pnpm/TS 고정   | Profile·DB 의존성 추가 때 동일 기준 유지                        |
+| Turbo/Quality      | read-only format/lint, 명시적 test scope와 CI quality/security Gate 적용 | Milestone별 integration/Playwright 참여 승격                    |
+| Repository hygiene | 추적 build/cache output 제거, Root artifact 경로와 package boundary 검사 | 이후 image/SBOM artifact 정책 연결                              |
+| Shared packages    | M1 export/build/test/license 및 9개 tarball 외부 소비 검증 완료          | API/UI 공개 계약 추가 때 generated/export drift 검사            |
+| Composition        | secret-free manifest/lock과 `minimal` Certified Profile 생성·검증        | dry-run/update journal과 standard/production/regulated fragment |
+| UI Foundation      | token/Appearance/responsive Core component와 Web reference 구현          | 실제 browser hydration/axe/visual/AT matrix                     |
+| Web Platform       | i18n/metadata/error/offline/CSP/telemetry/performance Gate 구현          | locale route 전략과 실제 browser/404/500/a11y E2E               |
+| API Foundation     | prefix/CORS/validation/error/관측/health/outbound와 M4 OpenAPI Gate 구현 | M5 Runtime route·Guard와 shutdown drain integration             |
+| DB/Auth            | IDC·M3 Migration/Seed/Outbox/retention과 M4 공개 계약 완료               | M5 인증·권한 Runtime vertical slice                             |
+| Distribution       | package/generator tarball·license consumer 검증 완료                     | registry namespace/OIDC, signing/provenance와 immutable publish |
+| Docs Portal        | 저장소 내부 ADR/계획과 HTML reference만 존재                             | ADR-012, `apps/docs`, version/search/download 배포              |
 
 현재 표의 “구현”은 해당 자동 검증이 존재한다는 뜻이며 release 완료를 뜻하지 않는다. UIF/WPF의 실제 browser·보조기술 검증, DXF의 상위 Profile, 외부 registry/hosting/protected branch와 Production provider는 아직 Gate가 열려 있다.
 
@@ -496,6 +496,17 @@ Migration마다 기록:
 완료: 표준 Root 명령으로 local/test DB를 기동하고 Migration·Seed를 재현한다. M3에서는 PostgreSQL logical backup/restore만 검증하고 provider 기반 암호화 backup·restore는 M9에서 완료한다.
 
 ### M4. User Contract + OpenAPI Snapshot
+
+현재 완료:
+
+- Entity와 분리된 User/Auth/Session Request·Response DTO, UTC/UUID/pagination/error와 mass-assignment negative test
+- register/verify/resend/login/me/refresh/logout/recovery/password/recent-auth/Session/User 관리·삭제 endpoint 계약
+- endpoint별 anonymous/refresh/session, CSRF, Role, permission, ownership와 owner를 고정한 default-deny route matrix
+- retry 가능한 관리자 mutation과 User 삭제의 `Idempotency-Key`, strong `If-Match`, `409/412/429` 계약
+- Nest Swagger `3.0.3` snapshot, cookie/CSRF security override와 권한 extension을 생성·비교하는 Root `openapi:generate/check`
+- immutable v1 compatibility baseline과 route/parameter/response/schema/security breaking change를 차단하는 Root `openapi:compat`
+- `openapi-typescript` pinned config와 생성 `paths/components/operations`를 외부 package export로 연결한 Root `client:generate/check`
+- PR Quality Gate의 OpenAPI/client drift 차단과 password/token 저장 field 비노출·recovery enumeration-safe response 검증
 
 목표:
 

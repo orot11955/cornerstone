@@ -35,6 +35,8 @@
     "migration:revert": "pnpm build && node dist/database/migration-runner.js revert",
     "database:verify": "pnpm build && node dist/database/database-verifier.js",
     "retention:cleanup": "pnpm build && node dist/database/retention-runner.js",
+    "openapi:generate": "pnpm build && node dist/openapi/openapi-generator.js generate",
+    "openapi:check": "pnpm build && node dist/openapi/openapi-generator.js check",
     "seed": "pnpm build && node dist/database/seed-runner.js"
   },
   "dependencies": {
@@ -43,6 +45,7 @@
     "@nestjs/config": "^4.0.4",
     "@nestjs/core": "^11.0.1",
     "@nestjs/platform-express": "^11.0.1",
+    "@nestjs/swagger": "11.4.4",
     "@nestjs/typeorm": "^11.0.3",
     "class-transformer": "^0.5.1",
     "class-validator": "^0.15.1",

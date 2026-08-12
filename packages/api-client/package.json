@@ -9,7 +9,9 @@
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
     "typecheck": "tsc -p tsconfig.build.json --noEmit",
-    "test:unit": "pnpm build && node --test test/*.test.mjs"
+    "test:unit": "pnpm build && node --test test/*.test.mjs",
+    "client:generate": "node scripts/generate-client.mjs generate",
+    "client:check": "node scripts/generate-client.mjs check"
   },
   "exports": {
     ".": {
@@ -28,5 +30,8 @@
   "sideEffects": false,
   "publishConfig": {
     "access": "public"
+  },
+  "devDependencies": {
+    "openapi-typescript": "7.13.0"
   }
 }

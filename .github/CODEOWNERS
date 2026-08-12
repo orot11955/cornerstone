@@ -14,5 +14,8 @@
 /packages/ @orot
 /apps/api/src/config/ @orot
 /apps/api/src/auth/ @orot
+/apps/api/src/authorization/ @orot
+/apps/api/src/contracts/ @orot
 /apps/api/src/database/migrations/ @orot
+/apps/api/openapi/ @orot
 /docs/adr/ @orot

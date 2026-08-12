@@ -4,6 +4,12 @@ export interface ApiClientOptions {
   readonly headers?: Readonly<Record<string, string>>
 }
 
+export type {
+  components as ApiComponents,
+  operations as ApiOperations,
+  paths as ApiPaths,
+} from './generated/schema.js'
+
 export interface ApiRequestOptions extends Omit<RequestInit, 'body'> {
   readonly body?: unknown
   readonly query?: Readonly<Record<string, string | number | boolean | null | undefined>>
