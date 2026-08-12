@@ -12,7 +12,12 @@ import express, {
   type Response,
 } from 'express';
 import helmet from 'helmet';
-import { requestContextMiddleware } from '../observability/request-context';
+import { MetricsService } from '../observability/metrics.service';
+import {
+  requestContextMiddleware,
+  requestLifecycleMiddleware,
+} from '../observability/request-context';
+import { StructuredLogger } from '../observability/structured-logger.service';
 
 const API_PREFIX = 'api/v1';
 const BODY_LIMIT = 1024 * 1024;
@@ -29,6 +34,8 @@ export function configureApiApplication(app: INestApplication): void {
   const config = app.get(ConfigService);
   const webOrigin = new URL(config.getOrThrow<string>('app.webUrl')).origin;
   const trustProxyHops = config.getOrThrow<number>('app.trustProxyHops');
+  const metrics = app.get(MetricsService);
+  const logger = app.get(StructuredLogger);
   const expressApplication = app.getHttpAdapter().getInstance() as Application;
 
   expressApplication.disable('x-powered-by');
@@ -39,6 +46,7 @@ export function configureApiApplication(app: INestApplication): void {
   );
 
   app.use(requestContextMiddleware);
+  app.use(requestLifecycleMiddleware(metrics, logger));
   app.use(
     helmet({
       contentSecurityPolicy: false,
