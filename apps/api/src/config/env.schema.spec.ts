@@ -99,5 +99,27 @@ describe('validateEnvironment', () => {
           'postgresql://migrator:migrator@localhost:5432/other',
       }),
     ).toThrow();
+
+    expect(() =>
+      validateDatabaseEnvironment({
+        DATABASE_URL: requiredEnvironment.DATABASE_URL,
+        DATABASE_MAINTENANCE_URL:
+          'postgresql://maintenance:maintenance@localhost:5432/other',
+      }),
+    ).toThrow();
+  });
+
+  it('requires distinct production maintenance principals when configured', () => {
+    expect(() =>
+      validateDatabaseEnvironment({
+        NODE_ENV: 'production',
+        DATABASE_URL: 'postgresql://runtime:runtime@db.example.com/cornerstone',
+        DATABASE_MIGRATION_URL:
+          'postgresql://migration:migration@db.example.com/cornerstone',
+        DATABASE_MAINTENANCE_URL:
+          'postgresql://runtime:other@db.example.com/cornerstone',
+        DATABASE_SSL_MODE: 'verify-full',
+      }),
+    ).toThrow();
   });
 });

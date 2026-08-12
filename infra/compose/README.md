@@ -22,15 +22,17 @@ pnpm db:test:up
 NODE_ENV=test \
 DATABASE_URL=postgresql://cornerstone_test_app:cornerstone-test-app@localhost:55432/cornerstone_test \
 DATABASE_MIGRATION_URL=postgresql://cornerstone_test_migrator:cornerstone-test-migrator@localhost:55432/cornerstone_test \
+DATABASE_MAINTENANCE_URL=postgresql://cornerstone_test_maintenance:cornerstone-test-maintenance@localhost:55432/cornerstone_test \
 pnpm migration:run
 NODE_ENV=test \
 DATABASE_URL=postgresql://cornerstone_test_app:cornerstone-test-app@localhost:55432/cornerstone_test \
 DATABASE_MIGRATION_URL=postgresql://cornerstone_test_migrator:cornerstone-test-migrator@localhost:55432/cornerstone_test \
+DATABASE_MAINTENANCE_URL=postgresql://cornerstone_test_maintenance:cornerstone-test-maintenance@localhost:55432/cornerstone_test \
 pnpm database:verify
 pnpm db:test:down
 ```
 
-Test 데이터는 tmpfs에만 저장된다. `cornerstone_test_app`은 schema DDL 권한을 받지 않으며 각 Migration이 업무 table별 DML 권한을 명시해야 한다. Migration 이력과 schema는 `cornerstone_test_migrator`만 변경한다.
+Test 데이터는 tmpfs에만 저장된다. `cornerstone_test_app`은 schema DDL 권한을 받지 않으며 각 Migration이 업무 table별 DML 권한을 명시해야 한다. Migration 이력과 schema는 `cornerstone_test_migrator`만 변경한다. `cornerstone_test_maintenance`는 table 직접 DML 권한 없이 Migration이 봉인한 bounded cleanup 함수만 실행하며 User와 Audit 원문을 조회·변경할 수 없다.
 
 `pnpm seed`는 개발/test에서만 비밀 없는 pending reference User와 Audit event를 멱등 생성한다. 로그인 가능한 공용 password와 admin은 만들지 않으며 production에서는 DB 연결 전에 거절한다.
 
@@ -42,6 +44,8 @@ Integration 마지막에는 `pg_dump --format=custom` archive를 메모리에서
 
 - Compose fixture는 운영 배포용이 아니다.
 - 운영은 `DATABASE_SSL_MODE=verify-full`과 서로 다른 runtime/migration principal을 요구한다.
+- 운영 retention job은 runtime/migration과 다른 `DATABASE_MAINTENANCE_URL` principal을 요구한다.
 - runtime과 migration URL은 동일 host/port/database를 가리켜야 한다.
 - 운영 DB provisioning은 Migration 전에 `cornerstone_runtime` NOLOGIN group role을 만들고 runtime principal에 membership만 부여해야 한다.
 - `migration:revert`는 production에서 fail closed한다. 운영 복구는 ADR-0007의 roll-forward 절차를 따른다.
+- `pnpm retention:cleanup`은 한 table당 실행당 최대 `RETENTION_BATCH_SIZE`(기본 1,000)만 삭제한다. 운영 scheduler가 반복 실행하며 Runtime 서비스에서는 호출하지 않는다.

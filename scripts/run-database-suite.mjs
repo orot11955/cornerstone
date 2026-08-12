@@ -15,6 +15,8 @@ const databaseEnvironment = {
     'postgresql://cornerstone_test_app:cornerstone-test-app@localhost:55432/cornerstone_test',
   DATABASE_MIGRATION_URL:
     'postgresql://cornerstone_test_migrator:cornerstone-test-migrator@localhost:55432/cornerstone_test',
+  DATABASE_MAINTENANCE_URL:
+    'postgresql://cornerstone_test_maintenance:cornerstone-test-maintenance@localhost:55432/cornerstone_test',
 }
 
 function run(args, options = {}) {

@@ -40,6 +40,9 @@ async function verify(): Promise<void> {
   const runtimeDataSource = new DataSource(
     buildDatabaseOptions(environment, 'runtime'),
   );
+  const maintenanceDataSource = environment.DATABASE_MAINTENANCE_URL
+    ? new DataSource(buildDatabaseOptions(environment, 'maintenance'))
+    : undefined;
 
   await migrationDataSource.initialize();
   try {
@@ -119,6 +122,14 @@ async function verify(): Promise<void> {
         ["has_table_privilege($1, 'audit_events', 'UPDATE')", 'audit UPDATE'],
         ["has_table_privilege($1, 'audit_events', 'DELETE')", 'audit DELETE'],
         [
+          `has_function_privilege(
+             $1,
+             'cornerstone_cleanup_retention(integer,timestamp with time zone)',
+             'EXECUTE'
+           )`,
+          'retention function EXECUTE',
+        ],
+        [
           "has_table_privilege($1, 'cornerstone_migrations', 'UPDATE')",
           'migration UPDATE',
         ],
@@ -156,6 +167,57 @@ async function verify(): Promise<void> {
       }
     } finally {
       await runtimeDataSource.destroy();
+    }
+
+    if (maintenanceDataSource) {
+      await maintenanceDataSource.initialize();
+      try {
+        const allowed = await scalar(
+          maintenanceDataSource,
+          `SELECT has_function_privilege(
+             current_user,
+             'cornerstone_cleanup_retention(integer,timestamp with time zone)',
+             'EXECUTE'
+           ) AS value`,
+        );
+        if (!allowed) {
+          throw new Error(
+            'Maintenance principal cannot execute bounded retention cleanup',
+          );
+        }
+        const forbidden = [
+          ["has_schema_privilege(current_user, 'public', 'CREATE')", 'DDL'],
+          [
+            "has_table_privilege(current_user, 'users', 'DELETE')",
+            'user DELETE',
+          ],
+          [
+            "has_table_privilege(current_user, 'audit_events', 'SELECT')",
+            'audit SELECT',
+          ],
+          [
+            "has_table_privilege(current_user, 'audit_events', 'DELETE')",
+            'audit DELETE',
+          ],
+          [
+            "has_table_privilege(current_user, 'audit_events', 'INSERT')",
+            'audit INSERT',
+          ],
+          [
+            "has_table_privilege(current_user, 'audit_events', 'UPDATE')",
+            'audit UPDATE',
+          ],
+        ] as const;
+        for (const [expression, label] of forbidden) {
+          if (
+            await scalar(maintenanceDataSource, `SELECT ${expression} AS value`)
+          ) {
+            throw new Error(`Maintenance principal unexpectedly has ${label}`);
+          }
+        }
+      } finally {
+        await maintenanceDataSource.destroy();
+      }
     }
   } finally {
     await migrationDataSource.destroy();

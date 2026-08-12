@@ -8,18 +8,27 @@ import {
   OutboxWorker,
   TypeOrmOutboxWorkStore,
 } from '../src/database/outbox.worker.js';
+import { cleanupExpiredOperationalData } from '../src/database/retention-cleanup.js';
 
 const digest = (value: string) =>
   createHash('sha256').update(value).digest('hex');
 
 describe('Database repositories (integration)', () => {
   let source: DataSource;
+  let maintenanceSource: DataSource;
 
   beforeAll(async () => {
     source = new DataSource(
       buildDatabaseOptions(validateDatabaseEnvironment(process.env), 'runtime'),
     );
     await source.initialize();
+    maintenanceSource = new DataSource(
+      buildDatabaseOptions(
+        validateDatabaseEnvironment(process.env),
+        'maintenance',
+      ),
+    );
+    await maintenanceSource.initialize();
   });
 
   beforeEach(async () => {
@@ -257,13 +266,124 @@ describe('Database repositories (integration)', () => {
     ).toEqual([]);
   });
 
+  it('cleans expired operational data in bounded least-privilege batches', async () => {
+    const now = new Date('2026-08-13T00:00:00.000Z');
+    const old = new Date('2025-01-01T00:00:00.000Z');
+    const userId = randomUUID();
+    const sessionId = randomUUID();
+    await source.query(
+      `INSERT INTO users (
+         id, email_normalized, password_hash, status, role, authz_version,
+         version, created_at, updated_at
+       ) VALUES ($1, $2, NULL, 'pending_verification', 'user', 0, 0, $3, $3)`,
+      [userId, `retention-${userId}@example.test`, old],
+    );
+    await source.query(
+      `INSERT INTO auth_sessions (
+         id, family_id, user_id, current_generation, last_password_auth_at,
+         last_seen_at, idle_expires_at, absolute_expires_at, revoked_at,
+         revoke_reason, version, created_at, updated_at
+       ) VALUES ($1, $2, $3, 0, $4, $4, $4, $4, $4, 'EXPIRED', 0, $4, $4)`,
+      [sessionId, randomUUID(), userId, old],
+    );
+    await source.query(
+      `INSERT INTO auth_refresh_tokens (
+         id, session_id, generation, token_hash, key_version, expires_at,
+         consumed_at, created_at
+       ) VALUES ($1, $2, 0, $3, 'test-v1', $4, $4, $4)`,
+      [randomUUID(), sessionId, digest(randomUUID()), old],
+    );
+    await source.query(
+      `INSERT INTO auth_action_tokens (
+         id, user_id, purpose, token_hash, key_version, attempt_count,
+         max_attempts, expires_at, consumed_at, created_at
+       ) VALUES ($1, $2, 'verify_email', $3, 'test-v1', 1, 5, $4, $4, $4)`,
+      [randomUUID(), userId, digest(randomUUID()), old],
+    );
+    for (const key of ['expired-one', 'expired-two']) {
+      await source.query(
+        `INSERT INTO idempotency_records (
+           id, scope_hash, idempotency_key, method, route_id, payload_sha256,
+           state, expires_at, created_at, updated_at
+         ) VALUES ($1, $2, $3, 'POST', 'retention.test', $4, 'pending', $5, $5, $5)`,
+        [randomUUID(), digest('retention'), key, digest(key), old],
+      );
+    }
+    await source.query(
+      `INSERT INTO rate_limit_buckets (
+         id, subject_hash, policy_id, window_start, count, expires_at,
+         created_at, updated_at
+       ) VALUES ($1, $2, 'retention-test', $3, 1, $3, $3, $3)`,
+      [randomUUID(), digest('subject'), old],
+    );
+    await source.query(
+      `INSERT INTO outbox_events (
+         id, event_type, event_version, aggregate_id, payload, attempts,
+         max_attempts, available_at, processed_at, created_at, updated_at
+       ) VALUES
+         ($1, 'retention.processed', 1, $2, '{}', 1, 3, $3, $3, $3, $3),
+         ($4, 'retention.poison', 1, $2, '{}', 3, 3, $3, $3, $3, $3)`,
+      [randomUUID(), userId, old, randomUUID()],
+    );
+    await source.query(
+      `UPDATE outbox_events SET last_error_code = 'POISON'
+       WHERE event_type = 'retention.poison'`,
+    );
+    await source.query(
+      `INSERT INTO audit_events (
+         id, event_type, event_version, subject_id, outcome, metadata,
+         occurred_at, recorded_at
+       ) VALUES ($1, 'retention.test', 1, $2, 'success', '{}', $3, $3)`,
+      [randomUUID(), userId, old],
+    );
+
+    await expect(
+      cleanupExpiredOperationalData(maintenanceSource, {
+        batchSize: 1,
+        now,
+      }),
+    ).resolves.toEqual({
+      sessions: 1,
+      actionTokens: 1,
+      idempotency: 1,
+      rateLimits: 1,
+      outboxProcessed: 1,
+      outboxPoison: 1,
+      audit: 1,
+    });
+    expect(await countRows(source, 'idempotency_records')).toBe(1);
+    expect(await countRows(source, 'auth_refresh_tokens')).toBe(0);
+    expect(await countRows(source, 'users')).toBeGreaterThan(0);
+
+    const second = await cleanupExpiredOperationalData(maintenanceSource, {
+      batchSize: 1,
+      now,
+    });
+    expect(second.idempotency).toBe(1);
+    expect(await countRows(source, 'idempotency_records')).toBe(0);
+    await expect(
+      maintenanceSource.query(
+        'SELECT * FROM cornerstone_cleanup_retention(NULL, $1::timestamptz)',
+        [now],
+      ),
+    ).rejects.toThrow('retention batch size must be 1..1000');
+  });
+
   afterAll(async () => {
+    await maintenanceSource.destroy();
     await source.destroy();
   });
 });
 
 async function countRows(source: DataSource, table: string): Promise<number> {
-  if (!['idempotency_records', 'outbox_events'].includes(table)) {
+  if (
+    ![
+      'auth_refresh_tokens',
+      'idempotency_records',
+      'outbox_events',
+      'users',
+    ].includes(table)
+  ) {
     throw new Error('Unexpected integration table');
   }
   const result: unknown = await source.query(

@@ -33,6 +33,7 @@
     "migration:check": "node scripts/validate-migrations.mjs",
     "database:verify": "pnpm --filter api database:verify",
     "database:backup:verify": "node scripts/verify-logical-backup.mjs",
+    "retention:cleanup": "pnpm --filter api retention:cleanup",
     "seed": "pnpm --filter api seed",
     "license:check": "node scripts/check-package-licenses.mjs",
     "governance:check": "node scripts/validate-governance.mjs",

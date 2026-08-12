@@ -17,6 +17,7 @@
     "schema-diff",
     "forward-revert-forward",
     "runtime-ddl-denied",
+    "maintenance-function-only",
     "single-tenant-no-membership"
   ]
 }

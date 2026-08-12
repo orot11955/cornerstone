@@ -230,6 +230,120 @@ export class CreateIdentityCore1786579260000 implements MigrationInterface {
       'CREATE INDEX audit_events_subject_idx ON audit_events (subject_id, occurred_at)',
     );
 
+    await queryRunner.query(`
+      CREATE FUNCTION cornerstone_cleanup_retention(
+        requested_batch_size integer,
+        requested_now timestamptz
+      ) RETURNS TABLE(category text, deleted_count integer)
+      LANGUAGE plpgsql
+      SECURITY DEFINER
+      SET search_path = pg_catalog, public
+      AS $$
+      BEGIN
+        IF requested_batch_size IS NULL
+          OR requested_batch_size < 1
+          OR requested_batch_size > 1000 THEN
+          RAISE EXCEPTION 'retention batch size must be 1..1000';
+        END IF;
+        IF requested_now IS NULL THEN
+          RAISE EXCEPTION 'retention time is required';
+        END IF;
+
+        RETURN QUERY
+        WITH candidates AS (
+          SELECT id FROM auth_sessions
+          WHERE COALESCE(revoked_at, LEAST(idle_expires_at, absolute_expires_at))
+            < requested_now - interval '90 days'
+          ORDER BY COALESCE(revoked_at, LEAST(idle_expires_at, absolute_expires_at)), id
+          FOR UPDATE SKIP LOCKED LIMIT requested_batch_size
+        ), deleted AS (
+          DELETE FROM auth_sessions AS target USING candidates
+          WHERE target.id = candidates.id RETURNING 1
+        ) SELECT 'sessions'::text, count(*)::integer FROM deleted;
+
+        RETURN QUERY
+        WITH candidates AS (
+          SELECT id FROM auth_action_tokens
+          WHERE (consumed_at IS NOT NULL OR revoked_at IS NOT NULL OR expires_at < requested_now)
+            AND LEAST(
+              COALESCE(consumed_at, 'infinity'),
+              COALESCE(revoked_at, 'infinity'),
+              expires_at
+            ) < requested_now - interval '30 days'
+          ORDER BY LEAST(
+            COALESCE(consumed_at, 'infinity'),
+            COALESCE(revoked_at, 'infinity'),
+            expires_at
+          ), id
+          FOR UPDATE SKIP LOCKED LIMIT requested_batch_size
+        ), deleted AS (
+          DELETE FROM auth_action_tokens AS target USING candidates
+          WHERE target.id = candidates.id RETURNING 1
+        ) SELECT 'actionTokens'::text, count(*)::integer FROM deleted;
+
+        RETURN QUERY
+        WITH candidates AS (
+          SELECT id FROM idempotency_records
+          WHERE expires_at < requested_now
+          ORDER BY expires_at, id FOR UPDATE SKIP LOCKED LIMIT requested_batch_size
+        ), deleted AS (
+          DELETE FROM idempotency_records AS target USING candidates
+          WHERE target.id = candidates.id RETURNING 1
+        ) SELECT 'idempotency'::text, count(*)::integer FROM deleted;
+
+        RETURN QUERY
+        WITH candidates AS (
+          SELECT id FROM rate_limit_buckets
+          WHERE expires_at < requested_now
+          ORDER BY expires_at, id FOR UPDATE SKIP LOCKED LIMIT requested_batch_size
+        ), deleted AS (
+          DELETE FROM rate_limit_buckets AS target USING candidates
+          WHERE target.id = candidates.id RETURNING 1
+        ) SELECT 'rateLimits'::text, count(*)::integer FROM deleted;
+
+        RETURN QUERY
+        WITH candidates AS (
+          SELECT id FROM outbox_events
+          WHERE processed_at < requested_now - interval '30 days'
+            AND last_error_code IS NULL
+          ORDER BY processed_at, id FOR UPDATE SKIP LOCKED LIMIT requested_batch_size
+        ), deleted AS (
+          DELETE FROM outbox_events AS target USING candidates
+          WHERE target.id = candidates.id RETURNING 1
+        ) SELECT 'outboxProcessed'::text, count(*)::integer FROM deleted;
+
+        RETURN QUERY
+        WITH candidates AS (
+          SELECT id FROM outbox_events
+          WHERE processed_at < requested_now - interval '90 days'
+            AND last_error_code IS NOT NULL AND attempts >= max_attempts
+          ORDER BY processed_at, id FOR UPDATE SKIP LOCKED LIMIT requested_batch_size
+        ), deleted AS (
+          DELETE FROM outbox_events AS target USING candidates
+          WHERE target.id = candidates.id RETURNING 1
+        ) SELECT 'outboxPoison'::text, count(*)::integer FROM deleted;
+
+        RETURN QUERY
+        WITH candidates AS (
+          SELECT id FROM audit_events
+          WHERE occurred_at < requested_now - interval '365 days'
+          ORDER BY occurred_at, id FOR UPDATE SKIP LOCKED LIMIT requested_batch_size
+        ), deleted AS (
+          DELETE FROM audit_events AS target USING candidates
+          WHERE target.id = candidates.id RETURNING 1
+        ) SELECT 'audit'::text, count(*)::integer FROM deleted;
+      END
+      $$
+    `);
+    await queryRunner.query(`
+      REVOKE ALL ON FUNCTION cornerstone_cleanup_retention(integer, timestamptz)
+      FROM PUBLIC
+    `);
+    await queryRunner.query(`
+      GRANT EXECUTE ON FUNCTION cornerstone_cleanup_retention(integer, timestamptz)
+      TO cornerstone_maintenance
+    `);
+
     await queryRunner.query(
       'GRANT SELECT, INSERT, UPDATE ON users TO cornerstone_runtime',
     );
@@ -248,6 +362,9 @@ export class CreateIdentityCore1786579260000 implements MigrationInterface {
   }
 
   async down(queryRunner: QueryRunner): Promise<void> {
+    await queryRunner.query(
+      'DROP FUNCTION cornerstone_cleanup_retention(integer, timestamptz)',
+    );
     await queryRunner.query('DROP TABLE audit_events');
     await queryRunner.query('DROP TABLE outbox_events');
     await queryRunner.query('DROP TABLE rate_limit_buckets');

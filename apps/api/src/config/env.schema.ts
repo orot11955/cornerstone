@@ -71,6 +71,7 @@ const postgresUrl = z
 const databaseEnvironmentShape = {
   DATABASE_URL: postgresUrl,
   DATABASE_MIGRATION_URL: postgresUrl.optional(),
+  DATABASE_MAINTENANCE_URL: postgresUrl.optional(),
   DATABASE_SSL_MODE: z.enum(['disable', 'verify-full']).default('disable'),
   DATABASE_SSL_CA: z.string().min(1).optional(),
   DATABASE_POOL_MAX: z.coerce.number().int().min(1).max(100).default(20),
@@ -111,6 +112,7 @@ function validateDatabasePolicy(
     NODE_ENV?: 'development' | 'test' | 'production' | undefined;
     DATABASE_URL: string;
     DATABASE_MIGRATION_URL?: string | undefined;
+    DATABASE_MAINTENANCE_URL?: string | undefined;
     DATABASE_SSL_MODE: 'disable' | 'verify-full';
   },
   context: z.RefinementCtx,
@@ -153,6 +155,39 @@ function validateDatabasePolicy(
         code: 'custom',
         path: ['DATABASE_MIGRATION_URL'],
         message: 'Runtime and migration URLs must target the same database',
+      });
+    }
+  }
+
+  if (environment.DATABASE_MAINTENANCE_URL) {
+    const runtime = new URL(environment.DATABASE_URL);
+    const maintenance = new URL(environment.DATABASE_MAINTENANCE_URL);
+    const migration = environment.DATABASE_MIGRATION_URL
+      ? new URL(environment.DATABASE_MIGRATION_URL)
+      : undefined;
+
+    if (
+      runtime.hostname !== maintenance.hostname ||
+      runtime.port !== maintenance.port ||
+      runtime.pathname !== maintenance.pathname
+    ) {
+      context.addIssue({
+        code: 'custom',
+        path: ['DATABASE_MAINTENANCE_URL'],
+        message: 'Runtime and maintenance URLs must target the same database',
+      });
+    }
+
+    if (
+      environment.NODE_ENV === 'production' &&
+      (maintenance.username === runtime.username ||
+        maintenance.username === migration?.username)
+    ) {
+      context.addIssue({
+        code: 'custom',
+        path: ['DATABASE_MAINTENANCE_URL'],
+        message:
+          'Production maintenance, runtime, and migration database principals must be different',
       });
     }
   }

@@ -3,13 +3,24 @@ import { fileURLToPath } from 'node:url';
 import type { DataSourceOptions } from 'typeorm';
 import type { DatabaseEnvironmentVariables } from '../config/env.schema.js';
 
-export type DatabaseConnectionPurpose = 'runtime' | 'migration';
+export type DatabaseConnectionPurpose = 'runtime' | 'migration' | 'maintenance';
 
 function selectDatabaseUrl(
   environment: DatabaseEnvironmentVariables,
   purpose: DatabaseConnectionPurpose,
 ): string {
   if (purpose === 'runtime') return environment.DATABASE_URL;
+
+  if (purpose === 'maintenance') {
+    if (environment.DATABASE_MAINTENANCE_URL) {
+      return environment.DATABASE_MAINTENANCE_URL;
+    }
+    if (environment.NODE_ENV === 'production') {
+      throw new Error(
+        'DATABASE_MAINTENANCE_URL is required for production maintenance',
+      );
+    }
+  }
 
   if (environment.DATABASE_MIGRATION_URL) {
     return environment.DATABASE_MIGRATION_URL;

@@ -4,12 +4,15 @@ import { buildDatabaseOptions } from './database-options.js';
 const runtimeUrl = 'postgresql://runtime:runtime@localhost:5432/cornerstone';
 const migrationUrl =
   'postgresql://migrator:migrator@localhost:5432/cornerstone';
+const maintenanceUrl =
+  'postgresql://maintenance:maintenance@localhost:5432/cornerstone';
 
 describe('buildDatabaseOptions', () => {
   const environment = validateDatabaseEnvironment({
     NODE_ENV: 'test',
     DATABASE_URL: runtimeUrl,
     DATABASE_MIGRATION_URL: migrationUrl,
+    DATABASE_MAINTENANCE_URL: maintenanceUrl,
   });
 
   it('selects the least-privilege connection for each purpose', () => {
@@ -20,6 +23,11 @@ describe('buildDatabaseOptions', () => {
     });
     expect(buildDatabaseOptions(environment, 'migration')).toMatchObject({
       url: migrationUrl,
+      synchronize: false,
+      migrationsRun: false,
+    });
+    expect(buildDatabaseOptions(environment, 'maintenance')).toMatchObject({
+      url: maintenanceUrl,
       synchronize: false,
       migrationsRun: false,
     });
@@ -46,5 +54,8 @@ describe('buildDatabaseOptions', () => {
     expect(() =>
       buildDatabaseOptions(productionEnvironment, 'migration'),
     ).toThrow('DATABASE_MIGRATION_URL is required');
+    expect(() =>
+      buildDatabaseOptions(productionEnvironment, 'maintenance'),
+    ).toThrow('DATABASE_MAINTENANCE_URL is required');
   });
 });
