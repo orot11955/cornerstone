@@ -38,11 +38,12 @@ describe('MailOutboxEnvelopeService', () => {
     const service = new MailOutboxEnvelopeService(options());
 
     expect(service.open(sealed, context).purpose).toBe('reset_password');
+    const tamperedPrefix = sealed.ciphertext.startsWith('A') ? 'B' : 'A';
     expect(() =>
       service.open(
         {
           ...sealed,
-          ciphertext: `${sealed.ciphertext.slice(0, -1)}A`,
+          ciphertext: `${tamperedPrefix}${sealed.ciphertext.slice(1)}`,
         },
         context,
       ),
