@@ -15,6 +15,7 @@ import {
   createNonce,
 } from '../src/security/headers.ts'
 import { BrowserTelemetry } from '../src/telemetry/browser.ts'
+import { createRootMetadata } from '../src/metadata/root.ts'
 
 test('web config는 origin을 정규화하고 production HTTPS를 강제한다', () => {
   const config = resolveWebConfig({
@@ -144,4 +145,12 @@ test('telemetry provider 실패는 사용자 흐름으로 전파하지 않는다
     consent: true,
   })
   assert.doesNotThrow(() => telemetry.recordUnexpectedError('/', 'request_123'))
+})
+
+test('root metadata는 canonical origin과 social 기본값을 한 원천에서 생성한다', () => {
+  const metadata = createRootMetadata(new URL('https://docs.example.com'))
+  assert.equal(metadata.metadataBase?.toString(), 'https://docs.example.com/')
+  assert.deepEqual(metadata.alternates, { canonical: '/' })
+  assert.deepEqual(metadata.robots, { index: true, follow: true })
+  assert.equal(metadata.openGraph?.url, '/')
 })

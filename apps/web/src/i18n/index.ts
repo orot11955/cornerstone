@@ -10,6 +10,8 @@ const messages = {
     'error.unexpected.title': '요청을 처리하지 못했습니다',
     'error.unexpected.description': '잠시 후 다시 시도해 주세요.',
     'error.home': '시작 화면으로 이동',
+    'network.offline.title': '네트워크 연결을 확인해 주세요',
+    'network.offline.description': '연결이 복구되면 진행 중인 작업을 다시 시도할 수 있습니다.',
   },
   en: {
     'common.retry': 'Try again',
@@ -18,6 +20,8 @@ const messages = {
     'error.unexpected.title': 'We could not complete the request',
     'error.unexpected.description': 'Please try again in a moment.',
     'error.home': 'Go to the start page',
+    'network.offline.title': 'Check your network connection',
+    'network.offline.description': 'You can retry your work when the connection is restored.',
   },
 } as const
 
