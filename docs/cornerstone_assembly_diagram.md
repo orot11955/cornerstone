@@ -1,5 +1,8 @@
 # Cornerstone — TypeScript Fullstack Starter 최종 구축 가이드
 
+> 실행 순서, 선행 의사결정, 단계별 완료 조건과 검증 기준은
+> [`cornerstone_implementation_plan.md`](./cornerstone_implementation_plan.md)를 따른다.
+
 ## 0. Cornerstone의 목적
 
 Cornerstone은 특정 서비스 하나를 위한 Boilerplate가 아니다.
