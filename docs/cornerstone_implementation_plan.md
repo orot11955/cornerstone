@@ -371,11 +371,11 @@ M1 이후 Backend M2~M5와 병렬 진행할 수 있다. M6의 인증 화면보�
 - allowlist 구조화 log, bounded route/status metric, liveness/readiness와 shutdown readiness 전환
 - fixed-origin outbound client의 redirect/timeout/cancel/response-size/circuit 경계
 - idempotency key/canonical payload digest와 strong ETag의 결정적 primitive
+- PostgreSQL transaction 안의 idempotency reserve/in-progress/replay/conflict/TTL takeover와 민감 response payload 차단
 
 남은 완료 조건:
 
 - M4 DTO와 함께 versioned OpenAPI snapshot/client 생성 경로 연결
-- M3 PostgreSQL transaction에서 idempotency reserve/replay/conflict와 outbox atomicity 구현
 - SIGTERM 실제 process E2E에서 readiness 하강, in-flight drain와 timeout 검증
 - outbound provider adapter의 승인 base URL fixture와 metric/trace 연결
 
@@ -443,12 +443,14 @@ M1 이후 Backend M2~M5와 병렬 진행할 수 있다. M6의 인증 화면보�
 - `cornerstone_runtime` table별 DML grant와 User 물리 삭제·Audit 변경·Migration 이력 변경·schema DDL 거절을 확인하는 Root `database:verify`
 - test tmpfs DB를 재생성하고 Migration 왕복·검증·advisory lock 경쟁 후 항상 정리하는 Root `test:integration`과 Turbo env allowlist
 - 비밀·공용 password·admin을 만들지 않는 pending reference User/Audit 멱등 Seed, test DB name 격리와 production fail-closed 정책
+- caller transaction과 원자적인 outbox enqueue, `SKIP LOCKED` bounded lease, retry·worker crash reclaim·poison 격리와 processed 재전달 차단
+- idempotency/outbox 저장 payload의 32 KiB·깊이·노드·plain JSON·민감/prototype field 제한과 실제 PostgreSQL concurrency/rollback test
 
 남은 완료 조건:
 
 - 직전 release fixture upgrade와 expand schema의 N/N-1 application read/write 호환 Gate
 - 운영 admin protected one-time bootstrap job과 break-glass audit
-- idempotency/outbox repository, worker lease/retry/poison 격리와 transaction/관측 test
+- outbox delivery worker lifecycle, provider idempotency adapter와 DB latency/error metric·trace 연결
 
 목표:
 
