@@ -43,6 +43,7 @@ jobs:
       - run: pnpm typecheck
       - run: pnpm test
       - run: pnpm build
+      - run: pnpm web:budget:check
       - run: pnpm package:verify
       - run: pnpm generator:verify
       - run: pnpm license:check

@@ -12,7 +12,8 @@
     "start": "node scripts/start.mjs",
     "lint": "eslint",
     "typecheck": "tsc --noEmit",
-    "test:unit": "node --test test/*.test.mjs"
+    "test:unit": "node --test test/*.test.mjs",
+    "budget:check": "node ../../scripts/check-web-budget.mjs"
   },
   "dependencies": {
     "@cornerstone/ui": "workspace:^",
