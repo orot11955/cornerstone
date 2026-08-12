@@ -1,5 +1,7 @@
 packages:
-  - "apps/*"
-  - "packages/*"
+  - 'apps/*'
+  - 'packages/*'
+verifyDepsBeforeRun: error
+enableGlobalVirtualStore: false
 allowBuilds:
   unrs-resolver: true
