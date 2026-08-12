@@ -487,11 +487,27 @@ export type DatabaseEnvironmentVariables = z.infer<
 export function validateEnvironment(
   config: Record<string, unknown>,
 ): EnvironmentVariables {
+  assertNoBootstrapVariables(config);
   return envSchema.parse(config);
 }
 
 export function validateDatabaseEnvironment(
   config: Record<string, unknown>,
 ): DatabaseEnvironmentVariables {
+  assertNoBootstrapVariables(config);
   return databaseEnvironmentSchema.parse(config);
+}
+
+function assertNoBootstrapVariables(config: Record<string, unknown>): void {
+  for (const key of [
+    'DATABASE_ADMIN_BOOTSTRAP_URL',
+    'ADMIN_BOOTSTRAP_EMAIL',
+    'ADMIN_BOOTSTRAP_PASSWORD_FILE',
+    'ADMIN_BOOTSTRAP_REQUEST_ID',
+  ]) {
+    if (config[key] !== undefined)
+      throw new Error(
+        `Bootstrap environment variable ${key} is forbidden in the runtime process`,
+      );
+  }
 }

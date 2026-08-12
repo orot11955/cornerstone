@@ -1,5 +1,6 @@
 import { createHash, randomUUID } from 'node:crypto';
 import { ConflictException, ForbiddenException } from '@nestjs/common';
+import argon2 from 'argon2';
 import { DataSource } from 'typeorm';
 import { AccessTokenService } from '../src/auth/access-token.service.js';
 import {
@@ -31,6 +32,9 @@ import {
   TypeOrmOutboxWorkStore,
 } from '../src/database/outbox.worker.js';
 import { cleanupExpiredOperationalData } from '../src/database/retention-cleanup.js';
+import { bootstrapInitialAdmin } from '../src/database/admin-bootstrap/admin-bootstrap.service.js';
+import { validateAdminBootstrapEnvironment } from '../src/database/admin-bootstrap/admin-bootstrap-environment.js';
+import { buildAdminBootstrapDatabaseOptions } from '../src/database/admin-bootstrap/admin-bootstrap-database-options.js';
 import { UsersService } from '../src/users/users.service.js';
 
 const digest = (value: string) =>
@@ -42,29 +46,29 @@ describe('Database repositories (integration)', () => {
   let maintenanceSource: DataSource;
 
   beforeAll(async () => {
+    const runtimeEnvironment = { ...process.env };
+    delete runtimeEnvironment.DATABASE_ADMIN_BOOTSTRAP_URL;
+    delete runtimeEnvironment.ADMIN_BOOTSTRAP_EMAIL;
+    delete runtimeEnvironment.ADMIN_BOOTSTRAP_PASSWORD_FILE;
+    delete runtimeEnvironment.ADMIN_BOOTSTRAP_REQUEST_ID;
+    const databaseEnvironment = validateDatabaseEnvironment(runtimeEnvironment);
     source = new DataSource(
-      buildDatabaseOptions(validateDatabaseEnvironment(process.env), 'runtime'),
+      buildDatabaseOptions(databaseEnvironment, 'runtime'),
     );
     await source.initialize();
     migrationSource = new DataSource(
-      buildDatabaseOptions(
-        validateDatabaseEnvironment(process.env),
-        'migration',
-      ),
+      buildDatabaseOptions(databaseEnvironment, 'migration'),
     );
     await migrationSource.initialize();
     maintenanceSource = new DataSource(
-      buildDatabaseOptions(
-        validateDatabaseEnvironment(process.env),
-        'maintenance',
-      ),
+      buildDatabaseOptions(databaseEnvironment, 'maintenance'),
     );
     await maintenanceSource.initialize();
   });
 
   beforeEach(async () => {
     await migrationSource.query(`
-      TRUNCATE TABLE audit_events, outbox_events, idempotency_records,
+      TRUNCATE TABLE admin_bootstrap_markers, audit_events, outbox_events, idempotency_records,
         rate_limit_buckets, auth_refresh_tokens, auth_action_tokens,
         auth_sessions, users
     `);
@@ -661,6 +665,171 @@ describe('Database repositories (integration)', () => {
     ).toEqual([{ count: 1 }]);
   });
 
+  it('bootstraps exactly one verified active administrator with the dedicated principal', async () => {
+    const environment = validateAdminBootstrapEnvironment({
+      ...process.env,
+      DATABASE_ADMIN_BOOTSTRAP_URL:
+        'postgresql://cornerstone_test_admin_bootstrap:cornerstone-test-admin-bootstrap@localhost:55432/cornerstone_test',
+      ADMIN_BOOTSTRAP_EMAIL: 'bootstrap-admin@example.test',
+      ADMIN_BOOTSTRAP_REQUEST_ID: 'integration-bootstrap',
+    });
+    const bootstrapSource = new DataSource(
+      buildAdminBootstrapDatabaseOptions(environment),
+    );
+    await bootstrapSource.initialize();
+    try {
+      await expect(
+        bootstrapSource.query('INSERT INTO users (id) VALUES ($1)', [
+          randomUUID(),
+        ]),
+      ).rejects.toMatchObject({ code: '42501' });
+      await expect(
+        bootstrapSource.query(
+          'INSERT INTO admin_bootstrap_markers (singleton, user_id, created_at) VALUES (TRUE, $1, CURRENT_TIMESTAMP)',
+          [randomUUID()],
+        ),
+      ).rejects.toMatchObject({ code: '42501' });
+      const deniedFunctionArguments = [
+        randomUUID(),
+        randomUUID(),
+        'denied@example.test',
+        '$argon2id$v=19$m=19456,p=1,t=2$AAAAAAAAAAAAAAAAAAAAAA$AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA',
+        'direct-invalid-email',
+      ];
+      await expect(
+        source.query(
+          'SELECT * FROM public.cornerstone_bootstrap_initial_admin($1, $2, $3, $4, $5)',
+          deniedFunctionArguments,
+        ),
+      ).rejects.toMatchObject({ code: '42501' });
+      await expect(
+        maintenanceSource.query(
+          'SELECT * FROM public.cornerstone_bootstrap_initial_admin($1, $2, $3, $4, $5)',
+          deniedFunctionArguments,
+        ),
+      ).rejects.toMatchObject({ code: '42501' });
+      const directFunctionArguments = [
+        randomUUID(),
+        randomUUID(),
+        'a@b',
+        '$argon2id$v=19$m=19456,p=1,t=2$AAAAAAAAAAAAAAAAAAAAAA$AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA',
+        null,
+      ];
+      await expect(
+        bootstrapSource.query(
+          'SELECT * FROM public.cornerstone_bootstrap_initial_admin($1, $2, $3, $4, $5)',
+          directFunctionArguments,
+        ),
+      ).rejects.toMatchObject({ code: 'CSB03' });
+      await expect(
+        bootstrapSource.query(
+          'SELECT * FROM public.cornerstone_bootstrap_initial_admin($1, $2, $3, $4, $5)',
+          [
+            randomUUID(),
+            randomUUID(),
+            'valid@example.test',
+            '$argon2id$v=19$m=4096,p=1,t=1$AAAAAAAAAAAAAAAAAAAAAA$AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA',
+            'direct-invalid-hash',
+          ],
+        ),
+      ).rejects.toMatchObject({ code: 'CSB04' });
+      await expect(
+        bootstrapSource.query(
+          'SELECT * FROM public.cornerstone_bootstrap_initial_admin($1, $2, $3, $4, $5)',
+          [
+            randomUUID(),
+            randomUUID(),
+            'valid@example.test',
+            '$argon2id$v=19$m=19456,p=1,t=2$AAAAAAAAAAAAAAAAAAAAAA$AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA',
+            null,
+          ],
+        ),
+      ).rejects.toMatchObject({ code: 'CSB05' });
+      expect(await countRows(migrationSource, 'admin_bootstrap_markers')).toBe(
+        0,
+      );
+      const results = await Promise.allSettled([
+        bootstrapInitialAdmin(bootstrapSource, {
+          email: environment.ADMIN_BOOTSTRAP_EMAIL,
+          password: Buffer.from('bootstrap-password-123'),
+          requestId: environment.ADMIN_BOOTSTRAP_REQUEST_ID,
+          argon2: { memoryCostKib: 19_456, timeCost: 2, parallelism: 1 },
+        }),
+        bootstrapInitialAdmin(bootstrapSource, {
+          email: environment.ADMIN_BOOTSTRAP_EMAIL,
+          password: Buffer.from('bootstrap-password-123'),
+          requestId: environment.ADMIN_BOOTSTRAP_REQUEST_ID,
+          argon2: { memoryCostKib: 19_456, timeCost: 2, parallelism: 1 },
+        }),
+      ]);
+      expect(
+        results.filter((result) => result.status === 'fulfilled'),
+      ).toHaveLength(1);
+      expect(
+        results.filter((result) => result.status === 'rejected'),
+      ).toHaveLength(1);
+      expect(
+        results.find((result) => result.status === 'rejected'),
+      ).toMatchObject({ reason: { code: 'ADMIN_EXISTS' } });
+      const [admin] = readQueryRows<{
+        id: string;
+        passwordHash: string;
+        verified: boolean;
+        status: string;
+        role: string;
+      }>(
+        await migrationSource.query(
+          `SELECT id, password_hash AS "passwordHash",
+             email_verified_at IS NOT NULL AS verified, status, role
+           FROM users WHERE role = 'admin'`,
+        ),
+      );
+      expect(admin).toMatchObject({
+        verified: true,
+        status: 'active',
+        role: 'admin',
+      });
+      await expect(
+        argon2.verify(admin!.passwordHash, 'bootstrap-password-123'),
+      ).resolves.toBe(true);
+      expect(
+        await migrationSource.query(
+          'SELECT singleton, user_id AS "userId" FROM admin_bootstrap_markers',
+        ),
+      ).toEqual([{ singleton: true, userId: admin!.id }]);
+      expect(
+        await migrationSource.query(
+          `SELECT event_type AS "eventType", actor_id AS "actorId",
+             subject_id AS "subjectId", outcome, reason_code AS "reasonCode",
+             request_id AS "requestId"
+           FROM audit_events WHERE subject_id = $1`,
+          [admin!.id],
+        ),
+      ).toEqual([
+        {
+          eventType: 'identity.admin.bootstrap',
+          actorId: 'system:admin-bootstrap',
+          subjectId: admin!.id,
+          outcome: 'success',
+          reasonCode: 'INITIAL_ADMIN_CREATED',
+          requestId: 'integration-bootstrap',
+        },
+      ]);
+      expect(
+        await bootstrapSource.query(
+          `SELECT
+             has_table_privilege(current_user, 'users', 'UPDATE') AS "hasUpdate",
+             has_column_privilege(current_user, 'users', 'email_normalized', 'SELECT') AS "readsEmail",
+             has_column_privilege(current_user, 'users', 'password_hash', 'SELECT') AS "readsPasswordHash"`,
+        ),
+      ).toEqual([
+        { hasUpdate: false, readsEmail: false, readsPasswordHash: false },
+      ]);
+    } finally {
+      await bootstrapSource.destroy();
+    }
+  });
+
   it('revokes an action token after its bounded invalid attempts', async () => {
     const services = authLifecycleServices(source);
     const context = { ip: '198.51.100.81' };
@@ -1037,6 +1206,7 @@ describe('Database repositories (integration)', () => {
 async function countRows(source: DataSource, table: string): Promise<number> {
   if (
     ![
+      'admin_bootstrap_markers',
       'auth_refresh_tokens',
       'idempotency_records',
       'outbox_events',

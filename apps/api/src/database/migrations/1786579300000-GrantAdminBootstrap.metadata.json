@@ -1,0 +1,19 @@
+{
+  "schemaVersion": 1,
+  "migrationTimestamp": 1786579300000,
+  "phase": "expand",
+  "compatibleAppReleases": ["0.1.x"],
+  "transaction": "each",
+  "estimatedDurationSeconds": 2,
+  "lockRisk": "low",
+  "statementTimeoutMs": 30000,
+  "abortConditions": ["bootstrap_group_role_missing"],
+  "backfill": null,
+  "rollback": "drop-bootstrap-function-and-marker",
+  "verification": [
+    "bootstrap-function-execute-only",
+    "bootstrap-principal-zero-table-privileges",
+    "bootstrap-marker-singleton",
+    "forward-revert-forward"
+  ]
+}

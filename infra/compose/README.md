@@ -9,7 +9,7 @@ pnpm db:dev:up
 cp apps/api/.env.example apps/api/.env
 pnpm migration:run
 pnpm seed
-pnpm database:verify
+DATABASE_ADMIN_BOOTSTRAP_URL=postgresql://cornerstone_dev_admin_bootstrap:cornerstone-dev-admin-bootstrap@localhost:5432/cornerstone_dev pnpm database:verify
 pnpm db:dev:down
 ```
 
@@ -28,6 +28,7 @@ NODE_ENV=test \
 DATABASE_URL=postgresql://cornerstone_test_app:cornerstone-test-app@localhost:55432/cornerstone_test \
 DATABASE_MIGRATION_URL=postgresql://cornerstone_test_migrator:cornerstone-test-migrator@localhost:55432/cornerstone_test \
 DATABASE_MAINTENANCE_URL=postgresql://cornerstone_test_maintenance:cornerstone-test-maintenance@localhost:55432/cornerstone_test \
+DATABASE_ADMIN_BOOTSTRAP_URL=postgresql://cornerstone_test_admin_bootstrap:cornerstone-test-admin-bootstrap@localhost:55432/cornerstone_test \
 pnpm database:verify
 pnpm db:test:down
 ```
@@ -45,6 +46,9 @@ Integration 마지막에는 `pg_dump --format=custom` archive를 메모리에서
 - Compose fixture는 운영 배포용이 아니다.
 - 운영은 `DATABASE_SSL_MODE=verify-full`과 서로 다른 runtime/migration principal을 요구한다.
 - 운영 retention job은 runtime/migration과 다른 `DATABASE_MAINTENANCE_URL` principal을 요구한다.
+- initial-admin bootstrap은 runtime HTTP/image와 분리된 `pnpm admin:bootstrap` one-off job으로만 수행한다. `DATABASE_ADMIN_BOOTSTRAP_URL` principal은 runtime/migration/maintenance와 달라야 하며 raw table 권한 없이 hardened bootstrap function `EXECUTE`만 받는다.
+- production bootstrap은 `ADMIN_BOOTSTRAP_EMAIL`, 비밀 없는 승인 상관 ID `ADMIN_BOOTSTRAP_REQUEST_ID`, regular non-symlink secret file `ADMIN_BOOTSTRAP_PASSWORD_FILE`(mode 0600 이하)을 사용한다. password는 argv/log에 넣지 않는다. 성공·거절·실패와 무관하게 connection 종료, membership revoke, login role `NOLOGIN`/drop, secret lease/version 폐기와 폐기 credential 재연결 실패가 traffic 전 fail-closed gate이며 provider audit/change ID를 증거로 남긴다.
+- runtime principal은 `admin_bootstrap_markers`에 권한이 없다. marker 또는 active admin이 있으면 bootstrap은 stable nonzero exit로 거절된다.
 - runtime과 migration URL은 동일 host/port/database를 가리켜야 한다.
 - 운영 DB provisioning은 Migration 전에 `cornerstone_runtime` NOLOGIN group role을 만들고 runtime principal에 membership만 부여해야 한다.
 - `migration:revert`는 production에서 fail closed한다. 운영 복구는 ADR-0007의 roll-forward 절차를 따른다.

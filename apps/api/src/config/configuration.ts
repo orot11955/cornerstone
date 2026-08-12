@@ -1,7 +1,7 @@
-import { envSchema } from './env.schema.js';
+import { validateEnvironment } from './env.schema.js';
 
 export const configuration = () => {
-  const environment = envSchema.parse(process.env);
+  const environment = validateEnvironment(process.env);
 
   return {
     app: {

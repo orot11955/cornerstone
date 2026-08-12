@@ -18,11 +18,20 @@ const databaseEnvironment = {
   DATABASE_MAINTENANCE_URL:
     'postgresql://cornerstone_test_maintenance:cornerstone-test-maintenance@localhost:55432/cornerstone_test',
 }
+const bootstrapDatabaseEnvironment = {
+  ...databaseEnvironment,
+  DATABASE_ADMIN_BOOTSTRAP_URL:
+    'postgresql://cornerstone_test_admin_bootstrap:cornerstone-test-admin-bootstrap@localhost:55432/cornerstone_test',
+}
 
 function run(args, options = {}) {
   const result = spawnSync(executable, args, {
     cwd: root,
-    env: options.database ? databaseEnvironment : process.env,
+    env: options.bootstrap
+      ? bootstrapDatabaseEnvironment
+      : options.database
+        ? databaseEnvironment
+        : process.env,
     encoding: 'utf8',
     stdio: options.quiet ? 'ignore' : 'inherit',
   })
@@ -48,7 +57,8 @@ try {
   run(['seed'], { database: true })
   run(['seed'], { database: true })
   run(['exec', 'node', 'scripts/test-scope.mjs', task, '--run'], {
-    database: true,
+    database: task === 'test:e2e',
+    bootstrap: task === 'test:integration',
   })
   run(['database:backup:verify'])
 } catch (error) {

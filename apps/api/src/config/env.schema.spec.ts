@@ -29,6 +29,24 @@ describe('validateEnvironment', () => {
     });
   });
 
+  it('does not accept bootstrap credentials in the production runtime', () => {
+    expect(() =>
+      validateEnvironment({
+        ...requiredEnvironment,
+        NODE_ENV: 'production',
+        WEB_URL: 'https://example.test',
+        DATABASE_SSL_MODE: 'verify-full',
+        DATABASE_MIGRATION_URL:
+          'postgresql://migration:migration@localhost:5432/app',
+        DATABASE_MAINTENANCE_URL:
+          'postgresql://maintenance:maintenance@localhost:5432/app',
+        DATABASE_ADMIN_BOOTSTRAP_URL: 'postgresql://app:app@localhost:5432/app',
+        AUTH_SECRET_PROVENANCE: 'vault',
+        AUTH_SECRET_PROVENANCE_REF: 'vault://secret/auth/cornerstone',
+      }),
+    ).toThrow();
+  });
+
   it('rejects missing secrets', () => {
     expect(() =>
       validateEnvironment({
@@ -36,6 +54,16 @@ describe('validateEnvironment', () => {
         JWT_ACCESS_KEY: undefined,
       }),
     ).toThrow();
+  });
+
+  it('rejects bootstrap-only variables in runtime environment parsing', () => {
+    expect(() =>
+      validateEnvironment({
+        ...requiredEnvironment,
+        DATABASE_ADMIN_BOOTSTRAP_URL:
+          'postgresql://bootstrap:bootstrap@localhost:5432/app',
+      }),
+    ).toThrow('Bootstrap environment variable');
   });
 
   it('rejects invalid ports', () => {

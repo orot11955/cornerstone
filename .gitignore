@@ -4,6 +4,7 @@ node_modules/
 
 # Build outputs and caches
 dist/
+dist-admin-bootstrap/
 build/
 .next/
 out/

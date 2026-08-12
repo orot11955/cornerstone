@@ -1,4 +1,8 @@
 process.env.NODE_ENV = 'test';
+delete process.env.DATABASE_ADMIN_BOOTSTRAP_URL;
+delete process.env.ADMIN_BOOTSTRAP_EMAIL;
+delete process.env.ADMIN_BOOTSTRAP_PASSWORD_FILE;
+delete process.env.ADMIN_BOOTSTRAP_REQUEST_ID;
 process.env.WEB_URL = 'http://localhost:3000';
 process.env.DATABASE_URL =
   'postgresql://cornerstone_test_app:cornerstone-test-app@localhost:55432/cornerstone_test';

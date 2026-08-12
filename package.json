@@ -41,6 +41,7 @@
     "client:generate": "pnpm --filter @cornerstone/api-client client:generate",
     "client:check": "pnpm --filter @cornerstone/api-client client:check",
     "seed": "pnpm --filter api seed",
+    "admin:bootstrap": "pnpm --filter api admin:bootstrap",
     "license:check": "node scripts/check-package-licenses.mjs",
     "governance:check": "node scripts/validate-governance.mjs",
     "security:secrets": "node scripts/scan-secrets.mjs --history --self-test",

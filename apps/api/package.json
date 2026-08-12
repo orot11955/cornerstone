@@ -37,7 +37,9 @@
     "retention:cleanup": "pnpm build && node dist/database/retention-runner.js",
     "openapi:generate": "pnpm build && node dist/openapi/openapi-generator.js generate",
     "openapi:check": "pnpm build && node dist/openapi/openapi-generator.js check",
-    "seed": "pnpm build && node dist/database/seed-runner.js"
+    "seed": "pnpm build && node dist/database/seed-runner.js",
+    "admin:bootstrap:build": "node -e \"require('node:fs').rmSync('dist-admin-bootstrap',{recursive:true,force:true})\" && tsc -p tsconfig.admin-bootstrap.json",
+    "admin:bootstrap": "pnpm admin:bootstrap:build && node dist-admin-bootstrap/database/admin-bootstrap/admin-bootstrap-runner.js"
   },
   "dependencies": {
     "@cornerstone/schemas": "workspace:^",

@@ -1,0 +1,12 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": { "outDir": "./dist-admin-bootstrap" },
+  "include": ["src/database/admin-bootstrap/**/*.ts"],
+  "exclude": [
+    "**/*.spec.ts",
+    "test",
+    "dist",
+    "dist-admin-bootstrap",
+    "node_modules"
+  ]
+}

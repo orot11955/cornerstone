@@ -89,6 +89,13 @@ Index/constraint:
 
 ## 운영 보조 table
 
+### `admin_bootstrap_markers`
+
+- immutable singleton (`singleton=true` PK), 최초 active admin의 `user_id`와 생성 시각만 저장한다.
+- marker 또는 active admin이 존재하면 initial-admin bootstrap은 거절한다. 생성 user, marker, `identity.admin.bootstrap` audit은 같은 transaction이다.
+- 전용 `cornerstone_admin_bootstrap` principal은 table DML 없이 migration-owned hardened `SECURITY DEFINER public.cornerstone_bootstrap_initial_admin(uuid,uuid,text,text,text)`의 `EXECUTE`만 받는다. 함수는 fixed search path와 active-admin advisory lock 아래 user, marker, audit을 원자 생성한다. runtime principal은 marker와 함수에 접근할 수 없다.
+- bootstrap job은 성공·거절·실패와 무관하게 production 단기 login connection 종료 → group membership revoke → `NOLOGIN` 또는 role drop → secret lease/version 폐기 → 폐기 credential 재연결 실패를 traffic 전 fail-closed gate로 수행한다. provider audit/change ID와 비밀 없는 `ADMIN_BOOTSTRAP_REQUEST_ID`를 운영 증거로 남기며, 외부 protected-job audit가 거절 시도도 기록한다.
+
 ### `idempotency_records`
 
 - 전용 secret으로 HMAC한 actor scope와 client key, method, route ID, payload SHA-256, state(pending/completed), response status/body allowlist, resource version, expires와 timestamps

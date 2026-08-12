@@ -12,6 +12,14 @@ cp apps/api/.env.example apps/api/.env
 
 필수 키와 예시는 `apps/api/.env.example`을 기준으로 한다. 실제 password와 token secret은 커밋하거나 로그에 남기지 않는다.
 
+## One-off initial administrator bootstrap
+
+`pnpm admin:bootstrap`은 런타임 HTTP와 분리된 단발성 작업이다. `ADMIN_BOOTSTRAP_EMAIL`, 전용 `DATABASE_ADMIN_BOOTSTRAP_URL`, 필수 비밀 없는 승인 상관 ID `ADMIN_BOOTSTRAP_REQUEST_ID`를 사용하며 password는 development/test에서 newline 없는 stdin, production에서 권한 `0600` 이하의 regular secret file(`ADMIN_BOOTSTRAP_PASSWORD_FILE`)로만 받는다. password를 argv나 로그에 전달하지 않는다. 일반 API runtime 환경은 이 bootstrap 전용 변수를 거절한다.
+
+`admin_bootstrap_markers`는 singleton marker와 생성된 admin user ID만 저장하는 immutable bootstrap contract다. marker가 있거나 활성 admin이 하나라도 있으면 bootstrap은 거절된다. runtime principal에는 이 테이블의 모든 권한을 부여하지 않는다.
+
+`pnpm database:verify`는 bootstrap 함수와 전용 principal ACL까지 포함한 full gate이므로 `DATABASE_ADMIN_BOOTSTRAP_URL`이 없으면 fail closed한다. 장기 runtime에는 이 값을 주입하지 않고 검증 job에만 전달한다.
+
 ## 실행과 검증
 
 Root에서 실행한다.
