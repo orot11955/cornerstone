@@ -21,7 +21,7 @@
     },
 
     "test:unit": {
-      "dependsOn": ["build", "^test:unit"]
+      "dependsOn": ["^test:unit"]
     },
 
     "test:component": {
