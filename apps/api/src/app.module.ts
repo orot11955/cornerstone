@@ -6,6 +6,7 @@ import { AppService } from './app.service';
 import { configuration } from './config/configuration';
 import { validateEnvironment } from './config/env.schema';
 import { ApiExceptionFilter } from './http/api-exception.filter';
+import { HealthModule } from './health/health.module';
 import { MetricsService } from './observability/metrics.service';
 import { RequestLoggingInterceptor } from './observability/request-logging.interceptor';
 import { StructuredLogger } from './observability/structured-logger.service';
@@ -18,6 +19,7 @@ import { StructuredLogger } from './observability/structured-logger.service';
       load: [configuration],
       validate: validateEnvironment,
     }),
+    HealthModule,
   ],
   controllers: [AppController],
   providers: [

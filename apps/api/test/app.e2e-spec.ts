@@ -69,6 +69,17 @@ describe('AppController (e2e)', () => {
     return request(server()).get('/api/v1').expect(200).expect('Hello World!');
   });
 
+  it('exposes distinct liveness and readiness endpoints', async () => {
+    await request(server())
+      .get('/api/v1/health/live')
+      .expect(200)
+      .expect({ status: 'ok' });
+    await request(server())
+      .get('/api/v1/health/ready')
+      .expect(200)
+      .expect({ status: 'ok' });
+  });
+
   it('allows the exact web origin and rejects a spoofed origin', async () => {
     await request(server())
       .get('/api/v1')
