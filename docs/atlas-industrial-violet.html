@@ -1,0 +1,1895 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ATLAS Terminal — Signal Violet Edition</title>
+  <style>
+    :root {
+      /* ------------------------------
+         Primitive Palette
+      ------------------------------ */
+      --ink-1000: #071014;
+      --ink-950: #0b1419;
+      --ink-900: #0f1a20;
+      --ink-850: #142129;
+      --ink-800: #192a33;
+      --ink-750: #20323c;
+      --ink-700: #2a3d48;
+      --ink-600: #3c505c;
+      --ink-500: #5d717d;
+      --ink-400: #7e919b;
+      --ink-300: #a8b6bd;
+      --ink-200: #cbd4d8;
+      --ink-100: #e8edef;
+
+      --paper-0: #ffffff;
+      --paper-50: #f5f7f7;
+      --paper-100: #eef2f2;
+      --paper-150: #e8eded;
+      --paper-200: #dce4e4;
+
+      /* Primary accent: Signal Violet — interaction / selection only */
+      --signal-500: #7c73e6;
+      --signal-400: #9189ef;
+      --signal-600: #665dd1;
+      --signal-soft: rgba(124, 115, 230, .10);
+      --signal-border: rgba(124, 115, 230, .34);
+
+      /* Domain colors */
+      --green-500: #2fa86f;
+      --green-400: #42bb80;
+      --red-500: #dc5964;
+      --red-400: #e66c75;
+      --amber-500: #d5a03b;
+      --amber-400: #e1b253;
+      --blue-500: #4e7fbc;
+      --orange-500: #cf7a42;
+      --violet-500: #806bc6;
+
+      /* ------------------------------
+         Typography
+      ------------------------------ */
+      --font-ui:
+        "IBM Plex Sans KR",
+        "IBM Plex Sans",
+        "Pretendard",
+        "Noto Sans KR",
+        "Apple SD Gothic Neo",
+        "Malgun Gothic",
+        system-ui,
+        sans-serif;
+
+      --font-data:
+        "IBM Plex Mono",
+        "JetBrains Mono",
+        "D2Coding",
+        "SFMono-Regular",
+        "Cascadia Mono",
+        Consolas,
+        monospace;
+
+      /* ------------------------------
+         Semantic - Dark default
+      ------------------------------ */
+      --bg-canvas: var(--ink-1000);
+      --bg-shell: rgba(8, 16, 20, .94);
+      --bg-sidebar: rgba(10, 20, 25, .90);
+      --bg-panel: rgba(15, 26, 32, .97);
+      --bg-panel-raised: var(--ink-850);
+      --bg-control: var(--ink-850);
+      --bg-control-hover: var(--ink-800);
+      --bg-control-active: var(--ink-750);
+      --bg-subtle: rgba(255,255,255,.018);
+      --bg-row-hover: rgba(255,255,255,.025);
+      --bg-row-selected: rgba(124,115,230,.065);
+
+      --text-primary: var(--ink-100);
+      --text-secondary: var(--ink-300);
+      --text-muted: var(--ink-400);
+      --text-disabled: var(--ink-500);
+      --text-inverse: #071014;
+
+      --border-subtle: #17242b;
+      --border-default: #283942;
+      --border-strong: #3c515b;
+      --border-focus: var(--signal-500);
+
+      --accent: var(--signal-500);
+      --accent-hover: var(--signal-400);
+      --accent-soft: var(--signal-soft);
+      --accent-border: var(--signal-border);
+
+      /* Domain semantic */
+      --market-up: var(--green-500);
+      --market-down: var(--red-500);
+      --market-neutral: var(--ink-400);
+      --order-buy: var(--blue-500);
+      --order-sell: var(--orange-500);
+      --status-ok: var(--green-500);
+      --status-warning: var(--amber-500);
+      --status-critical: var(--red-500);
+      --status-info: var(--blue-500);
+
+      --grid-line: rgba(255,255,255,.017);
+      --chart-grid: rgba(255,255,255,.028);
+      --table-head: #111d23;
+      --log-bg: #081015;
+      --overlay: rgba(3, 8, 11, .70);
+      --shadow-panel: 0 1px 2px rgba(0,0,0,.28);
+      --shadow-overlay: 0 24px 80px rgba(0,0,0,.56);
+
+      /* Sizing */
+      --radius-xs: 2px;
+      --radius-sm: 3px;
+      --radius-md: 5px;
+      --radius-lg: 7px;
+
+      --space-1: 2px;
+      --space-2: 4px;
+      --space-3: 6px;
+      --space-4: 8px;
+      --space-5: 12px;
+      --space-6: 16px;
+      --space-7: 20px;
+      --space-8: 24px;
+
+      --control-h: 30px;
+      --row-h: 30px;
+      --panel-head-h: 34px;
+      --toolbar-h: 40px;
+    }
+
+    [data-theme="light"] {
+      --bg-canvas: #f3f6f6;
+      --bg-shell: rgba(255,255,255,.94);
+      --bg-sidebar: rgba(247,250,250,.96);
+      --bg-panel: rgba(255,255,255,.98);
+      --bg-panel-raised: #ffffff;
+      --bg-control: #f5f8f8;
+      --bg-control-hover: #edf2f2;
+      --bg-control-active: #e6eeee;
+      --bg-subtle: rgba(7,16,20,.018);
+      --bg-row-hover: rgba(7,16,20,.025);
+      --bg-row-selected: rgba(124,115,230,.085);
+
+      --text-primary: #162127;
+      --text-secondary: #42525a;
+      --text-muted: #708087;
+      --text-disabled: #9aa7ac;
+      --text-inverse: #ffffff;
+
+      --border-subtle: #e8eded;
+      --border-default: #d4dddd;
+      --border-strong: #b9c8c8;
+      --border-focus: var(--signal-600);
+
+      --accent: #665dd1;
+      --accent-hover: #574fc0;
+      --accent-soft: rgba(102,93,209,.08);
+      --accent-border: rgba(102,93,209,.30);
+
+      --market-up: #188452;
+      --market-down: #c93f4b;
+      --order-buy: #356fae;
+      --order-sell: #b8622f;
+
+      /* Light status colors: deliberately higher saturation for fast scanning */
+      --status-ok: #118a4f;
+      --status-warning: #c78500;
+      --status-critical: #d43c48;
+      --status-info: #2f73b8;
+
+      --grid-line: rgba(7,16,20,.028);
+      --chart-grid: rgba(7,16,20,.045);
+      --table-head: #f3f6f6;
+      --log-bg: #f7f9f9;
+      --overlay: rgba(21,30,34,.34);
+      --shadow-panel: 0 1px 2px rgba(17,24,39,.07);
+      --shadow-overlay: 0 24px 64px rgba(17,24,39,.18);
+
+      /* Light theme controls need stronger separation from white panels */
+      --button-bg: #eef3f3;
+      --button-bg-hover: #e4ecec;
+      --button-border: #c4d0d0;
+      --button-border-hover: #9fb2b2;
+      --button-text: #27363c;
+
+      --button-primary-bg: #eeecfb;
+      --button-primary-bg-hover: #e4e1f8;
+      --button-primary-border: #9c96e8;
+      --button-primary-text: #554db8;
+
+      --status-ok-bg: #e1f5e9;
+      --status-ok-border: #80cfa1;
+      --status-ok-text: #08723f;
+
+      --status-warning-bg: #fff1cc;
+      --status-warning-border: #e8ba4f;
+      --status-warning-text: #8d5900;
+
+      --status-critical-bg: #fde6e8;
+      --status-critical-border: #e99ba2;
+      --status-critical-text: #b62734;
+
+      --status-info-bg: #e5eff9;
+      --status-info-border: #9bbcdf;
+      --status-info-text: #285f98;
+    }
+
+    [data-density="compact"] {
+      --control-h: 26px;
+      --row-h: 25px;
+      --panel-head-h: 30px;
+      --toolbar-h: 34px;
+    }
+
+    [data-density="comfortable"] {
+      --control-h: 36px;
+      --row-h: 36px;
+      --panel-head-h: 40px;
+      --toolbar-h: 46px;
+    }
+
+    * { box-sizing: border-box; }
+
+    html, body {
+      margin: 0;
+      min-height: 100%;
+      background:
+        linear-gradient(var(--grid-line) 1px, transparent 1px),
+        linear-gradient(90deg, var(--grid-line) 1px, transparent 1px),
+        var(--bg-canvas);
+      background-size: 24px 24px;
+      color: var(--text-primary);
+      font-family: var(--font-ui);
+      font-size: 13px;
+      letter-spacing: -.01em;
+    }
+
+    body {
+      min-height: 100vh;
+    }
+
+    button, input, select {
+      font: inherit;
+    }
+
+    button { cursor: pointer; }
+
+    .app {
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* Top shell */
+    .topbar {
+      height: 48px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 0 14px;
+      background: var(--bg-shell);
+      border-bottom: 1px solid var(--border-default);
+      backdrop-filter: blur(12px);
+      position: sticky;
+      top: 0;
+      z-index: 50;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 9px;
+      min-width: 220px;
+      font-weight: 700;
+      letter-spacing: .045em;
+    }
+
+    .brand-mark {
+      width: 22px;
+      height: 22px;
+      position: relative;
+      border: 1px solid var(--accent-border);
+      border-radius: var(--radius-sm);
+      background:
+        linear-gradient(90deg, transparent 44%, var(--accent) 45%, var(--accent) 55%, transparent 56%),
+        linear-gradient(transparent 44%, var(--accent) 45%, var(--accent) 55%, transparent 56%);
+      box-shadow: inset 0 0 0 1px var(--accent-soft);
+    }
+
+    .env {
+      height: 18px;
+      display: inline-flex;
+      align-items: center;
+      padding: 0 5px;
+      color: var(--accent);
+      border: 1px solid var(--accent-border);
+      background: var(--accent-soft);
+      border-radius: var(--radius-xs);
+      font: 700 9px/1 var(--font-data);
+      letter-spacing: .08em;
+    }
+
+    .ticker {
+      flex: 1;
+      display: flex;
+      gap: 16px;
+      min-width: 0;
+      overflow: hidden;
+      white-space: nowrap;
+      color: var(--text-secondary);
+      font: 10px/1 var(--font-data);
+    }
+
+    .ticker strong {
+      color: var(--text-primary);
+      font-weight: 600;
+    }
+
+    .up { color: var(--market-up) !important; }
+    .down { color: var(--market-down) !important; }
+    .warn { color: var(--status-warning) !important; }
+
+    .top-actions {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+    }
+
+    /* Main layout */
+    .main {
+      display: grid;
+      grid-template-columns: 230px minmax(0, 1fr);
+      min-height: calc(100vh - 48px);
+    }
+
+    .sidebar {
+      padding: 8px;
+      background: var(--bg-sidebar);
+      border-right: 1px solid var(--border-default);
+    }
+
+    .side-section { margin-bottom: 18px; }
+
+    .side-label {
+      padding: 7px 8px 6px;
+      color: var(--text-muted);
+      font: 700 9px/1 var(--font-data);
+      letter-spacing: .12em;
+    }
+
+    .nav-item {
+      height: 30px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 2px;
+      padding: 0 8px;
+      color: var(--text-secondary);
+      border: 1px solid transparent;
+      border-radius: var(--radius-sm);
+      user-select: none;
+    }
+
+    .nav-item:hover {
+      background: var(--bg-control);
+      color: var(--text-primary);
+    }
+
+    .nav-item.active {
+      color: var(--text-primary);
+      background: var(--accent-soft);
+      border-color: var(--accent-border);
+      box-shadow: inset 2px 0 0 var(--accent);
+    }
+
+    .nav-symbol {
+      width: 15px;
+      text-align: center;
+      color: var(--text-muted);
+      font-family: var(--font-data);
+    }
+
+    .workspace {
+      padding: 8px;
+      min-width: 0;
+    }
+
+    .toolbar {
+      min-height: var(--toolbar-h);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 0 4px;
+      margin-bottom: 8px;
+    }
+
+    .toolbar-title {
+      font-weight: 700;
+      font-size: 14px;
+      letter-spacing: -.02em;
+      margin-right: auto;
+    }
+
+    .toolbar-meta {
+      margin-left: 8px;
+      color: var(--text-muted);
+      font: 9px/1 var(--font-data);
+      letter-spacing: .03em;
+    }
+
+    .btn,
+    .control {
+      height: var(--control-h);
+      border: 1px solid var(--border-default);
+      border-radius: var(--radius-sm);
+      background: var(--bg-control);
+      color: var(--text-primary);
+      outline: 0;
+      transition: 100ms ease;
+    }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      padding: 0 10px;
+      font-size: 11px;
+      font-weight: 550;
+    }
+
+    .btn:hover,
+    .control:hover {
+      border-color: var(--border-strong);
+      background: var(--bg-control-hover);
+    }
+
+    .btn.primary {
+      color: var(--accent);
+      border-color: var(--accent-border);
+      background: var(--accent-soft);
+    }
+
+    /* Light theme: make buttons clearly distinct from white panels */
+    [data-theme="light"] .btn:not(.primary):not(.buy):not(.sell):not(.danger):not(.ghost) {
+      color: var(--button-text);
+      background: var(--button-bg);
+      border-color: var(--button-border);
+      box-shadow:
+        0 1px 1px rgba(17,24,39,.04),
+        inset 0 1px 0 rgba(255,255,255,.72);
+    }
+
+    [data-theme="light"] .btn:not(.primary):not(.buy):not(.sell):not(.danger):not(.ghost):hover {
+      background: var(--button-bg-hover);
+      border-color: var(--button-border-hover);
+    }
+
+    [data-theme="light"] .btn.primary {
+      color: var(--button-primary-text);
+      background: var(--button-primary-bg);
+      border-color: var(--button-primary-border);
+      box-shadow:
+        0 1px 1px rgba(17,24,39,.04),
+        inset 0 1px 0 rgba(255,255,255,.68);
+      font-weight: 650;
+    }
+
+    [data-theme="light"] .btn.primary:hover {
+      background: var(--button-primary-bg-hover);
+      border-color: #7d75d7;
+    }
+
+    .btn.buy {
+      color: #86afe0;
+      border-color: rgba(78,127,188,.38);
+      background: rgba(78,127,188,.10);
+    }
+
+    [data-theme="light"] .btn.buy {
+      color: #315f95;
+      background: #e5edf7;
+      border-color: #9cb5d2;
+      box-shadow: inset 0 1px 0 rgba(255,255,255,.7);
+    }
+
+    [data-theme="light"] .btn.buy:hover {
+      background: #dbe7f4;
+      border-color: #7f9fc4;
+    }
+
+    .btn.sell {
+      color: #e69b69;
+      border-color: rgba(207,122,66,.38);
+      background: rgba(207,122,66,.10);
+    }
+
+    [data-theme="light"] .btn.sell {
+      color: #95502b;
+      background: #f5e9df;
+      border-color: #d9b391;
+      box-shadow: inset 0 1px 0 rgba(255,255,255,.7);
+    }
+
+    [data-theme="light"] .btn.sell:hover {
+      background: #f0dfd1;
+      border-color: #c8966d;
+    }
+
+    .btn.danger {
+      color: var(--status-critical);
+      border-color: rgba(220,89,100,.35);
+      background: rgba(220,89,100,.08);
+    }
+
+    [data-theme="light"] .btn.danger {
+      color: #b63d48;
+      background: #f8e6e8;
+      border-color: #dfa3a9;
+    }
+
+    [data-theme="light"] .btn.danger:hover {
+      background: #f4dadd;
+      border-color: #d48189;
+    }
+
+    .btn.ghost {
+      border-color: transparent;
+      background: transparent;
+      color: var(--text-secondary);
+    }
+
+    [data-theme="light"] .btn.ghost {
+      color: #42545b;
+      border-color: transparent;
+    }
+
+    [data-theme="light"] .btn.ghost:hover {
+      color: #17252b;
+      background: #e9efef;
+      border-color: #d2dddd;
+    }
+
+    .btn:focus-visible,
+    .control:focus-visible {
+      outline: none;
+      box-shadow: 0 0 0 1px var(--bg-canvas), 0 0 0 3px var(--border-focus);
+    }
+
+    .control {
+      padding: 0 8px;
+      min-width: 0;
+      font-size: 11px;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(12, minmax(0,1fr));
+      gap: 8px;
+    }
+
+    .span-3 { grid-column: span 3; }
+    .span-4 { grid-column: span 4; }
+    .span-5 { grid-column: span 5; }
+    .span-6 { grid-column: span 6; }
+    .span-7 { grid-column: span 7; }
+    .span-8 { grid-column: span 8; }
+    .span-12 { grid-column: span 12; }
+
+    .panel {
+      min-width: 0;
+      overflow: hidden;
+      background: var(--bg-panel);
+      border: 1px solid var(--border-default);
+      border-radius: var(--radius-md);
+      box-shadow: var(--shadow-panel);
+    }
+
+    .panel-head {
+      height: var(--panel-head-h);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 0 9px;
+      border-bottom: 1px solid var(--border-subtle);
+      background: linear-gradient(180deg, var(--bg-subtle), transparent);
+    }
+
+    .panel-title {
+      font-size: 11px;
+      font-weight: 700;
+    }
+
+    .panel-meta {
+      margin-left: auto;
+      color: var(--text-muted);
+      font: 9px/1 var(--font-data);
+    }
+
+    .panel-body { padding: 9px; }
+
+    /* Metrics */
+    .metric {
+      min-height: 104px;
+      padding: 13px;
+      position: relative;
+    }
+
+    .metric-label {
+      color: var(--text-muted);
+      font-size: 10px;
+      margin-bottom: 8px;
+    }
+
+    .metric-value {
+      font: 650 22px/1 var(--font-data);
+      letter-spacing: -.04em;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .metric-foot {
+      margin-top: 10px;
+      display: flex;
+      justify-content: space-between;
+      color: var(--text-muted);
+      font: 9px/1 var(--font-data);
+    }
+
+    .mini-line {
+      position: absolute;
+      right: 10px;
+      bottom: 10px;
+      width: 74px;
+      height: 28px;
+    }
+
+    .mini-line svg { width: 100%; height: 100%; }
+
+    /* Status */
+    .status {
+      min-height: 19px;
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      padding: 0 6px;
+      border: 1px solid var(--border-default);
+      border-radius: var(--radius-xs);
+      background: var(--bg-control);
+      color: var(--text-secondary);
+      font: 9px/1 var(--font-data);
+    }
+
+    .status::before {
+      content: "";
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: var(--text-muted);
+      flex: 0 0 auto;
+    }
+
+    .status.ok::before {
+      background: var(--status-ok);
+      box-shadow: 0 0 0 2px color-mix(in srgb, var(--status-ok) 16%, transparent);
+    }
+
+    .status.warning::before {
+      background: var(--status-warning);
+      box-shadow: 0 0 0 2px color-mix(in srgb, var(--status-warning) 16%, transparent);
+    }
+
+    .status.critical::before {
+      background: var(--status-critical);
+      box-shadow: 0 0 0 2px color-mix(in srgb, var(--status-critical) 16%, transparent);
+    }
+
+    [data-theme="light"] .status.ok {
+      color: var(--status-ok-text);
+      background: var(--status-ok-bg);
+      border-color: var(--status-ok-border);
+      font-weight: 700;
+    }
+
+    [data-theme="light"] .status.warning {
+      color: var(--status-warning-text);
+      background: var(--status-warning-bg);
+      border-color: var(--status-warning-border);
+      font-weight: 700;
+    }
+
+    [data-theme="light"] .status.critical {
+      color: var(--status-critical-text);
+      background: var(--status-critical-bg);
+      border-color: var(--status-critical-border);
+      font-weight: 700;
+    }
+
+    /* Chart */
+    .chart {
+      height: 320px;
+      position: relative;
+      overflow: hidden;
+      background:
+        linear-gradient(var(--chart-grid) 1px, transparent 1px),
+        linear-gradient(90deg, var(--chart-grid) 1px, transparent 1px);
+      background-size: 46px 32px;
+    }
+
+    .chart-info {
+      position: absolute;
+      left: 12px;
+      top: 10px;
+      z-index: 2;
+    }
+
+    .symbol {
+      font: 700 14px/1 var(--font-data);
+      letter-spacing: -.03em;
+    }
+
+    .price {
+      margin-top: 6px;
+      font: 650 23px/1 var(--font-data);
+      font-variant-numeric: tabular-nums;
+      letter-spacing: -.04em;
+    }
+
+    .chart svg {
+      width: 100%;
+      height: 100%;
+      display: block;
+    }
+
+    .axis {
+      position: absolute;
+      right: 7px;
+      top: 8px;
+      bottom: 8px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      color: var(--text-muted);
+      font: 8px/1 var(--font-data);
+    }
+
+    /* Order book */
+    .orderbook {
+      font: 10px/1 var(--font-data);
+    }
+
+    .ob-head,
+    .ob-row {
+      height: var(--row-h);
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      align-items: center;
+      padding: 0 8px;
+      position: relative;
+    }
+
+    .ob-head {
+      height: 28px;
+      color: var(--text-muted);
+      border-bottom: 1px solid var(--border-subtle);
+    }
+
+    .ob-row {
+      border-bottom: 1px solid var(--border-subtle);
+    }
+
+    .ob-row:hover {
+      background: var(--bg-row-hover);
+    }
+
+    .depth {
+      position: absolute;
+      right: 0;
+      top: 3px;
+      bottom: 3px;
+      opacity: .11;
+    }
+
+    .depth.ask { background: var(--market-down); }
+    .depth.bid { background: var(--market-up); }
+
+    .mid {
+      height: 32px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      background: var(--bg-subtle);
+      border-top: 1px solid var(--border-subtle);
+      border-bottom: 1px solid var(--border-subtle);
+      font: 600 10px/1 var(--font-data);
+    }
+
+    .right { text-align: right; }
+
+    /* Table */
+    .table-wrap { overflow: auto; }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      table-layout: fixed;
+      font-size: 10px;
+    }
+
+    th {
+      height: 29px;
+      padding: 0 8px;
+      color: var(--text-muted);
+      background: var(--table-head);
+      border-bottom: 1px solid var(--border-default);
+      text-align: left;
+      font: 700 9px/1 var(--font-data);
+      letter-spacing: .02em;
+    }
+
+    td {
+      height: var(--row-h);
+      padding: 0 8px;
+      color: var(--text-secondary);
+      border-bottom: 1px solid var(--border-subtle);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    tr:hover td { background: var(--bg-row-hover); }
+
+    tr.selected td {
+      background: var(--bg-row-selected);
+      border-bottom-color: var(--accent-border);
+    }
+
+    td.num, th.num {
+      text-align: right;
+      font-family: var(--font-data);
+      font-variant-numeric: tabular-nums;
+    }
+
+    .side-tag {
+      min-width: 35px;
+      height: 18px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      border: 1px solid;
+      border-radius: var(--radius-xs);
+      font: 700 8px/1 var(--font-data);
+    }
+
+    .side-tag.long {
+      color: #86afe0;
+      border-color: rgba(78,127,188,.35);
+      background: rgba(78,127,188,.08);
+    }
+
+    [data-theme="light"] .side-tag.long { color: #345f95; }
+
+    .side-tag.short {
+      color: #e69b69;
+      border-color: rgba(207,122,66,.35);
+      background: rgba(207,122,66,.08);
+    }
+
+    [data-theme="light"] .side-tag.short { color: #9b542c; }
+
+    /* Order entry */
+    .segmented {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 2px;
+      padding: 2px;
+      border: 1px solid var(--border-default);
+      background: var(--bg-canvas);
+      border-radius: var(--radius-sm);
+    }
+
+    .segmented button {
+      height: 26px;
+      border: 0;
+      background: transparent;
+      color: var(--text-muted);
+      border-radius: var(--radius-xs);
+      font-size: 10px;
+    }
+
+    .segmented .active.buy-mode {
+      color: #86afe0;
+      background: rgba(78,127,188,.12);
+      box-shadow: inset 0 0 0 1px rgba(78,127,188,.22);
+    }
+
+    [data-theme="light"] .segmented .active.buy-mode { color: #345f95; }
+
+    .segmented .active.sell-mode {
+      color: #e69b69;
+      background: rgba(207,122,66,.12);
+      box-shadow: inset 0 0 0 1px rgba(207,122,66,.22);
+    }
+
+    [data-theme="light"] .segmented .active.sell-mode { color: #9b542c; }
+
+    .form-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+      margin-top: 9px;
+    }
+
+    .field {
+      display: flex;
+      flex-direction: column;
+      gap: 5px;
+    }
+
+    .field.full { grid-column: 1 / -1; }
+
+    .field label {
+      color: var(--text-muted);
+      font: 8px/1 var(--font-data);
+      letter-spacing: .05em;
+    }
+
+    .summary {
+      margin-top: 9px;
+      padding: 7px 8px;
+      border: 1px solid var(--border-subtle);
+      background: var(--bg-subtle);
+      font: 9px/1.4 var(--font-data);
+    }
+
+    .summary-row {
+      display: flex;
+      justify-content: space-between;
+      padding: 3px 0;
+      color: var(--text-muted);
+    }
+
+    .summary-row strong {
+      color: var(--text-secondary);
+      font-weight: 500;
+    }
+
+    /* Alerts */
+    .alerts {
+      display: grid;
+      gap: 6px;
+    }
+
+    .alert {
+      min-height: 42px;
+      display: grid;
+      grid-template-columns: 3px 1fr auto;
+      gap: 9px;
+      align-items: center;
+      padding: 6px 8px;
+      border: 1px solid var(--border-default);
+      background: var(--bg-subtle);
+      border-radius: var(--radius-sm);
+    }
+
+    .alert-bar {
+      height: 100%;
+      min-height: 28px;
+      border-radius: 1px;
+      background: var(--status-info);
+    }
+
+    .alert.warning .alert-bar { background: var(--status-warning); }
+    .alert.critical .alert-bar { background: var(--status-critical); }
+    .alert.ok .alert-bar { background: var(--status-ok); }
+
+    [data-theme="light"] .alert.ok {
+      border-color: #b8dfc8;
+      background: #f4fbf6;
+    }
+
+    [data-theme="light"] .alert.warning {
+      border-color: #edd49a;
+      background: #fffaf0;
+    }
+
+    [data-theme="light"] .alert.critical {
+      border-color: #efbcc1;
+      background: #fff6f7;
+    }
+
+    .alert-title {
+      color: var(--text-primary);
+      font-size: 10px;
+      font-weight: 650;
+    }
+
+    .alert-desc {
+      margin-top: 2px;
+      color: var(--text-muted);
+      font: 8px/1.5 var(--font-data);
+    }
+
+    /* Component showcase */
+    .showcase {
+      display: grid;
+      gap: 13px;
+    }
+
+    .showcase-row {
+      display: flex;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 7px;
+    }
+
+    .showcase-label {
+      width: 84px;
+      color: var(--text-muted);
+      font: 8px/1 var(--font-data);
+      letter-spacing: .08em;
+    }
+
+    .tabs {
+      display: inline-flex;
+      gap: 2px;
+      border-bottom: 1px solid var(--border-default);
+    }
+
+    .tab {
+      height: 27px;
+      display: inline-flex;
+      align-items: center;
+      padding: 0 9px;
+      color: var(--text-muted);
+      border-bottom: 2px solid transparent;
+      font-size: 10px;
+    }
+
+    .tab.active {
+      color: var(--text-primary);
+      border-color: var(--accent);
+    }
+
+    .progress {
+      width: 160px;
+      height: 6px;
+      background: var(--bg-control);
+      border: 1px solid var(--border-subtle);
+      border-radius: 1px;
+      overflow: hidden;
+    }
+
+    .progress span {
+      display: block;
+      width: 67%;
+      height: 100%;
+      background: var(--accent);
+    }
+
+    .switch {
+      width: 34px;
+      height: 18px;
+      position: relative;
+      border: 1px solid var(--accent-border);
+      background: var(--accent-soft);
+      border-radius: 10px;
+    }
+
+    .switch::after {
+      content: "";
+      width: 12px;
+      height: 12px;
+      position: absolute;
+      right: 2px;
+      top: 2px;
+      border-radius: 50%;
+      background: var(--accent);
+    }
+
+    .kbd {
+      height: 19px;
+      display: inline-flex;
+      align-items: center;
+      padding: 0 5px;
+      border: 1px solid var(--border-default);
+      border-bottom-color: var(--border-strong);
+      background: var(--bg-control);
+      color: var(--text-secondary);
+      border-radius: var(--radius-xs);
+      font: 8px/1 var(--font-data);
+    }
+
+    /* Log */
+    .log {
+      max-height: 170px;
+      overflow: auto;
+      padding: 6px 0;
+      background: var(--log-bg);
+      border-top: 1px solid var(--border-subtle);
+      font: 9px/1.65 var(--font-data);
+    }
+
+    .log-line {
+      display: grid;
+      grid-template-columns: 78px 52px 1fr;
+      gap: 8px;
+      padding: 1px 10px;
+      color: var(--text-muted);
+    }
+
+    .log-line:hover { background: var(--bg-row-hover); }
+    .log-level { color: var(--accent); }
+    .log-level.warn { color: var(--status-warning); }
+    .log-level.err { color: var(--status-critical); }
+    .log-msg { color: var(--text-secondary); }
+
+    /* Palette */
+    .palette {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    .swatch {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      color: var(--text-muted);
+      font: 8px/1 var(--font-data);
+    }
+
+    .chip {
+      width: 20px;
+      height: 20px;
+      border: 1px solid var(--border-default);
+      border-radius: var(--radius-xs);
+    }
+
+    /* Toast / modal */
+    .toast {
+      position: fixed;
+      right: 16px;
+      bottom: 16px;
+      width: min(360px, calc(100vw - 32px));
+      padding: 10px 12px;
+      background: var(--bg-panel-raised);
+      border: 1px solid var(--border-strong);
+      border-radius: var(--radius-md);
+      box-shadow: var(--shadow-overlay);
+      transform: translateY(140%);
+      opacity: 0;
+      transition: 180ms ease;
+      z-index: 90;
+    }
+
+    .toast.show {
+      transform: translateY(0);
+      opacity: 1;
+    }
+
+    .toast-title {
+      font-size: 10px;
+      font-weight: 700;
+    }
+
+    .toast-body {
+      margin-top: 4px;
+      color: var(--text-muted);
+      font: 9px/1.5 var(--font-data);
+    }
+
+    .modal-backdrop {
+      position: fixed;
+      inset: 0;
+      display: none;
+      place-items: center;
+      background: var(--overlay);
+      z-index: 100;
+    }
+
+    .modal-backdrop.open { display: grid; }
+
+    .modal {
+      width: min(460px, calc(100vw - 32px));
+      background: var(--bg-panel-raised);
+      border: 1px solid var(--border-strong);
+      border-radius: var(--radius-lg);
+      box-shadow: var(--shadow-overlay);
+    }
+
+    .modal-head {
+      height: 42px;
+      display: flex;
+      align-items: center;
+      padding: 0 14px;
+      border-bottom: 1px solid var(--border-default);
+      font-size: 11px;
+      font-weight: 700;
+    }
+
+    .modal-body {
+      padding: 14px;
+      color: var(--text-secondary);
+      font-size: 11px;
+      line-height: 1.7;
+    }
+
+    .modal-foot {
+      padding: 10px 14px;
+      display: flex;
+      justify-content: flex-end;
+      gap: 6px;
+      border-top: 1px solid var(--border-default);
+    }
+
+    .footnote {
+      padding: 12px 4px 2px;
+      color: var(--text-disabled);
+      font: 8px/1.55 var(--font-data);
+    }
+
+    @media (max-width: 1180px) {
+      .span-3 { grid-column: span 6; }
+      .span-4, .span-5, .span-7, .span-8 { grid-column: span 12; }
+    }
+
+    @media (max-width: 820px) {
+      .main { grid-template-columns: 1fr; }
+      .sidebar { display: none; }
+      .ticker { display: none; }
+      .brand { min-width: 0; margin-right: auto; }
+      .workspace { padding: 6px; }
+      .span-3, .span-4, .span-5, .span-6, .span-7, .span-8, .span-12 {
+        grid-column: span 12;
+      }
+    }
+  </style>
+</head>
+<body data-theme="dark" data-density="default">
+<div class="app">
+  <header class="topbar">
+    <div class="brand">
+      <div class="brand-mark" aria-hidden="true"></div>
+      ATLAS TERMINAL
+      <span class="env">LIVE</span>
+    </div>
+
+    <div class="ticker">
+      <span>BTC <strong>68,432.40</strong> <span class="up">+1.28%</span></span>
+      <span>ETH <strong>3,847.16</strong> <span class="up">+0.74%</span></span>
+      <span>SOL <strong>172.43</strong> <span class="down">-0.42%</span></span>
+      <span>NASDAQ <strong>19,281.11</strong> <span class="up">+0.38%</span></span>
+      <span>VIX <strong>16.08</strong> <span class="down">-1.76%</span></span>
+    </div>
+
+    <div class="top-actions">
+      <span class="status ok" data-i18n="connected">연결됨</span>
+      <button class="btn ghost" id="langBtn">EN</button>
+      <button class="btn ghost" id="themeBtn" data-i18n="lightMode">라이트</button>
+      <button class="btn primary" id="commandBtn" data-i18n="command">명령</button>
+    </div>
+  </header>
+
+  <div class="main">
+    <aside class="sidebar">
+      <div class="side-section">
+        <div class="side-label" data-i18n="workspace">워크스페이스</div>
+        <div class="nav-item active"><span class="nav-symbol">▦</span><span data-i18n="overview">개요</span></div>
+        <div class="nav-item"><span class="nav-symbol">⌁</span><span data-i18n="markets">시장</span></div>
+        <div class="nav-item"><span class="nav-symbol">≋</span><span data-i18n="orders">주문</span></div>
+        <div class="nav-item"><span class="nav-symbol">◫</span><span data-i18n="positions">포지션</span></div>
+      </div>
+
+      <div class="side-section">
+        <div class="side-label" data-i18n="operations">운영</div>
+        <div class="nav-item"><span class="nav-symbol">●</span><span data-i18n="systems">시스템</span></div>
+        <div class="nav-item"><span class="nav-symbol">⚙</span><span data-i18n="automation">자동화</span></div>
+        <div class="nav-item"><span class="nav-symbol">⌘</span><span data-i18n="commands">명령어</span></div>
+        <div class="nav-item"><span class="nav-symbol">≡</span><span data-i18n="logs">로그</span></div>
+      </div>
+
+      <div class="side-section">
+        <div class="side-label" data-i18n="cluster">클러스터</div>
+        <div class="nav-item"><span class="status ok">CORE-01</span></div>
+        <div class="nav-item"><span class="status warning">EDGE-02</span></div>
+        <div class="nav-item"><span class="status ok">FEED-03</span></div>
+      </div>
+    </aside>
+
+    <main class="workspace">
+      <div class="toolbar">
+        <div class="toolbar-title">
+          <span data-i18n="opsOverview">운영 현황</span>
+          <span class="toolbar-meta">SESSION 13:42:18 KST</span>
+        </div>
+
+        <select class="control" id="densitySelect" aria-label="Density">
+          <option value="compact" data-i18n="compact">컴팩트</option>
+          <option value="default" selected data-i18n="default">기본</option>
+          <option value="comfortable" data-i18n="comfortable">여유</option>
+        </select>
+        <button class="btn" data-i18n="export">내보내기</button>
+        <button class="btn primary" data-i18n="newOrder">새 주문</button>
+      </div>
+
+      <section class="grid">
+        <article class="panel metric span-3">
+          <div class="metric-label" data-i18n="portfolioValue">포트폴리오 가치</div>
+          <div class="metric-value">$284,912.48</div>
+          <div class="metric-foot"><span>24H</span><span class="up">+$4,923.18 · 1.76%</span></div>
+          <div class="mini-line">
+            <svg viewBox="0 0 80 30" fill="none">
+              <polyline points="2,24 12,20 20,22 31,14 41,17 50,9 59,12 68,5 78,7" stroke="var(--market-up)" stroke-width="1.5" fill="none"/>
+            </svg>
+          </div>
+        </article>
+
+        <article class="panel metric span-3">
+          <div class="metric-label" data-i18n="openPnL">미실현 손익</div>
+          <div class="metric-value up">+$8,412.03</div>
+          <div class="metric-foot"><span data-i18n="sixPositions">6개 포지션</span><span>3.04%</span></div>
+          <div class="mini-line">
+            <svg viewBox="0 0 80 30" fill="none">
+              <polyline points="2,26 12,18 20,20 31,19 41,13 50,15 59,8 68,10 78,3" stroke="var(--market-up)" stroke-width="1.5" fill="none"/>
+            </svg>
+          </div>
+        </article>
+
+        <article class="panel metric span-3">
+          <div class="metric-label" data-i18n="marginUsage">마진 사용률</div>
+          <div class="metric-value">31.8%</div>
+          <div class="metric-foot"><span data-i18n="available">사용 가능</span><span>$194,312</span></div>
+          <div class="progress" style="margin-top:12px"><span style="width:31.8%"></span></div>
+        </article>
+
+        <article class="panel metric span-3">
+          <div class="metric-label" data-i18n="latency">시스템 지연</div>
+          <div class="metric-value">18.4 <span style="font-size:11px;color:var(--text-muted)">ms</span></div>
+          <div class="metric-foot"><span>Gateway</span><span class="up">NORMAL</span></div>
+          <div class="mini-line">
+            <svg viewBox="0 0 80 30" fill="none">
+              <polyline points="2,10 12,13 20,9 31,15 41,11 50,16 59,12 68,14 78,12" stroke="var(--accent)" stroke-width="1.5" fill="none"/>
+            </svg>
+          </div>
+        </article>
+
+        <article class="panel span-8">
+          <div class="panel-head">
+            <span class="panel-title" data-i18n="marketChart">시장 차트</span>
+            <div class="tabs" style="margin-left:10px">
+              <span class="tab">1m</span>
+              <span class="tab active">5m</span>
+              <span class="tab">1h</span>
+              <span class="tab">1D</span>
+            </div>
+            <span class="panel-meta">BINANCE · BTC/USDT</span>
+          </div>
+
+          <div class="chart">
+            <div class="chart-info">
+              <div class="symbol">BTC / USDT</div>
+              <div class="price">68,432.40 <span class="up" style="font-size:11px">+1.28%</span></div>
+            </div>
+
+            <svg viewBox="0 0 900 320" preserveAspectRatio="none">
+              <defs>
+                <linearGradient id="chartFill" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stop-color="#7c73e6" stop-opacity=".22"/>
+                  <stop offset="100%" stop-color="#7c73e6" stop-opacity="0"/>
+                </linearGradient>
+              </defs>
+              <path d="M0 240 C70 250,90 210,145 220 S230 178,280 190 S360 110,418 145 S505 128,548 94 S640 86,700 112 S780 64,900 78 L900 320 L0 320 Z" fill="url(#chartFill)"/>
+              <path d="M0 240 C70 250,90 210,145 220 S230 178,280 190 S360 110,418 145 S505 128,548 94 S640 86,700 112 S780 64,900 78" stroke="#7c73e6" stroke-width="2" fill="none"/>
+              <line x1="0" y1="78" x2="900" y2="78" stroke="#7c73e6" stroke-opacity=".28" stroke-dasharray="3 5"/>
+              <line x1="700" y1="0" x2="700" y2="320" stroke="currentColor" stroke-opacity=".14" stroke-dasharray="3 5"/>
+            </svg>
+
+            <div class="axis">
+              <span>69,200</span><span>68,900</span><span>68,600</span><span>68,300</span><span>68,000</span><span>67,700</span>
+            </div>
+          </div>
+        </article>
+
+        <article class="panel span-4">
+          <div class="panel-head">
+            <span class="panel-title" data-i18n="orderBook">호가창</span>
+            <span class="panel-meta">0.10</span>
+          </div>
+          <div class="orderbook">
+            <div class="ob-head">
+              <span data-i18n="price">가격</span><span class="right" data-i18n="amount">수량</span><span class="right" data-i18n="total">누적</span>
+            </div>
+            <div id="asks"></div>
+            <div class="mid"><span class="up">68,432.40</span><span style="color:var(--text-muted)">↑ 68,428.10</span></div>
+            <div id="bids"></div>
+          </div>
+        </article>
+
+        <article class="panel span-8">
+          <div class="panel-head">
+            <span class="panel-title" data-i18n="positions">포지션</span>
+            <span class="status ok" data-i18n="sixActive">6개 활성</span>
+            <span class="panel-meta" data-i18n="updated12">12ms 전 갱신</span>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th style="width:16%" data-i18n="symbol">종목</th>
+                  <th style="width:10%" data-i18n="side">방향</th>
+                  <th class="num" data-i18n="size">수량</th>
+                  <th class="num" data-i18n="entry">진입가</th>
+                  <th class="num" data-i18n="mark">현재가</th>
+                  <th class="num">P/L</th>
+                  <th class="num">ROE</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr class="selected">
+                  <td>BTCUSDT</td><td><span class="side-tag long">LONG</span></td>
+                  <td class="num">0.842</td><td class="num">65,920.40</td><td class="num">68,432.40</td>
+                  <td class="num up">+2,115.28</td><td class="num up">+9.42%</td>
+                </tr>
+                <tr>
+                  <td>ETHUSDT</td><td><span class="side-tag long">LONG</span></td>
+                  <td class="num">8.20</td><td class="num">3,612.90</td><td class="num">3,847.16</td>
+                  <td class="num up">+1,920.93</td><td class="num up">+6.48%</td>
+                </tr>
+                <tr>
+                  <td>SOLUSDT</td><td><span class="side-tag short">SHORT</span></td>
+                  <td class="num">112.0</td><td class="num">178.22</td><td class="num">172.43</td>
+                  <td class="num up">+648.48</td><td class="num up">+3.25%</td>
+                </tr>
+                <tr>
+                  <td>NVDA</td><td><span class="side-tag long">LONG</span></td>
+                  <td class="num">64</td><td class="num">119.82</td><td class="num">123.41</td>
+                  <td class="num up">+229.76</td><td class="num up">+2.99%</td>
+                </tr>
+                <tr>
+                  <td>EURUSD</td><td><span class="side-tag short">SHORT</span></td>
+                  <td class="num">42,000</td><td class="num">1.0938</td><td class="num">1.0952</td>
+                  <td class="num down">-58.80</td><td class="num down">-0.12%</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </article>
+
+        <article class="panel span-4">
+          <div class="panel-head">
+            <span class="panel-title" data-i18n="orderEntry">주문 입력</span>
+            <span class="panel-meta">BTC/USDT</span>
+          </div>
+          <div class="panel-body">
+            <div class="segmented" id="sideToggle">
+              <button class="active buy-mode" data-side="buy" data-i18n="buy">매수</button>
+              <button class="sell-mode" data-side="sell" data-i18n="sell">매도</button>
+            </div>
+
+            <div class="form-grid">
+              <div class="field">
+                <label data-i18n="orderType">주문 유형</label>
+                <select class="control"><option>Limit</option><option>Market</option><option>Stop</option></select>
+              </div>
+              <div class="field">
+                <label>TIF</label>
+                <select class="control"><option>GTC</option><option>IOC</option><option>FOK</option></select>
+              </div>
+              <div class="field full">
+                <label data-i18n="price">가격</label>
+                <input class="control" value="68420.00" />
+              </div>
+              <div class="field full">
+                <label data-i18n="amount">수량</label>
+                <input class="control" value="0.125" />
+              </div>
+            </div>
+
+            <div class="summary">
+              <div class="summary-row"><span data-i18n="notional">주문 금액</span><strong>$8,552.50</strong></div>
+              <div class="summary-row"><span data-i18n="fee">예상 수수료</span><strong>$3.42</strong></div>
+              <div class="summary-row"><span data-i18n="marginImpact">마진 영향</span><strong>3.11%</strong></div>
+            </div>
+
+            <button class="btn buy" id="orderBtn" style="width:100%;margin-top:9px" data-i18n="placeBuy">매수 주문 제출</button>
+          </div>
+        </article>
+
+        <article class="panel span-6">
+          <div class="panel-head">
+            <span class="panel-title" data-i18n="systemAlerts">시스템 알림</span>
+            <span class="panel-meta" data-i18n="threeUnresolved">미해결 3건</span>
+          </div>
+          <div class="panel-body alerts">
+            <div class="alert warning">
+              <span class="alert-bar"></span>
+              <div>
+                <div class="alert-title" data-i18n="feedDelay">시장 데이터 피드 지연</div>
+                <div class="alert-desc">EDGE-02 · primary feed 대비 840ms 지연</div>
+              </div>
+              <span class="status warning">DELAY</span>
+            </div>
+            <div class="alert ok">
+              <span class="alert-bar"></span>
+              <div>
+                <div class="alert-title" data-i18n="replicationHealthy">복제 상태 정상</div>
+                <div class="alert-desc">CORE-01 → CORE-02 · lag 12ms</div>
+              </div>
+              <span class="status ok">OK</span>
+            </div>
+            <div class="alert critical">
+              <span class="alert-bar"></span>
+              <div>
+                <div class="alert-title" data-i18n="riskNear">리스크 임계치 근접</div>
+                <div class="alert-desc">BTC exposure 82% of configured limit</div>
+              </div>
+              <button class="btn danger" data-i18n="review">검토</button>
+            </div>
+          </div>
+        </article>
+
+        <article class="panel span-6">
+          <div class="panel-head">
+            <span class="panel-title" data-i18n="components">컴포넌트 패턴</span>
+            <span class="panel-meta">Token-driven</span>
+          </div>
+          <div class="panel-body showcase">
+            <div class="showcase-row">
+              <span class="showcase-label">BUTTON</span>
+              <button class="btn" data-i18n="neutral">기본</button>
+              <button class="btn primary" data-i18n="primary">주요</button>
+              <button class="btn buy" data-i18n="buy">매수</button>
+              <button class="btn sell" data-i18n="sell">매도</button>
+              <button class="btn danger" data-i18n="danger">위험</button>
+            </div>
+
+            <div class="showcase-row">
+              <span class="showcase-label">STATUS</span>
+              <span class="status ok">ONLINE</span>
+              <span class="status warning">DELAYED</span>
+              <span class="status critical">OFFLINE</span>
+              <span class="status" style="color:var(--status-info);border-color:color-mix(in srgb,var(--status-info) 45%,var(--border-default));background:color-mix(in srgb,var(--status-info) 9%,var(--bg-control))">INFO</span>
+            </div>
+
+            <div class="showcase-row">
+              <span class="showcase-label">CONTROL</span>
+              <input class="control" style="width:160px" data-placeholder-ko="종목 검색…" data-placeholder-en="Search symbol…" placeholder="종목 검색…" />
+              <select class="control"><option>BTC/USDT</option><option>ETH/USDT</option></select>
+              <span class="switch"></span>
+            </div>
+
+            <div class="showcase-row">
+              <span class="showcase-label">TAB</span>
+              <div class="tabs">
+                <span class="tab active" data-i18n="orders">주문</span>
+                <span class="tab" data-i18n="history">내역</span>
+                <span class="tab" data-i18n="fills">체결</span>
+              </div>
+            </div>
+
+            <div class="showcase-row">
+              <span class="showcase-label">PROGRESS</span>
+              <div class="progress"><span></span></div>
+              <span style="color:var(--text-muted);font:9px var(--font-data)">67%</span>
+            </div>
+
+            <div class="showcase-row">
+              <span class="showcase-label">KEYBOARD</span>
+              <span class="kbd">⌘</span><span class="kbd">K</span>
+              <span style="color:var(--text-muted);font-size:9px" data-i18n="openPalette">명령 팔레트 열기</span>
+            </div>
+          </div>
+        </article>
+
+        <article class="panel span-12">
+          <div class="panel-head">
+            <span class="panel-title" data-i18n="executionLog">실행 로그</span>
+            <span class="panel-meta">STREAM / ENGINE-01</span>
+          </div>
+          <div class="log">
+            <div class="log-line"><span>13:42:08.221</span><span class="log-level">INFO</span><span class="log-msg">market-data websocket connected feed=primary latency=16ms</span></div>
+            <div class="log-line"><span>13:42:08.417</span><span class="log-level">INFO</span><span class="log-msg">position snapshot received account=main symbols=6</span></div>
+            <div class="log-line"><span>13:42:09.003</span><span class="log-level warn">WARN</span><span class="log-msg">edge feed drift detected node=EDGE-02 drift=840ms</span></div>
+            <div class="log-line"><span>13:42:09.620</span><span class="log-level">INFO</span><span class="log-msg">risk engine recalculated exposure btc=82.0% eth=44.2%</span></div>
+            <div class="log-line"><span>13:42:10.118</span><span class="log-level err">ERROR</span><span class="log-msg">stale quote rejected symbol=SOLUSDT age=1312ms</span></div>
+            <div class="log-line"><span>13:42:11.306</span><span class="log-level">INFO</span><span class="log-msg">fallback quote accepted source=secondary symbol=SOLUSDT</span></div>
+          </div>
+        </article>
+
+        <article class="panel span-12">
+          <div class="panel-head">
+            <span class="panel-title" data-i18n="palette">컬러 시스템</span>
+            <span class="panel-meta">Graphite Navy + Signal Violet</span>
+          </div>
+          <div class="panel-body palette">
+            <div class="swatch"><span class="chip" style="background:#7c73e6"></span>ACCENT #7C73E6</div>
+            <div class="swatch"><span class="chip" style="background:#4e7fbc"></span>BUY/INFO #4E7FBC</div>
+            <div class="swatch"><span class="chip" style="background:#2fa86f"></span>UP #2FA86F</div>
+            <div class="swatch"><span class="chip" style="background:#dc5964"></span>DOWN #DC5964</div>
+            <div class="swatch"><span class="chip" style="background:#d5a03b"></span>WARNING #D5A03B</div>
+            <div class="swatch"><span class="chip" style="background:#cf7a42"></span>SELL #CF7A42</div>
+          </div>
+        </article>
+      </section>
+
+      <div class="footnote" data-i18n="footerText">
+        ATLAS Terminal은 Graphite Navy 기반의 저채도 표면, Signal Violet 인터랙션 포인트, 그리고 별도 Domain 컬러를 사용합니다. 한국어 UI는 IBM Plex Sans KR 계열, 숫자와 로그는 IBM Plex Mono 계열을 우선 사용합니다.
+      </div>
+    </main>
+  </div>
+</div>
+
+<div class="toast" id="toast">
+  <div class="toast-title" data-i18n="orderSubmitted">주문이 제출되었습니다</div>
+  <div class="toast-body">BUY 0.125 BTCUSDT @ 68,420.00 · Ref #ORD-88431</div>
+</div>
+
+<div class="modal-backdrop" id="modal">
+  <div class="modal">
+    <div class="modal-head" data-i18n="commandConsole">명령 콘솔</div>
+    <div class="modal-body">
+      <span data-i18n="modalText">명령 팔레트는 밀도 높은 터미널 UI에서 빠른 조작을 위한 보조 인터페이스로 사용합니다.</span>
+      <div style="margin-top:10px">
+        <input class="control" style="width:100%" data-placeholder-ko="/risk BTC 같은 명령 입력…" data-placeholder-en="Type a command, e.g. /risk BTC…" placeholder="/risk BTC 같은 명령 입력…" />
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn" id="modalClose" data-i18n="cancel">취소</button>
+      <button class="btn primary" data-i18n="execute">실행</button>
+    </div>
+  </div>
+</div>
+
+<script>
+  const i18n = {
+    ko: {
+      connected: "연결됨",
+      lightMode: "라이트",
+      darkMode: "다크",
+      command: "명령",
+      workspace: "워크스페이스",
+      overview: "개요",
+      markets: "시장",
+      orders: "주문",
+      positions: "포지션",
+      operations: "운영",
+      systems: "시스템",
+      automation: "자동화",
+      commands: "명령어",
+      logs: "로그",
+      cluster: "클러스터",
+      opsOverview: "운영 현황",
+      compact: "컴팩트",
+      default: "기본",
+      comfortable: "여유",
+      export: "내보내기",
+      newOrder: "새 주문",
+      portfolioValue: "포트폴리오 가치",
+      openPnL: "미실현 손익",
+      sixPositions: "6개 포지션",
+      marginUsage: "마진 사용률",
+      available: "사용 가능",
+      latency: "시스템 지연",
+      marketChart: "시장 차트",
+      orderBook: "호가창",
+      price: "가격",
+      amount: "수량",
+      total: "누적",
+      sixActive: "6개 활성",
+      updated12: "12ms 전 갱신",
+      symbol: "종목",
+      side: "방향",
+      size: "수량",
+      entry: "진입가",
+      mark: "현재가",
+      orderEntry: "주문 입력",
+      buy: "매수",
+      sell: "매도",
+      orderType: "주문 유형",
+      notional: "주문 금액",
+      fee: "예상 수수료",
+      marginImpact: "마진 영향",
+      placeBuy: "매수 주문 제출",
+      placeSell: "매도 주문 제출",
+      systemAlerts: "시스템 알림",
+      threeUnresolved: "미해결 3건",
+      feedDelay: "시장 데이터 피드 지연",
+      replicationHealthy: "복제 상태 정상",
+      riskNear: "리스크 임계치 근접",
+      review: "검토",
+      components: "컴포넌트 패턴",
+      neutral: "기본",
+      primary: "주요",
+      danger: "위험",
+      history: "내역",
+      fills: "체결",
+      openPalette: "명령 팔레트 열기",
+      executionLog: "실행 로그",
+      palette: "컬러 시스템",
+      orderSubmitted: "주문이 제출되었습니다",
+      commandConsole: "명령 콘솔",
+      modalText: "명령 팔레트는 밀도 높은 터미널 UI에서 빠른 조작을 위한 보조 인터페이스로 사용합니다.",
+      cancel: "취소",
+      execute: "실행",
+      footerText: "ATLAS Terminal은 Graphite Navy 기반의 저채도 표면, Signal Violet 인터랙션 포인트, 그리고 별도 Domain 컬러를 사용합니다. 한국어 UI는 IBM Plex Sans KR 계열, 숫자와 로그는 IBM Plex Mono 계열을 우선 사용합니다."
+    },
+    en: {
+      connected: "Connected",
+      lightMode: "Light",
+      darkMode: "Dark",
+      command: "Command",
+      workspace: "WORKSPACE",
+      overview: "Overview",
+      markets: "Markets",
+      orders: "Orders",
+      positions: "Positions",
+      operations: "OPERATIONS",
+      systems: "Systems",
+      automation: "Automation",
+      commands: "Commands",
+      logs: "Logs",
+      cluster: "CLUSTER",
+      opsOverview: "Operations Overview",
+      compact: "Compact",
+      default: "Default",
+      comfortable: "Comfortable",
+      export: "Export",
+      newOrder: "New Order",
+      portfolioValue: "Portfolio Value",
+      openPnL: "Open P/L",
+      sixPositions: "6 positions",
+      marginUsage: "Margin Usage",
+      available: "Available",
+      latency: "System Latency",
+      marketChart: "Market Chart",
+      orderBook: "Order Book",
+      price: "Price",
+      amount: "Amount",
+      total: "Total",
+      sixActive: "6 Active",
+      updated12: "Updated 12ms ago",
+      symbol: "Symbol",
+      side: "Side",
+      size: "Size",
+      entry: "Entry",
+      mark: "Mark",
+      orderEntry: "Order Entry",
+      buy: "BUY",
+      sell: "SELL",
+      orderType: "ORDER TYPE",
+      notional: "Notional",
+      fee: "Estimated fee",
+      marginImpact: "Margin impact",
+      placeBuy: "PLACE BUY ORDER",
+      placeSell: "PLACE SELL ORDER",
+      systemAlerts: "System Alerts",
+      threeUnresolved: "3 unresolved",
+      feedDelay: "Market data feed delayed",
+      replicationHealthy: "Replication healthy",
+      riskNear: "Risk threshold approaching",
+      review: "Review",
+      components: "Component Patterns",
+      neutral: "Neutral",
+      primary: "Primary",
+      danger: "Danger",
+      history: "History",
+      fills: "Fills",
+      openPalette: "Open command palette",
+      executionLog: "Execution Log",
+      palette: "Color System",
+      orderSubmitted: "Order submitted",
+      commandConsole: "Command Console",
+      modalText: "The command palette is a secondary interface for fast operation in a dense terminal UI.",
+      cancel: "Cancel",
+      execute: "Execute",
+      footerText: "ATLAS Terminal uses low-chroma Graphite Navy surfaces, Signal Violet interaction accents, and separate domain colors. Korean UI prioritizes IBM Plex Sans KR, while data and logs prioritize IBM Plex Mono."
+    }
+  };
+
+  let currentLang = "ko";
+
+  function applyLanguage(lang) {
+    currentLang = lang;
+    document.documentElement.lang = lang;
+    document.querySelectorAll("[data-i18n]").forEach(el => {
+      const key = el.dataset.i18n;
+      if (i18n[lang][key]) el.textContent = i18n[lang][key];
+    });
+    document.querySelectorAll("[data-placeholder-ko]").forEach(el => {
+      el.placeholder = lang === "ko" ? el.dataset.placeholderKo : el.dataset.placeholderEn;
+    });
+    document.getElementById("langBtn").textContent = lang === "ko" ? "EN" : "한";
+    updateThemeButton();
+    updateOrderButton();
+  }
+
+  function updateThemeButton() {
+    const btn = document.getElementById("themeBtn");
+    const isLight = document.body.dataset.theme === "light";
+    btn.textContent = isLight ? i18n[currentLang].darkMode : i18n[currentLang].lightMode;
+  }
+
+  const asks = [
+    ["68,448.20","0.324","22,194",62],
+    ["68,444.70","0.181","12,391",44],
+    ["68,441.10","0.470","32,169",78],
+    ["68,438.90","0.211","14,438",53],
+    ["68,435.60","0.098","6,706",31],
+  ];
+
+  const bids = [
+    ["68,430.20","0.145","9,923",36],
+    ["68,427.80","0.401","27,446",72],
+    ["68,424.10","0.286","19,570",56],
+    ["68,420.70","0.119","8,142",33],
+    ["68,417.30","0.355","24,289",65],
+  ];
+
+  function renderBook(target, rows, type) {
+    target.innerHTML = rows.map(([p,a,t,d]) => `
+      <div class="ob-row">
+        <span class="${type === "ask" ? "down" : "up"}">${p}</span>
+        <span class="right">${a}</span>
+        <span class="right">${t}</span>
+        <span class="depth ${type}" style="width:${d}%"></span>
+      </div>
+    `).join("");
+  }
+
+  renderBook(document.getElementById("asks"), asks, "ask");
+  renderBook(document.getElementById("bids"), bids, "bid");
+
+  document.getElementById("densitySelect").addEventListener("change", e => {
+    document.body.dataset.density = e.target.value;
+  });
+
+  document.getElementById("themeBtn").addEventListener("click", () => {
+    document.body.dataset.theme = document.body.dataset.theme === "light" ? "dark" : "light";
+    updateThemeButton();
+  });
+
+  document.getElementById("langBtn").addEventListener("click", () => {
+    applyLanguage(currentLang === "ko" ? "en" : "ko");
+  });
+
+  const sideToggle = document.getElementById("sideToggle");
+  const orderBtn = document.getElementById("orderBtn");
+  let currentSide = "buy";
+
+  function updateOrderButton() {
+    orderBtn.className = `btn ${currentSide}`;
+    orderBtn.textContent = currentSide === "buy"
+      ? i18n[currentLang].placeBuy
+      : i18n[currentLang].placeSell;
+  }
+
+  sideToggle.addEventListener("click", e => {
+    if (!e.target.matches("button")) return;
+    [...sideToggle.querySelectorAll("button")].forEach(btn => btn.classList.remove("active"));
+    e.target.classList.add("active");
+    currentSide = e.target.dataset.side;
+    updateOrderButton();
+  });
+
+  const toast = document.getElementById("toast");
+  orderBtn.addEventListener("click", () => {
+    toast.classList.add("show");
+    clearTimeout(window.__toastTimer);
+    window.__toastTimer = setTimeout(() => toast.classList.remove("show"), 2600);
+  });
+
+  const modal = document.getElementById("modal");
+  document.getElementById("commandBtn").addEventListener("click", () => modal.classList.add("open"));
+  document.getElementById("modalClose").addEventListener("click", () => modal.classList.remove("open"));
+  modal.addEventListener("click", e => {
+    if (e.target === modal) modal.classList.remove("open");
+  });
+
+  applyLanguage("ko");
+</script>
+</body>
+</html>
