@@ -32,6 +32,7 @@
     "migration:revert": "pnpm --filter api migration:revert",
     "migration:check": "node scripts/validate-migrations.mjs",
     "database:verify": "pnpm --filter api database:verify",
+    "seed": "pnpm --filter api seed",
     "license:check": "node scripts/check-package-licenses.mjs",
     "governance:check": "node scripts/validate-governance.mjs",
     "security:secrets": "node scripts/scan-secrets.mjs --history --self-test",

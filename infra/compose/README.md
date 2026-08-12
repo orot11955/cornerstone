@@ -8,6 +8,7 @@
 pnpm db:dev:up
 cp apps/api/.env.example apps/api/.env
 pnpm migration:run
+pnpm seed
 pnpm database:verify
 pnpm db:dev:down
 ```
@@ -30,6 +31,8 @@ pnpm db:test:down
 ```
 
 Test 데이터는 tmpfs에만 저장된다. `cornerstone_test_app`은 schema DDL 권한을 받지 않으며 각 Migration이 업무 table별 DML 권한을 명시해야 한다. Migration 이력과 schema는 `cornerstone_test_migrator`만 변경한다.
+
+`pnpm seed`는 개발/test에서만 비밀 없는 pending reference User와 Audit event를 멱등 생성한다. 로그인 가능한 공용 password와 admin은 만들지 않으며 production에서는 DB 연결 전에 거절한다.
 
 Root `pnpm test:integration`은 이 test Compose project를 내린 뒤 새로 기동하므로 `cornerstone_test`의 기존 test 데이터는 보존하지 않는다. Migration `forward → revert → forward`, schema/권한/advisory lock 검증을 수행하고 성공·실패와 관계없이 container와 network를 정리한다.
 

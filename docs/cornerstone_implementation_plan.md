@@ -442,11 +442,12 @@ M1 이후 Backend M2~M5와 병렬 진행할 수 있다. M6의 인증 화면보�
 - 실제 PostgreSQL `forward → revert → forward`, pending 0, Entity/Migration schema drift 0과 single-tenant schema 검증
 - `cornerstone_runtime` table별 DML grant와 User 물리 삭제·Audit 변경·Migration 이력 변경·schema DDL 거절을 확인하는 Root `database:verify`
 - test tmpfs DB를 재생성하고 Migration 왕복·검증·advisory lock 경쟁 후 항상 정리하는 Root `test:integration`과 Turbo env allowlist
+- 비밀·공용 password·admin을 만들지 않는 pending reference User/Audit 멱등 Seed, test DB name 격리와 production fail-closed 정책
 
 남은 완료 조건:
 
 - 직전 release fixture upgrade와 expand schema의 N/N-1 application read/write 호환 Gate
-- 멱등 Seed와 production Seed 거절
+- 운영 admin protected one-time bootstrap job과 break-glass audit
 - idempotency/outbox repository, worker lease/retry/poison 격리와 transaction/관측 test
 
 목표:

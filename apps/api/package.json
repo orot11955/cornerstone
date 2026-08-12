@@ -33,7 +33,8 @@
     "migration:show": "pnpm build && node dist/database/migration-runner.js show",
     "migration:run": "pnpm build && node dist/database/migration-runner.js run",
     "migration:revert": "pnpm build && node dist/database/migration-runner.js revert",
-    "database:verify": "pnpm build && node dist/database/database-verifier.js"
+    "database:verify": "pnpm build && node dist/database/database-verifier.js",
+    "seed": "pnpm build && node dist/database/seed-runner.js"
   },
   "dependencies": {
     "@cornerstone/schemas": "workspace:^",

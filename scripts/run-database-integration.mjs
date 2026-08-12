@@ -36,6 +36,8 @@ try {
   run(['migration:run'], { database: true })
   run(['migration:revert'], { database: true })
   run(['migration:run'], { database: true })
+  run(['seed'], { database: true })
+  run(['seed'], { database: true })
   run(['exec', 'node', 'scripts/test-scope.mjs', 'test:integration', '--run'], {
     database: true,
   })
