@@ -17,7 +17,7 @@ docs/           설계 계약, 구현 계획과 시각 레퍼런스
 
 요구 도구:
 
-- Node.js: 지원 버전 확정 전
+- Node.js `24.18.0`
 - pnpm `11.20.0`
 
 ```bash
@@ -49,4 +49,4 @@ pnpm format:check
 - 작업 순서, 결정 사항과 완료 조건: [구현 계획](./docs/cornerstone_implementation_plan.md)
 - Industrial + Signal Violet 조합의 비규범적 예시: [ATLAS 레퍼런스](./docs/atlas-industrial-violet.html)
 
-디자인 시스템은 `Foundations → Semantic → Component → Domain` 토큰 계층과 독립적인 `Theme × Style × Brand × Density` Appearance 축을 사용한다. ATLAS는 Cornerstone의 default theme이 아니다.
+디자인 시스템은 `Foundations → Semantic → Component → Domain` 토큰 계층과 독립적인 `Theme × Style × Brand × Density` Appearance 축을 사용한다. `packages/ui`는 소수 Primitive만 제공하는 패키지가 아니라, 일반적인 제품 화면 대부분을 같은 디자인과 상호작용 규칙으로 구성할 수 있는 범용 UI Kit을 목표로 한다. ATLAS는 Cornerstone의 default theme이 아니다.
