@@ -19,6 +19,11 @@ import { basename, dirname, join, relative, resolve, sep } from 'node:path'
 import { parseDocument, stringify } from 'yaml'
 import { composeStructuredOutputs, formatJsonDocument } from './composition/composer.js'
 import { bundledCapabilityCatalog } from './composition/catalog.js'
+import {
+  buildPredecessorLock,
+  resolvePredecessor,
+  type PredecessorVersion,
+} from './composition/predecessor.js'
 import { getCapabilityApplicationOrder } from './composition/resolver.js'
 import {
   loadCanonicalTemplateMetadata,
@@ -26,6 +31,7 @@ import {
   type ComposerDefinition,
 } from './composition/template.js'
 import { sha256, stableJson } from './hash.js'
+import { computeScaffoldsDigest } from './scaffold/registry.js'
 import {
   projectLockSchema,
   projectManifestSchema,
@@ -33,6 +39,7 @@ import {
   type ProjectLockData,
   type ProjectLockV1Data,
   type ProjectLockV2Data,
+  type ProjectLockV3Data,
   type ProjectManifest,
   type ResolvedManifest,
 } from './schema.js'
@@ -148,10 +155,6 @@ export async function verifyProject(targetPath: string): Promise<ProjectLock> {
     return lock
   }
 
-  if (lock.schemaVersion === 3) {
-    throw new Error('Lock schemaVersion 3 is reader-only and is not yet supported by verification')
-  }
-
   assertSupportedComposition(manifest)
   await verifyStandardProject(target, userManifest, manifest, lock)
   return lock
@@ -184,7 +187,7 @@ async function writeStandardProject(
   target: string,
   userManifest: ProjectManifest,
   manifest: ResolvedManifest,
-): Promise<ProjectLockV2Data> {
+): Promise<ProjectLockV3Data> {
   const metadata = loadCanonicalTemplateMetadata()
   const selected = new Set(['base', ...manifest.capabilities])
   for (const id of ['base', ...getCapabilityApplicationOrder(manifest.capabilities)]) {
@@ -204,7 +207,7 @@ async function writeStandardProject(
     stringify(userManifest, { sortMapEntries: true }),
     { mode: generatedFileMode },
   )
-  const lock = await buildStandardLock(target, userManifest, manifest)
+  const lock = await buildStandardV3Lock(target, userManifest, manifest)
   await writeLockAtomically(target, lock)
   return lock
 }
@@ -238,6 +241,7 @@ async function buildStandardLock(
   target: string,
   userManifest: ProjectManifest,
   manifest: ResolvedManifest,
+  expectedOutputs?: readonly { owner: string; path: string; content: Uint8Array }[],
 ): Promise<ProjectLockV2Data> {
   const metadata = loadCanonicalTemplateMetadata()
   const fragmentDefinitions = selectedFragmentDefinitions(metadata, manifest)
@@ -256,21 +260,39 @@ async function buildStandardLock(
       checksum: await composerChecksum(metadata, composer),
     })),
   )
-  const outputs = await Promise.all(
-    composerDefinitions.map(async (composer) => {
-      const path = safeTargetPath(target, composer.output)
-      const info = await lstat(path)
-      if (!info.isFile() || info.isSymbolicLink()) {
-        throw new Error(`Generator-owned output must be a regular file: ${composer.output}`)
-      }
-      return {
-        path: composer.output,
-        owner: composer.id,
-        checksum: sha256(await readFile(path)),
-        mode: info.mode & 0o777,
-      }
-    }),
-  )
+  const outputs = expectedOutputs
+    ? composerDefinitions.map((composer) => {
+        const expected = expectedOutputs.find(
+          ({ owner, path }) => owner === composer.id && path === composer.output,
+        )
+        if (!expected) {
+          throw new Error(`Expected composed output is missing: ${composer.output}`)
+        }
+        return {
+          path: composer.output,
+          owner: composer.id,
+          checksum: sha256(expected.content),
+          mode: generatedFileMode,
+        }
+      })
+    : await Promise.all(
+        composerDefinitions.map(async (composer) => {
+          const path = safeTargetPath(target, composer.output)
+          const info = await lstat(path)
+          if (!info.isFile() || info.isSymbolicLink()) {
+            throw new Error(`Generator-owned output must be a regular file: ${composer.output}`)
+          }
+          return {
+            path: composer.output,
+            owner: composer.id,
+            checksum: sha256(await readFile(path)),
+            mode: info.mode & 0o777,
+          }
+        }),
+      )
+  if (expectedOutputs && expectedOutputs.length !== composerDefinitions.length) {
+    throw new Error('Expected composed output set differs from current composer definitions')
+  }
   const unsigned = {
     schemaVersion: 2 as const,
     generatorVersion,
@@ -299,14 +321,36 @@ async function buildStandardLock(
   return { ...unsigned, integrity: sha256(stableJson(unsigned)) }
 }
 
+export async function buildStandardV3Lock(
+  target: string,
+  userManifest: ProjectManifest,
+  manifest: ResolvedManifest,
+  expectedOutputs?: readonly { owner: string; path: string; content: Uint8Array }[],
+): Promise<ProjectLockV3Data> {
+  const v2 = await buildStandardLock(target, userManifest, manifest, expectedOutputs)
+  const { integrity: _integrity, schemaVersion: _schemaVersion, ...common } = v2
+  const unsigned = {
+    ...common,
+    schemaVersion: 3 as const,
+    scaffolds: [],
+    scaffoldsDigest: computeScaffoldsDigest([]),
+  }
+  return { ...unsigned, integrity: sha256(stableJson(unsigned)) }
+}
+
 async function verifyStandardProject(
   target: string,
   userManifest: ProjectManifest,
   manifest: ResolvedManifest,
-  lock: ProjectLockV2Data,
+  lock: ProjectLockV2Data | ProjectLockV3Data,
 ): Promise<void> {
   const metadata = loadCanonicalTemplateMetadata()
   assertCatalogCompatibility(metadata, manifest)
+
+  if (lock.schemaVersion === 2 && ['0.2.0', '0.2.1'].includes(lock.templateVersion)) {
+    await verifyLegacyStandardV2(target, userManifest, manifest, lock, metadata)
+    return
+  }
 
   const expectedFragments = selectedFragmentDefinitions(metadata, manifest)
   for (const fragment of expectedFragments) {
@@ -361,9 +405,66 @@ async function verifyStandardProject(
     }
   }
 
-  const expectedLock = await buildStandardLock(target, userManifest, manifest)
+  const scaffolds = lock.schemaVersion === 3 ? lock.scaffolds : []
+  for (const scaffold of scaffolds) {
+    for (const scaffoldPath of scaffold.paths) {
+      const path = safeTargetPath(target, scaffoldPath)
+      let info
+      try {
+        info = await lstat(path)
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
+          throw new Error(`Scaffold registry path must be a regular file: ${scaffoldPath}`)
+        }
+        throw error
+      }
+      if (!info.isFile() || info.isSymbolicLink()) {
+        throw new Error(`Scaffold registry path must be a regular file: ${scaffoldPath}`)
+      }
+    }
+  }
+  const expectedLock =
+    lock.schemaVersion === 3
+      ? await buildStandardV3Lock(target, userManifest, manifest)
+      : await buildStandardLock(target, userManifest, manifest)
+  if (expectedLock.schemaVersion === 3 && lock.schemaVersion === 3) {
+    expectedLock.scaffolds = lock.scaffolds
+    expectedLock.scaffoldsDigest = lock.scaffoldsDigest
+    const { integrity: _integrity, ...expectedUnsigned } = expectedLock
+    expectedLock.integrity = sha256(stableJson(expectedUnsigned))
+  }
   if (stableJson(lock) !== stableJson(expectedLock)) {
     throw new Error('Lock manifest differs from the generator-owned resolution')
+  }
+}
+
+async function verifyLegacyStandardV2(
+  target: string,
+  userManifest: ProjectManifest,
+  manifest: ResolvedManifest,
+  lock: ProjectLockV2Data,
+  metadata: CanonicalTemplateMetadata,
+): Promise<void> {
+  if (!['0.2.0', '0.2.1'].includes(lock.templateVersion)) {
+    throw new Error('Legacy Standard v2 verification requires template 0.2.0 or 0.2.1')
+  }
+  const predecessor = await resolvePredecessor(lock.templateVersion as PredecessorVersion, manifest)
+  await assertCapabilityResidue(target, metadata, manifest)
+  for (const output of predecessor.outputs) {
+    const path = safeTargetPath(target, output.path)
+    const info = await lstat(path)
+    if (
+      !info.isFile() ||
+      info.isSymbolicLink() ||
+      (info.mode & 0o777) !== output.mode ||
+      sha256(await readFile(path)) !== output.checksum
+    ) {
+      throw new Error(`Generator-owned output drift: ${output.path}`)
+    }
+  }
+  const expected = buildPredecessorLock(predecessor, userManifest, manifest)
+  if (stableJson(lock) !== stableJson(expected)) {
+    throw new Error('Legacy Standard v2 lock differs from the exact generator-owned resolution')
   }
 }
 

@@ -50,7 +50,81 @@ export const composerFormatSchema = z.enum([
   'readme',
   'notice',
   'license',
+  'nest-module',
 ])
+
+const nestImportSchema = z
+  .object({
+    names: z.array(z.string().regex(/^[A-Za-z_$][A-Za-z0-9_$]*$/)).min(1),
+    from: z.string().regex(/^(?:@?[a-z0-9][a-z0-9._/-]*|\.\.?\/[a-z0-9._/-]+\.js)$/),
+  })
+  .strict()
+
+const nestIdentifierSchema = z.string().regex(/^[A-Za-z_$][A-Za-z0-9_$]*$/)
+const nestModuleImportSchema = z.discriminatedUnion('kind', [
+  z.object({ kind: z.literal('identifier'), name: nestIdentifierSchema }).strict(),
+  z
+    .object({
+      kind: z.literal('config-for-root'),
+      module: nestIdentifierSchema,
+      load: nestIdentifierSchema,
+      validate: nestIdentifierSchema,
+      isGlobal: z.boolean(),
+      cache: z.boolean(),
+    })
+    .strict(),
+])
+const nestProviderSchema = z
+  .object({ provide: nestIdentifierSchema, useClass: nestIdentifierSchema })
+  .strict()
+
+const nestModuleSchema = z
+  .object({
+    imports: z.array(nestImportSchema),
+    moduleImports: z.array(nestModuleImportSchema),
+    controllers: z.array(nestIdentifierSchema),
+    providers: z.array(nestProviderSchema),
+    className: z.string().regex(/^[A-Z][A-Za-z0-9]*Module$/),
+  })
+  .strict()
+  .superRefine((module, context) => {
+    assertUnique(
+      module.imports.map(({ from }) => from),
+      'Nest import source',
+      context,
+      ['imports'],
+    )
+    assertUnique(
+      module.imports.flatMap(({ names }) => names),
+      'Nest import identifier',
+      context,
+      ['imports'],
+    )
+    assertUnique(module.controllers, 'Nest controller', context, ['controllers'])
+    assertUnique(
+      module.providers.map(({ provide }) => provide),
+      'Nest provider token',
+      context,
+      ['providers'],
+    )
+    const imported = new Set(module.imports.flatMap(({ names }) => names))
+    const referenced = [
+      module.className === 'AppModule' ? 'Module' : 'Module',
+      ...module.controllers,
+      ...module.providers.flatMap(({ provide, useClass }) => [provide, useClass]),
+      ...module.moduleImports.flatMap((entry) =>
+        entry.kind === 'identifier' ? [entry.name] : [entry.module, entry.load, entry.validate],
+      ),
+    ]
+    for (const identifier of referenced) {
+      if (!imported.has(identifier)) {
+        context.addIssue({
+          code: 'custom',
+          message: `Nest module references an identifier that is not imported: ${identifier}`,
+        })
+      }
+    }
+  })
 
 export const composerDefinitionSchema = z
   .object({
@@ -59,10 +133,11 @@ export const composerDefinitionSchema = z
     format: composerFormatSchema,
     output: relativePathSchema,
     source: relativePathSchema.optional(),
+    nestModule: nestModuleSchema.optional(),
   })
   .strict()
   .superRefine((composer, context) => {
-    const needsSource = !['readme', 'notice', 'license'].includes(composer.format)
+    const needsSource = !['readme', 'notice', 'license', 'nest-module'].includes(composer.format)
     if (needsSource !== Boolean(composer.source)) {
       context.addIssue({
         code: 'custom',
@@ -70,6 +145,13 @@ export const composerDefinitionSchema = z
         message: needsSource
           ? `${composer.format} composer requires a source`
           : `${composer.format} composer must not declare a source`,
+      })
+    }
+    if ((composer.format === 'nest-module') !== Boolean(composer.nestModule)) {
+      context.addIssue({
+        code: 'custom',
+        path: ['nestModule'],
+        message: 'nest-module composer requires exactly one structured module definition',
       })
     }
   })

@@ -59,3 +59,5 @@ export {
 export type { CanonicalTemplateMetadata, ComposerDefinition } from './composition/template.js'
 export { planProjectUpdate, updateProject } from './update.js'
 export type { ProjectUpdatePlan } from './update.js'
+export { adoptStandardV3, planStandardV3Adoption } from './mutation/adoption.js'
+export type { StandardV3AdoptionPlan } from './mutation/adoption.js'

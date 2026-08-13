@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "templateVersion": "0.2.1",
+  "templateVersion": "0.3.0",
   "profiles": {
     "standard": {
       "capabilities": ["api", "auth", "database", "ui", "web"],
@@ -53,6 +53,7 @@
         {
           "source": "apps/api",
           "exclude": [
+            "apps/api/src/app.module.ts",
             "apps/api/release/auth-password-policy.json",
             "apps/api/src/auth",
             "apps/api/src/authorization",
@@ -74,7 +75,10 @@
         { "source": "apps/api/release/auth-password-policy.json" },
         { "source": "apps/api/src/auth" },
         { "source": "apps/api/src/authorization" },
-        { "source": "apps/api/src/contracts" },
+        {
+          "source": "apps/api/src/contracts",
+          "exclude": ["apps/api/src/contracts/api-contract.module.ts"]
+        },
         { "source": "apps/api/src/identity" },
         { "source": "apps/api/src/users" }
       ]
@@ -137,6 +141,76 @@
       "format": "ci-workflow",
       "output": ".github/workflows/ci.yml",
       "source": ".github/workflows/ci.yml"
+    },
+    {
+      "id": "api-app-module",
+      "version": 1,
+      "format": "nest-module",
+      "output": "apps/api/src/app.module.ts",
+      "nestModule": {
+        "imports": [
+          { "names": ["Module"], "from": "@nestjs/common" },
+          { "names": ["ConfigModule"], "from": "@nestjs/config" },
+          { "names": ["APP_FILTER", "APP_INTERCEPTOR"], "from": "@nestjs/core" },
+          { "names": ["AuthModule"], "from": "./auth/auth.module.js" },
+          { "names": ["configuration"], "from": "./config/configuration.js" },
+          { "names": ["validateEnvironment"], "from": "./config/env.schema.js" },
+          { "names": ["DatabaseModule"], "from": "./database/database.module.js" },
+          { "names": ["ApiExceptionFilter"], "from": "./http/api-exception.filter.js" },
+          { "names": ["HealthModule"], "from": "./health/health.module.js" },
+          { "names": ["ObservabilityModule"], "from": "./observability/observability.module.js" },
+          {
+            "names": ["RequestLoggingInterceptor"],
+            "from": "./observability/request-logging.interceptor.js"
+          },
+          { "names": ["UsersModule"], "from": "./users/users.module.js" }
+        ],
+        "moduleImports": [
+          {
+            "kind": "config-for-root",
+            "module": "ConfigModule",
+            "isGlobal": true,
+            "cache": true,
+            "load": "configuration",
+            "validate": "validateEnvironment"
+          },
+          { "kind": "identifier", "name": "ObservabilityModule" },
+          { "kind": "identifier", "name": "DatabaseModule" },
+          { "kind": "identifier", "name": "HealthModule" },
+          { "kind": "identifier", "name": "AuthModule" },
+          { "kind": "identifier", "name": "UsersModule" }
+        ],
+        "controllers": [],
+        "providers": [
+          { "provide": "APP_FILTER", "useClass": "ApiExceptionFilter" },
+          { "provide": "APP_INTERCEPTOR", "useClass": "RequestLoggingInterceptor" }
+        ],
+        "className": "AppModule"
+      }
+    },
+    {
+      "id": "api-contract-module",
+      "version": 1,
+      "format": "nest-module",
+      "output": "apps/api/src/contracts/api-contract.module.ts",
+      "nestModule": {
+        "imports": [
+          { "names": ["Module"], "from": "@nestjs/common" },
+          { "names": ["HealthModule"], "from": "../health/health.module.js" },
+          {
+            "names": ["AuthContractController"],
+            "from": "./auth-contract.controller.js"
+          },
+          {
+            "names": ["UserContractController"],
+            "from": "./user-contract.controller.js"
+          }
+        ],
+        "moduleImports": [{ "kind": "identifier", "name": "HealthModule" }],
+        "controllers": ["AuthContractController", "UserContractController"],
+        "providers": [],
+        "className": "ApiContractModule"
+      }
     },
     {
       "id": "project-readme",

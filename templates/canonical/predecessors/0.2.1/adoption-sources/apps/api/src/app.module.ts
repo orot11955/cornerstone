@@ -1,0 +1,33 @@
+import { Module } from '@nestjs/common';
+import { ConfigModule } from '@nestjs/config';
+import { APP_FILTER, APP_INTERCEPTOR } from '@nestjs/core';
+import { AuthModule } from './auth/auth.module.js';
+import { configuration } from './config/configuration.js';
+import { validateEnvironment } from './config/env.schema.js';
+import { DatabaseModule } from './database/database.module.js';
+import { ApiExceptionFilter } from './http/api-exception.filter.js';
+import { HealthModule } from './health/health.module.js';
+import { ObservabilityModule } from './observability/observability.module.js';
+import { RequestLoggingInterceptor } from './observability/request-logging.interceptor.js';
+import { UsersModule } from './users/users.module.js';
+
+@Module({
+  imports: [
+    ConfigModule.forRoot({
+      isGlobal: true,
+      cache: true,
+      load: [configuration],
+      validate: validateEnvironment,
+    }),
+    ObservabilityModule,
+    DatabaseModule,
+    HealthModule,
+    AuthModule,
+    UsersModule,
+  ],
+  providers: [
+    { provide: APP_FILTER, useClass: ApiExceptionFilter },
+    { provide: APP_INTERCEPTOR, useClass: RequestLoggingInterceptor },
+  ],
+})
+export class AppModule {}

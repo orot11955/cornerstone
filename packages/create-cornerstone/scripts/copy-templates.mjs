@@ -139,7 +139,10 @@ function encodePackedPath(path) {
 function assertCanonicalSourceTree(directory, trackedSources) {
   for (const entry of readdirSync(directory, { withFileTypes: true })) {
     const path = join(directory, entry.name)
-    if (directory === source && !['base', 'licenses', 'standard.json'].includes(entry.name)) {
+    if (
+      directory === source &&
+      !['base', 'licenses', 'predecessors', 'standard.json'].includes(entry.name)
+    ) {
       throw new Error(`Unexpected canonical template source: ${entry.name}`)
     }
     if (entry.isSymbolicLink()) {

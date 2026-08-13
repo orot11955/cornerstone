@@ -26,11 +26,14 @@ import {
   portableScaffoldPathsConflict,
   createProject,
   createProjectFromManifest,
+  adoptStandardV3,
   formatJsonDocument,
   getCapabilityApplicationOrder,
   mergeJsonContributions,
   parseCapabilityCatalog,
   planProject,
+  readManifest,
+  planStandardV3Adoption,
   planProjectUpdate,
   projectLockSchema,
   projectLockV3Schema,
@@ -50,6 +53,13 @@ import {
   planGeneratorMutation,
   setUpdateHookForTest,
 } from '../dist/update-internal.js'
+import {
+  buildPredecessorLock,
+  predecessorLockBytes,
+  parsePredecessorSnapshot,
+  readPredecessorAdoptionSource,
+  resolvePredecessor,
+} from '../dist/composition/predecessor.js'
 import { createHash } from 'node:crypto'
 
 const digest = `sha256:${'a'.repeat(64)}`
@@ -70,39 +80,30 @@ function checksum(value) {
   return `sha256:${createHash('sha256').update(value).digest('hex')}`
 }
 
-async function makePredecessorStandard(target, name = 'update-app') {
-  const lock = await createProjectFromManifest(target, {
+async function makePredecessorStandard(target, name = 'update-app', version = '0.2.0') {
+  const userManifest = {
     schemaVersion: 1,
     name,
     profile: 'standard',
-  })
-  assert.equal(lock.schemaVersion, 2)
-  const readme = await readFile(join(target, 'README.md'), 'utf8')
-  const predecessorReadme = readme.replace(
-    '\nUse `create-cornerstone plan <target> --dry-run` before `create-cornerstone update <target>`; interrupted journaled updates are recovered on the next lifecycle command.\n',
-    '',
-  )
-  await writeFile(join(target, 'README.md'), predecessorReadme)
-  lock.templateVersion = '0.2.0'
-  const readmeComposer = lock.composers.find(({ id }) => id === 'project-readme')
-  readmeComposer.version = 1
-  readmeComposer.checksum = checksum(
-    JSON.stringify(
-      stable({
-        definition: {
-          id: 'project-readme',
-          version: 1,
-          format: 'readme',
-          output: 'README.md',
-        },
-        sources: {},
-      }),
-    ),
-  )
-  lock.outputs.find(({ path }) => path === 'README.md').checksum = checksum(predecessorReadme)
-  const { integrity: _integrity, ...unsigned } = lock
-  lock.integrity = checksum(JSON.stringify(stable(unsigned)))
-  await writeFile(join(target, '.cornerstone/manifest.lock.json'), formatJsonDocument(lock))
+  }
+  await createProjectFromManifest(target, userManifest)
+  const persistedManifest = await readManifest(join(target, 'cornerstone.config.yml'))
+  const manifest = resolveManifest(persistedManifest)
+  const predecessor = await resolvePredecessor(version, manifest)
+  for (const [path, content] of predecessor.contents) {
+    await writeFile(join(target, path), content, { mode: 0o644 })
+    await chmod(join(target, path), 0o644)
+  }
+  for (const source of predecessor.snapshot.adoptionSources) {
+    await writeFile(
+      join(target, source.path),
+      await readPredecessorAdoptionSource(version, source.path),
+      { mode: source.mode },
+    )
+    await chmod(join(target, source.path), source.mode)
+  }
+  const lock = buildPredecessorLock(predecessor, persistedManifest, manifest)
+  await writeFile(join(target, '.cornerstone/manifest.lock.json'), predecessorLockBytes(lock))
   return lock
 }
 
@@ -559,7 +560,7 @@ test('parses v2 locks before generator-owned verification', async () => {
   await assert.rejects(verifyProject(fixture), /unrecognized key/i)
 })
 
-test('reads valid v3 locks but keeps generator verification fail-closed', async () => {
+test('reads v3 locks and rejects non-canonical generator state', async () => {
   const fixture = await mkdtemp(join(tmpdir(), 'cornerstone-v3-reader-test-'))
   await mkdir(join(fixture, '.cornerstone'))
   await writeFile(
@@ -584,7 +585,7 @@ test('reads valid v3 locks but keeps generator verification fail-closed', async 
     join(fixture, '.cornerstone', 'manifest.lock.json'),
     `${JSON.stringify(lock, null, 2)}\n`,
   )
-  await assert.rejects(verifyProject(fixture), /schemaVersion 3 is reader-only/i)
+  await assert.rejects(verifyProject(fixture), /fragment checksum mismatch/i)
 })
 
 test('rejects unresolved production provider slots', () => {
@@ -611,7 +612,7 @@ test('creates the exact standard preview deterministically with real v2 ownershi
 
   const firstLock = await createProject(first, manifestPath)
   const secondLock = await createProject(second, manifestPath)
-  assert.equal(firstLock.schemaVersion, 2)
+  assert.equal(firstLock.schemaVersion, 3)
   assert.deepEqual(firstLock, secondLock)
   assert.deepEqual(
     firstLock.fragments.map(({ id }) => id),
@@ -716,6 +717,95 @@ test('creates the exact standard preview deterministically with real v2 ownershi
   assert.equal(plan.files.includes('LICENSE'), false)
 })
 
+test('composes exact Nest modules and adopts an exact Standard v2 project to v3 lock ownership', async () => {
+  const fixture = await mkdtemp(join(tmpdir(), 'cornerstone-v3-adoption-test-'))
+  const target = join(fixture, 'project')
+  await makePredecessorStandard(target, 'adoption-app', '0.2.1')
+  const lockPath = join(target, '.cornerstone/manifest.lock.json')
+  await verifyProject(target)
+
+  const before = await readFile(lockPath)
+  const userSource = join(target, 'apps/web/src/app/page.tsx')
+  await writeFile(
+    userSource,
+    `${await readFile(userSource, 'utf8')}\n// preserved adoption source\n`,
+  )
+  const plan = await planStandardV3Adoption(target)
+  assert.equal(plan.changes.at(-1).path, '.cornerstone/manifest.lock.json')
+  assert.equal(
+    plan.changes.some(({ path }) => path === 'apps/api/src/app.module.ts'),
+    true,
+  )
+  assert.equal(
+    plan.changes.some(({ path }) => path === 'apps/api/src/contracts/api-contract.module.ts'),
+    true,
+  )
+  assert.deepEqual(await readFile(lockPath), before)
+  assert.deepEqual((await adoptStandardV3(target, { dryRun: true })).changes, plan.changes)
+  const adopted = await adoptStandardV3(target)
+  assert.deepEqual(adopted.changes, plan.changes)
+  assert.equal((await verifyProject(target)).schemaVersion, 3)
+  assert.match(await readFile(userSource, 'utf8'), /preserved adoption source/)
+})
+
+test('rejects modified Nest predecessor and allows user-owned scaffold content drift in v3 verify', async () => {
+  const fixture = await mkdtemp(join(tmpdir(), 'cornerstone-v3-scaffold-test-'))
+  const target = join(fixture, 'project')
+  const lock = await createProjectFromManifest(target, {
+    schemaVersion: 1,
+    name: 'scaffold-app',
+    profile: 'standard',
+  })
+  const scaffoldPath = 'apps/api/src/user-feature.ts'
+  await writeFile(join(target, scaffoldPath), 'export const userFeature = 1\n')
+  lock.scaffolds = [
+    {
+      id: 'feature:user-feature',
+      kind: 'feature',
+      version: 1,
+      name: 'user-feature',
+      optionsDigest: digest,
+      paths: [scaffoldPath],
+    },
+  ]
+  lock.scaffoldsDigest = computeScaffoldsDigest(lock.scaffolds)
+  const { integrity: _integrity, ...unsigned } = lock
+  lock.integrity = checksum(JSON.stringify(stable(unsigned)))
+  await writeFile(join(target, '.cornerstone/manifest.lock.json'), formatJsonDocument(lock))
+  await writeFile(join(target, scaffoldPath), 'export const userFeature = 2\n')
+  await verifyProject(target)
+  await rm(join(target, scaffoldPath))
+  await assert.rejects(verifyProject(target), /scaffold registry path.*regular file/i)
+  await writeFile(join(target, scaffoldPath), 'export const userFeature = 3\n')
+
+  await writeFile(join(target, 'apps/api/src/app.module.ts'), 'user edit\n')
+  await assert.rejects(verifyProject(target), /generator-owned output drift.*app\.module\.ts/i)
+})
+
+test('rejects a modified exact v2 Nest predecessor before adoption writes', async () => {
+  const fixture = await mkdtemp(join(tmpdir(), 'cornerstone-v3-modified-predecessor-test-'))
+  const target = join(fixture, 'project')
+  await makePredecessorStandard(target, 'modified-predecessor-app', '0.2.1')
+  await writeFile(join(target, 'apps/api/src/app.module.ts'), 'modified predecessor\n')
+  await assert.rejects(
+    planStandardV3Adoption(target),
+    /generator-owned output drift|manual migration/i,
+  )
+})
+
+test('rejects chmod drift in an exact v2 predecessor before v3 adoption', async () => {
+  const fixture = await mkdtemp(join(tmpdir(), 'cornerstone-v3-mode-predecessor-test-'))
+  const target = join(fixture, 'project')
+  const lockPath = join(target, '.cornerstone/manifest.lock.json')
+  await makePredecessorStandard(target, 'mode-predecessor-app', '0.2.1')
+  const predecessorBytes = await readFile(lockPath, 'utf8')
+  await chmod(join(target, 'README.md'), 0o600)
+
+  await assert.rejects(planStandardV3Adoption(target), /manual migration required/i)
+  assert.equal((await stat(join(target, 'README.md'))).mode & 0o777, 0o600)
+  assert.equal(await readFile(lockPath, 'utf8'), predecessorBytes)
+})
+
 test('writes only a selected project LICENSE for standard', async () => {
   const fixture = await mkdtemp(join(tmpdir(), 'cornerstone-license-test-'))
   const lock = await createProjectFromManifest(join(fixture, 'project'), {
@@ -724,7 +814,7 @@ test('writes only a selected project LICENSE for standard', async () => {
     profile: 'standard',
     license: 'MIT',
   })
-  assert.equal(lock.schemaVersion, 2)
+  assert.equal(lock.schemaVersion, 3)
   assert.equal(lock.outputs.find(({ path }) => path === 'LICENSE')?.owner, 'license')
   assert.match(await readFile(join(fixture, 'project', 'LICENSE'), 'utf8'), /MIT License/)
 })
@@ -823,6 +913,61 @@ test('standard verification rejects generator-owned content and mode drift', asy
   await assert.rejects(verifyProject(modeTarget), /mode drift.*README\.md/i)
 })
 
+test('verifies immutable Standard v2 snapshots and rejects predecessor mode drift', async () => {
+  const fixture = await mkdtemp(join(tmpdir(), 'cornerstone-legacy-snapshot-test-'))
+  const target = join(fixture, 'project')
+  const lock = await makePredecessorStandard(target, 'legacy-app', '0.2.1')
+  assert.equal((await verifyProject(target)).integrity, lock.integrity)
+  await chmod(join(target, 'README.md'), 0o600)
+  await assert.rejects(verifyProject(target), /generator-owned output drift.*README\.md/i)
+})
+
+test('rejects malformed immutable predecessor adoption source contracts', () => {
+  const base = {
+    schemaVersion: 1,
+    templateVersion: '0.2.1',
+    fixtureName: 'snapshot-app',
+    fragments: [{ id: 'base', version: 1, checksum: digest }],
+    composers: [{ id: 'owner', version: 1, checksum: digest }],
+    outputs: [{ path: 'package.json', owner: 'owner', checksum: digest, mode: 0o644 }],
+    adoptionSources: [{ path: 'apps/api/src/app.module.ts', checksum: digest, mode: 0o644 }],
+  }
+  assert.throws(
+    () =>
+      parsePredecessorSnapshot({
+        ...base,
+        adoptionSources: [
+          ...base.adoptionSources,
+          { path: 'apps/api/src/app.module.ts', checksum: digest, mode: 0o644 },
+        ],
+      }),
+    /adoptionSources must be sorted and unique/i,
+  )
+  assert.throws(
+    () =>
+      parsePredecessorSnapshot({
+        ...base,
+        adoptionSources: [{ path: 'package.json', checksum: digest, mode: 0o644 }],
+      }),
+    /adoption source overlaps output/i,
+  )
+})
+
+test('chains the immutable Standard 0.2.0 update and 0.2.1 v3 adoption', async () => {
+  const fixture = await mkdtemp(join(tmpdir(), 'cornerstone-predecessor-chain-test-'))
+  const target = join(fixture, 'project')
+  await makePredecessorStandard(target, 'chain-app', '0.2.0')
+  assert.equal((await verifyProject(target)).templateVersion, '0.2.0')
+  await updateProject(target)
+  assert.equal((await verifyProject(target)).templateVersion, '0.2.1')
+  const adoptionPlan = await planStandardV3Adoption(target)
+  assert.equal(adoptionPlan.changes.at(-1).path, '.cornerstone/manifest.lock.json')
+  await adoptStandardV3(target)
+  const adopted = await verifyProject(target)
+  assert.equal(adopted.schemaVersion, 3)
+  assert.equal(adopted.templateVersion, '0.3.0')
+})
+
 test('production generation remains fail-closed after provider resolution', async () => {
   const fixture = await mkdtemp(join(tmpdir(), 'cornerstone-production-test-'))
   await assert.rejects(
@@ -851,7 +996,7 @@ test('atomically promotes into an empty target and preserves a raced target', as
     name: 'empty-target',
     profile: 'standard',
   })
-  assert.equal((await verifyProject(emptyTarget)).schemaVersion, 2)
+  assert.equal((await verifyProject(emptyTarget)).schemaVersion, 3)
 
   const racedTarget = join(fixture, 'raced-target')
   await mkdir(racedTarget)

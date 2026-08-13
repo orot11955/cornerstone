@@ -6,23 +6,18 @@ import {
   open,
   realpath,
   readFile,
-  readdir,
   rename,
   rm,
   writeFile,
 } from 'node:fs/promises'
 import { basename, dirname, join, relative, resolve, sep } from 'node:path'
 import { parseDocument } from 'yaml'
+import { formatJsonDocument } from '../composition/composer.js'
 import {
-  composePredecessorReadme,
-  composeStructuredOutputs,
-  formatJsonDocument,
-} from '../composition/composer.js'
-import {
-  loadCanonicalTemplateMetadata,
-  type CanonicalTemplateMetadata,
-  type ComposerDefinition,
-} from '../composition/template.js'
+  buildPredecessorLock,
+  resolvePredecessor,
+  type ResolvedPredecessor,
+} from '../composition/predecessor.js'
 import { sha256, stableJson } from '../hash.js'
 import {
   projectLockV2Schema,
@@ -45,24 +40,18 @@ export const lockRelativePath = '.cornerstone/manifest.lock.json'
 export const maximumMetadataBytes = 1024 * 1024
 const maximumGeneratedFileBytes = 16 * 1024 * 1024
 export const generatedFileMode = 0o644
-const templateRoot = resolve(import.meta.dirname, '..', 'templates', 'canonical')
 const updateLockRelativePath = '.cornerstone/update.lock'
-const approvedGeneratorVersion = '0.1.0'
-const approvedCompatibility = {
-  node: '>=22.20.0 <25',
-  pnpm: '11.20.0',
-  typescript: '5.9.3',
-} as const
-const approvedBaselines = {
-  manifest: 1 as const,
-  database: '1786579300000-GrantAdminBootstrap',
-  openapi: '1.0.0',
-}
-const approvedCertification = {
-  profile: 'standard' as const,
-  matrix: 'standard-preview-node24-pg17',
-  status: 'supported' as const,
-}
+const exactStandardCapabilities = ['api', 'auth', 'database', 'ui', 'web'] as const
+const legacyGeneratorOwnedPaths = [
+  '.github/workflows/ci.yml',
+  'LICENSE',
+  'NOTICE',
+  'README.md',
+  'package.json',
+  'pnpm-workspace.yaml',
+  'test-scope.json',
+  'turbo.json',
+] as const
 const digestPattern = /^sha256:[a-f0-9]{64}$/
 const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
 
@@ -228,30 +217,22 @@ async function prepareUpdate(target: string): Promise<PreparedUpdate> {
     throw new Error('Resolved manifest does not match the update lock')
   }
 
-  const metadata = loadCanonicalTemplateMetadata()
-  if (metadata.templateVersion !== currentTemplateVersion) {
-    throw new Error(`Generator update metadata must be ${currentTemplateVersion}`)
-  }
-  assertApprovedLockFields(lock)
-  const fragments = metadata.fragments.filter(
-    ({ id }) => id === 'base' || manifest.capabilities.includes(id as never),
-  )
-  await assertFragmentsUnchanged(lock, fragments)
-  if (lock.templateVersion === predecessorTemplateVersion) {
-    await assertPredecessorComposers(lock, metadata, manifest)
-  } else if (lock.templateVersion === currentTemplateVersion) {
-    await assertCurrentComposers(lock, metadata, manifest)
-  } else {
+  if (
+    lock.templateVersion !== predecessorTemplateVersion &&
+    lock.templateVersion !== currentTemplateVersion
+  ) {
     throw new Error(
       `Update requires Standard template ${predecessorTemplateVersion} or ${currentTemplateVersion}`,
     )
   }
-  assertExactOutputSet(lock, applicableComposers(metadata.composers, manifest))
+  const source = await resolvePredecessor(lock.templateVersion, manifest)
+  const expectedSourceLock = buildPredecessorLock(source, userManifest, manifest)
+  assertExactSnapshotLock(lock, expectedSourceLock)
   await assertLockedOutputs(target, lock)
 
-  const composed = await composeStructuredOutputs(templateRoot, metadata, manifest)
-  for (const output of composed) assertGeneratedSize(output.content, output.path)
-  const desiredLock = await buildDesiredLock(userManifest, manifest, metadata, composed)
+  const desired = await resolvePredecessor(currentTemplateVersion, manifest)
+  for (const [path, content] of desired.contents) assertGeneratedSize(content, path)
+  const desiredLock = buildPredecessorLock(desired, userManifest, manifest)
   if (lock.templateVersion === currentTemplateVersion) {
     if (stableJson(lock) !== stableJson(desiredLock)) {
       throw new Error('Current Standard lock differs from the generator-owned resolution')
@@ -270,12 +251,14 @@ async function prepareUpdate(target: string): Promise<PreparedUpdate> {
 
   const contents = new Map<string, Uint8Array>()
   const changes: UpdateChange[] = []
-  for (const output of composed) {
+  for (const output of desired.outputs) {
     const locked = lock.outputs.find(({ path }) => path === output.path)
     if (!locked) throw new Error(`Manual migration required for new output ${output.path}`)
-    const afterChecksum = sha256(output.content)
+    const content = desired.contents.get(output.path)
+    if (!content) throw new Error(`Immutable predecessor output content missing: ${output.path}`)
+    const afterChecksum = output.checksum
     if (afterChecksum === locked.checksum && locked.mode === generatedFileMode) continue
-    contents.set(output.path, output.content)
+    contents.set(output.path, content)
     changes.push({
       action: 'modify',
       path: output.path,
@@ -293,7 +276,7 @@ async function prepareUpdate(target: string): Promise<PreparedUpdate> {
                   `Generator-owned output ${output.path}`,
                 )
               ).toString('utf8'),
-              Buffer.from(output.content).toString('utf8'),
+              content.toString('utf8'),
             )
           : null,
     })
@@ -548,57 +531,20 @@ async function validateCommittedJournalWithoutBackup(
   )
   const currentLock = projectLockV2Schema.parse(JSON.parse(currentLockBytes.toString('utf8')))
   assertIntegrity(currentLock)
-  const manifest = currentLock.resolved
-  const metadata = loadCanonicalTemplateMetadata()
-  const readmeDefinition = metadata.composers.find(({ id }) => id === 'project-readme')
-  if (!readmeDefinition) throw new Error('Current metadata is missing project-readme')
-  const predecessorReadme = composePredecessorReadme(manifest, currentLock.certification.matrix)
-  const predecessorComposers = await Promise.all(
-    currentLock.composers.map(async (composer) =>
-      composer.id === 'project-readme'
-        ? {
-            id: composer.id,
-            version: 1,
-            checksum: await composerChecksum({ ...readmeDefinition, version: 1 }, metadata),
-          }
-        : composer,
-    ),
+  await assertSafeRegularFile(target, 'cornerstone.config.yml')
+  const userManifest = await readManifest(safeTargetPath(target, 'cornerstone.config.yml'))
+  const manifest = resolveManifest(userManifest)
+  const current = await resolvePredecessor(currentTemplateVersion, manifest)
+  assertExactSnapshotLock(currentLock, buildPredecessorLock(current, userManifest, manifest))
+  const predecessor = await resolvePredecessor(predecessorTemplateVersion, manifest)
+  const predecessorLock = buildPredecessorLock(predecessor, userManifest, manifest)
+  const expected = buildExpectedJournalEntries(
+    journal.backupRoot,
+    predecessor,
+    predecessorLock,
+    current,
+    currentLock,
   )
-  const { integrity: _integrity, ...currentUnsigned } = currentLock
-  const predecessorUnsigned = {
-    ...currentUnsigned,
-    templateVersion: predecessorTemplateVersion,
-    composers: predecessorComposers,
-    outputs: currentLock.outputs.map((output) =>
-      output.owner === 'project-readme'
-        ? { ...output, checksum: sha256(predecessorReadme) }
-        : output,
-    ),
-  }
-  const predecessorLock = {
-    ...predecessorUnsigned,
-    integrity: sha256(stableJson(predecessorUnsigned)),
-  }
-  const readmeOutput = currentLock.outputs.find(({ owner }) => owner === 'project-readme')
-  if (!readmeOutput) throw new Error('Current lock is missing project-readme output')
-  const expected: JournalEntry[] = [
-    {
-      path: lockRelativePath,
-      backupPath: `${journal.backupRoot}/${lockRelativePath}`,
-      beforeChecksum: sha256(Buffer.from(formatJsonDocument(predecessorLock))),
-      afterChecksum: sha256(currentLockBytes),
-      beforeMode: generatedFileMode,
-      afterMode: generatedFileMode,
-    },
-    {
-      path: 'README.md',
-      backupPath: `${journal.backupRoot}/README.md`,
-      beforeChecksum: sha256(predecessorReadme),
-      afterChecksum: readmeOutput.checksum,
-      beforeMode: generatedFileMode,
-      afterMode: generatedFileMode,
-    },
-  ]
   const sortEntries = (entries: readonly JournalEntry[]) =>
     [...entries].sort((left, right) => left.path.localeCompare(right.path))
   if (stableJson(sortEntries(journal.entries)) !== stableJson(sortEntries(expected))) {
@@ -646,41 +592,18 @@ async function validateRecoveryJournal(target: string, journal: UpdateJournal): 
   if (stableJson(manifest) !== stableJson(lock.resolved)) {
     throw new Error('Update recovery resolution does not match the predecessor lock')
   }
-  assertApprovedLockFields(lock)
-  const metadata = loadCanonicalTemplateMetadata()
-  const fragments = metadata.fragments.filter(
-    ({ id }) => id === 'base' || manifest.capabilities.includes(id as never),
+  const predecessor = await resolvePredecessor(predecessorTemplateVersion, manifest)
+  const predecessorLock = buildPredecessorLock(predecessor, userManifest, manifest)
+  assertExactSnapshotLock(lock, predecessorLock)
+  const desired = await resolvePredecessor(currentTemplateVersion, manifest)
+  const desiredLock = buildPredecessorLock(desired, userManifest, manifest)
+  const expected = buildExpectedJournalEntries(
+    journal.backupRoot,
+    predecessor,
+    predecessorLock,
+    desired,
+    desiredLock,
   )
-  await assertFragmentsUnchanged(lock, fragments)
-  await assertPredecessorComposers(lock, metadata, manifest)
-  assertExactOutputSet(lock, applicableComposers(metadata.composers, manifest))
-  const composed = await composeStructuredOutputs(templateRoot, metadata, manifest)
-  const desiredLock = await buildDesiredLock(userManifest, manifest, metadata, composed)
-  const expected: JournalEntry[] = []
-  for (const output of composed) {
-    const before = lock.outputs.find(({ path }) => path === output.path)
-    if (!before) throw new Error(`Update recovery predecessor output is missing: ${output.path}`)
-    const afterChecksum = sha256(output.content)
-    if (before.checksum !== afterChecksum || before.mode !== generatedFileMode) {
-      expected.push({
-        path: output.path,
-        backupPath: `${journal.backupRoot}/${output.path}`,
-        beforeChecksum: before.checksum,
-        afterChecksum,
-        beforeMode: before.mode,
-        afterMode: generatedFileMode,
-      })
-    }
-  }
-  const desiredLockBytes = Buffer.from(formatJsonDocument(desiredLock))
-  expected.push({
-    path: lockRelativePath,
-    backupPath: `${journal.backupRoot}/${lockRelativePath}`,
-    beforeChecksum: sha256(lockBytes),
-    afterChecksum: sha256(desiredLockBytes),
-    beforeMode: generatedFileMode,
-    afterMode: generatedFileMode,
-  })
   const sortEntries = (entries: readonly JournalEntry[]) =>
     [...entries].sort((left, right) => left.path.localeCompare(right.path))
   if (stableJson(sortEntries(journal.entries)) !== stableJson(sortEntries(expected))) {
@@ -854,7 +777,7 @@ async function assertUpdateOwnershipBoundary(target: string): Promise<void> {
     journalRelativePath,
     updateLockRelativePath,
     ...lock.outputs.map(({ path }) => path),
-    ...loadCanonicalTemplateMetadata().composers.map(({ output }) => output),
+    ...legacyGeneratorOwnedPaths,
   ])
   if (await pathExists(safeTargetPath(target, journalRelativePath))) {
     const journal = parseJournal(
@@ -1133,198 +1056,60 @@ async function assertLockedOutputs(target: string, lock: ProjectLockV2Data): Pro
   }
 }
 
-async function assertFragmentsUnchanged(
-  lock: ProjectLockV2Data,
-  fragments: readonly { id: string; version: number }[],
-): Promise<void> {
-  if (lock.fragments.length !== fragments.length) {
-    throw new Error('Manual migration required: fragment set changed')
+function assertExactSnapshotLock(actual: ProjectLockV2Data, expected: ProjectLockV2Data): void {
+  if (stableJson(actual.fragments) !== stableJson(expected.fragments)) {
+    const changed = expected.fragments.find(
+      (fragment) =>
+        stableJson(actual.fragments.find(({ id }) => id === fragment.id)) !== stableJson(fragment),
+    )
+    throw new Error(`Manual migration required: fragment ${changed?.id ?? 'set'} changed`)
   }
-  for (const fragment of fragments) {
-    const locked = lock.fragments.find(({ id }) => id === fragment.id)
-    const checksum = await directoryChecksum(join(templateRoot, 'fragments', fragment.id))
-    if (!locked || locked.version !== fragment.version || locked.checksum !== checksum) {
-      throw new Error(`Manual migration required: fragment ${fragment.id} changed`)
-    }
-  }
-}
-
-function applicableComposers(
-  definitions: readonly ComposerDefinition[],
-  manifest: ResolvedManifest,
-): ComposerDefinition[] {
-  return definitions.filter(
-    ({ format }) =>
-      format !== 'license' || (!!manifest.license && manifest.license !== 'UNLICENSED'),
-  )
-}
-
-function assertApprovedLockFields(lock: ProjectLockV2Data): void {
   if (
-    lock.generatorVersion !== approvedGeneratorVersion ||
-    stableJson(lock.compatibility) !== stableJson(approvedCompatibility) ||
-    stableJson(lock.baselines) !== stableJson(approvedBaselines) ||
-    stableJson(lock.certification) !== stableJson(approvedCertification) ||
-    stableJson(lock.resolved.providers) !== stableJson({})
+    stableJson(actual.composers) !== stableJson(expected.composers) ||
+    stableJson(actual.outputs) !== stableJson(expected.outputs)
   ) {
+    throw new Error('Manual migration required: predecessor composer/output contract changed')
+  }
+  if (stableJson(actual) !== stableJson(expected)) {
     throw new Error('Manual migration required: predecessor release contract changed')
   }
 }
 
-function assertExactOutputSet(
-  lock: ProjectLockV2Data,
-  composers: readonly ComposerDefinition[],
-): void {
-  const expected = composers
-    .map(({ id, output }) => ({ path: output, owner: id }))
-    .sort((left, right) => left.path.localeCompare(right.path))
-  const actual = lock.outputs
-    .map(({ path, owner }) => ({ path, owner }))
-    .sort((left, right) => left.path.localeCompare(right.path))
-  if (stableJson(actual) !== stableJson(expected)) {
-    throw new Error('Manual migration required: composer output path/owner set changed')
-  }
-}
-
-async function assertPredecessorComposers(
-  lock: ProjectLockV2Data,
-  metadata: CanonicalTemplateMetadata,
-  manifest: ResolvedManifest,
-): Promise<void> {
-  const applicable = applicableComposers(metadata.composers, manifest)
-  if (lock.composers.length !== applicable.length) {
-    throw new Error('Manual migration required: composer set changed')
-  }
-  for (const current of applicable) {
-    const predecessor = current.id === 'project-readme' ? { ...current, version: 1 } : current
-    const expectedChecksum = await composerChecksum(predecessor, metadata)
-    const locked = lock.composers.find(({ id }) => id === predecessor.id)
-    if (!locked || locked.version !== predecessor.version || locked.checksum !== expectedChecksum) {
-      throw new Error(
-        `Manual migration required: predecessor composer ${predecessor.id} is incompatible`,
-      )
-    }
-  }
-  const readme = lock.outputs.find(({ owner }) => owner === 'project-readme')
-  if (
-    !readme ||
-    readme.checksum !== sha256(composePredecessorReadme(manifest, lock.certification.matrix))
-  ) {
-    throw new Error('Manual migration required: predecessor README contract is incompatible')
-  }
-  const currentOutputs = await composeStructuredOutputs(templateRoot, metadata, manifest)
-  for (const output of currentOutputs) {
-    const locked = lock.outputs.find(
-      ({ path, owner }) => path === output.path && owner === output.owner,
-    )
-    const expectedContent =
-      output.owner === 'project-readme'
-        ? composePredecessorReadme(manifest, lock.certification.matrix)
-        : output.content
-    if (
-      !locked ||
-      locked.mode !== generatedFileMode ||
-      locked.checksum !== sha256(expectedContent)
-    ) {
-      throw new Error(
-        `Manual migration required: predecessor output ${output.path} is incompatible`,
-      )
-    }
-  }
-}
-
-async function assertCurrentComposers(
-  lock: ProjectLockV2Data,
-  metadata: CanonicalTemplateMetadata,
-  manifest: ResolvedManifest,
-): Promise<void> {
-  const applicable = applicableComposers(metadata.composers, manifest)
-  if (lock.composers.length !== applicable.length) {
-    throw new Error('Current Standard composer set is incompatible')
-  }
-  for (const definition of applicable) {
-    const locked = lock.composers.find(({ id }) => id === definition.id)
-    if (
-      !locked ||
-      locked.version !== definition.version ||
-      locked.checksum !== (await composerChecksum(definition, metadata))
-    ) {
-      throw new Error(`Current Standard composer ${definition.id} is incompatible`)
-    }
-  }
-}
-
-async function buildDesiredLock(
-  userManifest: ProjectManifest,
-  manifest: ResolvedManifest,
-  metadata: CanonicalTemplateMetadata,
-  outputs: readonly { owner: string; path: string; content: Uint8Array }[],
-): Promise<ProjectLockV2Data> {
-  const composers = await Promise.all(
-    applicableComposers(metadata.composers, manifest).map(async (definition) => ({
-      id: definition.id,
-      version: definition.version,
-      checksum: await composerChecksum(definition, metadata),
-    })),
-  )
-  const fragments = await Promise.all(
-    loadCanonicalTemplateMetadata()
-      .fragments.filter(({ id }) => id === 'base' || manifest.capabilities.includes(id as never))
-      .map(async ({ id, version }) => ({
-        id,
-        version,
-        checksum: await directoryChecksum(join(templateRoot, 'fragments', id)),
-      })),
-  )
-  const unsigned = {
-    schemaVersion: 2 as const,
-    generatorVersion: approvedGeneratorVersion,
-    templateVersion: currentTemplateVersion,
-    userManifestDigest: sha256(stableJson(userManifest)),
-    resolved: manifest,
-    compatibility: approvedCompatibility,
-    baselines: approvedBaselines,
-    fragments: fragments.sort((left, right) => left.id.localeCompare(right.id)),
-    composers: composers.sort((left, right) => left.id.localeCompare(right.id)),
-    outputs: outputs
-      .map((output) => ({
+function buildExpectedJournalEntries(
+  backupRoot: string,
+  predecessor: ResolvedPredecessor,
+  predecessorLock: ProjectLockV2Data,
+  desired: ResolvedPredecessor,
+  desiredLock: ProjectLockV2Data,
+): JournalEntry[] {
+  const entries: JournalEntry[] = []
+  for (const output of desired.outputs) {
+    const before = predecessor.outputs.find(({ path }) => path === output.path)
+    if (!before) throw new Error(`Immutable predecessor output is missing: ${output.path}`)
+    if (before.checksum !== output.checksum || before.mode !== output.mode) {
+      entries.push({
         path: output.path,
-        owner: output.owner,
-        checksum: sha256(output.content),
-        mode: generatedFileMode,
-      }))
-      .sort((left, right) => left.path.localeCompare(right.path)),
-    certification: approvedCertification,
-  }
-  return { ...unsigned, integrity: sha256(stableJson(unsigned)) }
-}
-
-async function composerChecksum(
-  composer: ComposerDefinition,
-  metadata: CanonicalTemplateMetadata,
-): Promise<string> {
-  const sources: Record<string, string> = {}
-  if (composer.source) {
-    sources.workspace = sha256(await readFile(join(templateRoot, 'composer-sources', composer.id)))
-  }
-  if (composer.format === 'license') {
-    for (const license of ['ISC', 'MIT']) {
-      sources[license] = sha256(await readFile(join(templateRoot, 'licenses', license)))
+        backupPath: `${backupRoot}/${output.path}`,
+        beforeChecksum: before.checksum,
+        afterChecksum: output.checksum,
+        beforeMode: before.mode,
+        afterMode: output.mode,
+      })
     }
   }
-  if (composer.format === 'notice') {
-    sources.generator = sha256(await readFile(join(import.meta.dirname, '..', '..', 'NOTICE')))
-    for (const fragment of metadata.fragments) {
-      sources[`fragment-${fragment.id}`] = await noticeChecksum(
-        join(templateRoot, 'fragments', fragment.id),
-      )
-    }
-  }
-  return sha256(stableJson({ definition: composer, sources }))
+  entries.push({
+    path: lockRelativePath,
+    backupPath: `${backupRoot}/${lockRelativePath}`,
+    beforeChecksum: sha256(Buffer.from(formatJsonDocument(predecessorLock))),
+    afterChecksum: sha256(Buffer.from(formatJsonDocument(desiredLock))),
+    beforeMode: generatedFileMode,
+    afterMode: generatedFileMode,
+  })
+  return entries.sort((left, right) => left.path.localeCompare(right.path))
 }
 
 function assertExactStandard(manifest: ResolvedManifest): void {
-  const exact = [...loadCanonicalTemplateMetadata().profiles.standard.capabilities].sort()
+  const exact = [...exactStandardCapabilities]
   if (manifest.profile !== 'standard' || stableJson(manifest.capabilities) !== stableJson(exact)) {
     throw new Error('Update supports only the exact Standard v2 composition')
   }
@@ -1386,10 +1171,7 @@ function parseJournal(value: unknown): UpdateJournal {
     throw new Error('Invalid update journal')
   }
   const journal = value as UpdateJournal
-  const allowedPaths = new Set([
-    lockRelativePath,
-    ...loadCanonicalTemplateMetadata().composers.map(({ output }) => output),
-  ])
+  const allowedPaths = new Set([lockRelativePath, ...legacyGeneratorOwnedPaths])
   if (
     !hasExactKeys(journal as unknown as Record<string, unknown>, [
       'schemaVersion',
@@ -1481,44 +1263,4 @@ export function safeTargetPath(target: string, path: string): string {
     throw new Error(`Update path escapes target: ${path}`)
   }
   return output
-}
-
-async function directoryChecksum(directory: string): Promise<string> {
-  const entries: string[] = []
-  await collectFiles(directory, '', entries)
-  return sha256(entries.sort().join('\n'))
-}
-
-async function noticeChecksum(directory: string): Promise<string> {
-  const entries: string[] = []
-  await collectFiles(
-    directory,
-    '',
-    entries,
-    (name) => name.endsWith('/NOTICE') || name === 'NOTICE',
-  )
-  return sha256(entries.sort().join('\n'))
-}
-
-async function collectFiles(
-  directory: string,
-  relativePath: string,
-  output: string[],
-  predicate: (path: string) => boolean = () => true,
-): Promise<void> {
-  let entries
-  try {
-    entries = await readdir(directory, { withFileTypes: true })
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return
-    throw error
-  }
-  for (const entry of entries) {
-    const path = join(directory, entry.name)
-    const name = relativePath ? `${relativePath}/${entry.name}` : entry.name
-    if (entry.isDirectory()) await collectFiles(path, name, output, predicate)
-    else if (entry.isFile() && predicate(name))
-      output.push(`${name}:${sha256(await readFile(path))}`)
-    else if (entry.isSymbolicLink()) throw new Error(`Template symlinks are not allowed: ${name}`)
-  }
 }

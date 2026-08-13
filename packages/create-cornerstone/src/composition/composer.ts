@@ -101,6 +101,11 @@ async function composeOne(
     )
   }
 
+  if (composer.format === 'nest-module') {
+    if (!composer.nestModule) throw new Error(`Composer ${composer.id} is missing nestModule`)
+    return Buffer.from(composeNestModule(composer.nestModule))
+  }
+
   const source = await readComposerSource(templateRoot, composer)
   if (composer.format === 'package-json') {
     const value = parseJsonObject(source)
@@ -155,6 +160,55 @@ async function composeOne(
   if (composer.format === 'ci-workflow') removeUnsupportedCiSteps(value)
   const composed = mergeJsonContributions([{ owner: 'workspace-snapshot', value }])
   return Buffer.from(stringify(composed, { sortMapEntries: true, singleQuote: true }))
+}
+
+export function composeNestModule(module: NonNullable<ComposerDefinition['nestModule']>): string {
+  const lines = module.imports.map(({ names, from }) => {
+    return `import { ${names.join(', ')} } from '${from}';`
+  })
+  const fields: string[] = []
+  if (module.moduleImports.length > 0) {
+    const values = module.moduleImports.map((value) => renderNestModuleImport(value))
+    const simple = values.every((value) => !value.includes('\n'))
+    fields.push(
+      simple
+        ? `  imports: [${values.join(', ')}],`
+        : `  imports: [\n${values.map((value) => indentExpression(value, 4)).join(',\n')},\n  ],`,
+    )
+  }
+  if (module.controllers.length > 0) {
+    fields.push(`  controllers: [${module.controllers.join(', ')}],`)
+  }
+  if (module.providers.length > 0) {
+    fields.push(
+      `  providers: [\n${module.providers
+        .map(({ provide, useClass }) => `    { provide: ${provide}, useClass: ${useClass} }`)
+        .join(',\n')},\n  ],`,
+    )
+  }
+  return `${lines.join('\n')}\n\n@Module({\n${fields.join('\n')}\n})\nexport class ${module.className} {}\n`
+}
+
+function renderNestModuleImport(
+  value: NonNullable<ComposerDefinition['nestModule']>['moduleImports'][number],
+): string {
+  if (value.kind === 'identifier') return value.name
+  return (
+    `${value.module}.forRoot({\n` +
+    `  isGlobal: ${value.isGlobal},\n` +
+    `  cache: ${value.cache},\n` +
+    `  load: [${value.load}],\n` +
+    `  validate: ${value.validate},\n` +
+    '})'
+  )
+}
+
+function indentExpression(value: string, spaces: number): string {
+  const padding = ' '.repeat(spaces)
+  return value
+    .split('\n')
+    .map((line) => `${padding}${line}`)
+    .join('\n')
 }
 
 export function formatJsonDocument(value: unknown): string {
