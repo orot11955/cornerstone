@@ -148,6 +148,10 @@ export async function verifyProject(targetPath: string): Promise<ProjectLock> {
     return lock
   }
 
+  if (lock.schemaVersion === 3) {
+    throw new Error('Lock schemaVersion 3 is reader-only and is not yet supported by verification')
+  }
+
   assertSupportedComposition(manifest)
   await verifyStandardProject(target, userManifest, manifest, lock)
   return lock

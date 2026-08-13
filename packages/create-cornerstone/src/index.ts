@@ -11,6 +11,7 @@ export {
   projectLockSchema,
   projectLockV1Schema,
   projectLockV2Schema,
+  projectLockV3Schema,
   projectManifestSchema,
   resolveManifest,
   resolvedManifestSchema,
@@ -19,9 +20,22 @@ export type {
   ProjectLockData,
   ProjectLockV1Data,
   ProjectLockV2Data,
+  ProjectLockV3Data,
   ProjectManifest,
   ResolvedManifest,
 } from './schema.js'
+export {
+  canonicalScaffoldId,
+  computeScaffoldsDigest,
+  isGeneratorControlPath,
+  portableScaffoldPathsConflict,
+  scaffoldKindSchema,
+  scaffoldPathSchema,
+  scaffoldRegistryEntrySchema,
+  scaffoldRegistrySchema,
+  validateScaffoldRegistry,
+} from './scaffold/registry.js'
+export type { ScaffoldKind, ScaffoldRegistryEntry } from './scaffold/registry.js'
 export {
   bundledCapabilityCatalog,
   capabilityCatalogSchema,

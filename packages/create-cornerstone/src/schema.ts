@@ -1,6 +1,13 @@
 import { z } from 'zod'
 import { capabilitySchema, type Capability } from './composition/catalog.js'
 import { resolveCapabilities } from './composition/resolver.js'
+import {
+  computeScaffoldsDigest,
+  isGeneratorControlPath,
+  portableScaffoldPathsConflict,
+  scaffoldRegistrySchema,
+  type ScaffoldRegistryEntry,
+} from './scaffold/registry.js'
 
 export const profileSchema = z.enum(['minimal', 'standard', 'production', 'regulated'])
 export { capabilitySchema }
@@ -224,14 +231,64 @@ export const projectLockV2Schema = z
     }
   })
 
+export const projectLockV3Schema = z
+  .object({
+    ...projectLockV2Schema.shape,
+    schemaVersion: z.literal(3),
+    scaffolds: scaffoldRegistrySchema,
+    scaffoldsDigest: digestSchema,
+  })
+  .strict()
+  .superRefine((lock, context) => {
+    const { scaffolds: _scaffolds, scaffoldsDigest: _scaffoldsDigest, ...common } = lock
+    const v2Result = projectLockV2Schema.safeParse({ ...common, schemaVersion: 2 })
+    if (!v2Result.success) {
+      for (const issue of v2Result.error.issues) {
+        context.addIssue({ code: 'custom', path: issue.path, message: issue.message })
+      }
+    }
+
+    const outputPaths = lock.outputs.map(({ path }) => path)
+    lock.scaffolds.forEach((scaffold, scaffoldIndex) => {
+      scaffold.paths.forEach((path, pathIndex) => {
+        if (outputPaths.some((outputPath) => portableScaffoldPathsConflict(outputPath, path))) {
+          context.addIssue({
+            code: 'custom',
+            path: ['scaffolds', scaffoldIndex, 'paths', pathIndex],
+            message: 'Scaffold path conflicts with an existing lock output',
+          })
+        }
+        if (isGeneratorControlPath(path)) {
+          context.addIssue({
+            code: 'custom',
+            path: ['scaffolds', scaffoldIndex, 'paths', pathIndex],
+            message: 'Scaffold path conflicts with the generator control namespace',
+          })
+        }
+      })
+    })
+
+    if (lock.scaffoldsDigest !== computeScaffoldsDigest(lock.scaffolds)) {
+      context.addIssue({
+        code: 'custom',
+        path: ['scaffoldsDigest'],
+        message: 'Scaffold registry digest mismatch',
+      })
+    }
+  })
+
 export const projectLockSchema = z.discriminatedUnion('schemaVersion', [
   projectLockV1Schema,
   projectLockV2Schema,
+  projectLockV3Schema,
 ])
 
 export type ProjectLockV1Data = z.infer<typeof projectLockV1Schema>
 export type ProjectLockV2Data = z.infer<typeof projectLockV2Schema>
+export type ProjectLockV3Data = z.infer<typeof projectLockV3Schema>
 export type ProjectLockData = z.infer<typeof projectLockSchema>
+
+export type { ScaffoldRegistryEntry }
 
 const profileCapabilities: Record<ProjectManifest['profile'], readonly Capability[]> = {
   minimal: [],

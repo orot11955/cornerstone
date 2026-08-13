@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "Cornerstone resolved project lock",
-  "oneOf": [{ "$ref": "#/$defs/v1" }, { "$ref": "#/$defs/v2" }],
+  "oneOf": [{ "$ref": "#/$defs/v1" }, { "$ref": "#/$defs/v2" }, { "$ref": "#/$defs/v3" }],
   "$defs": {
     "digest": { "type": "string", "pattern": "^sha256:[a-f0-9]{64}$" },
     "releaseBaseline": {
@@ -71,6 +71,52 @@
         "id": { "$ref": "#/$defs/componentId" },
         "version": { "type": "integer", "minimum": 1 },
         "checksum": { "$ref": "#/$defs/digest" }
+      }
+    },
+    "scaffold": {
+      "type": "object",
+      "additionalProperties": false,
+      "allOf": [
+        {
+          "if": { "properties": { "kind": { "const": "package" } }, "required": ["kind"] },
+          "then": {
+            "properties": {
+              "name": {
+                "pattern": "^(?:@[a-z0-9][a-z0-9._-]{0,62}/)?[a-z0-9][a-z0-9._-]{0,62}$"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": { "kind": { "enum": ["feature", "api"] } },
+            "required": ["kind"]
+          },
+          "then": { "properties": { "name": { "pattern": "^[a-z][a-z0-9-]{1,62}$" } } }
+        },
+        {
+          "if": { "properties": { "kind": { "const": "migration" } }, "required": ["kind"] },
+          "then": { "properties": { "name": { "pattern": "^[A-Z][A-Za-z0-9]*$" } } }
+        }
+      ],
+      "required": ["id", "kind", "version", "name", "optionsDigest", "paths"],
+      "properties": {
+        "id": { "type": "string", "minLength": 1, "maxLength": 192 },
+        "kind": { "enum": ["package", "feature", "api", "migration"] },
+        "version": { "const": 1 },
+        "name": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "optionsDigest": { "$ref": "#/$defs/digest" },
+        "paths": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 512,
+            "pattern": "^(?!/)(?![A-Za-z]:)(?!.*\\\\)(?!.*(?:^|/)\\.{1,2}(?:/|$))(?!.*//)(?!.*[\\u0000])(?!.*/$).+$"
+          }
+        }
       }
     },
     "v2": {
@@ -156,6 +202,100 @@
             "status": { "enum": ["certified", "supported", "experimental"] }
           }
         },
+        "integrity": { "$ref": "#/$defs/digest" }
+      }
+    },
+    "v3": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schemaVersion",
+        "generatorVersion",
+        "templateVersion",
+        "userManifestDigest",
+        "resolved",
+        "compatibility",
+        "baselines",
+        "fragments",
+        "composers",
+        "outputs",
+        "certification",
+        "scaffolds",
+        "scaffoldsDigest",
+        "integrity"
+      ],
+      "properties": {
+        "schemaVersion": { "const": 3 },
+        "generatorVersion": { "$ref": "#/$defs/releaseBaseline" },
+        "templateVersion": { "$ref": "#/$defs/releaseBaseline" },
+        "userManifestDigest": { "$ref": "#/$defs/digest" },
+        "resolved": { "$ref": "#/$defs/resolved" },
+        "compatibility": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["node", "pnpm", "typescript"],
+          "properties": {
+            "node": { "type": "string", "minLength": 1, "maxLength": 128 },
+            "pnpm": { "type": "string", "minLength": 1, "maxLength": 128 },
+            "typescript": { "type": "string", "minLength": 1, "maxLength": 128 }
+          }
+        },
+        "baselines": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["manifest", "database", "openapi"],
+          "properties": {
+            "manifest": { "const": 1 },
+            "database": { "$ref": "#/$defs/releaseBaseline" },
+            "openapi": { "$ref": "#/$defs/releaseBaseline" }
+          }
+        },
+        "fragments": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/versionedComponent" }
+        },
+        "composers": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/versionedComponent" }
+        },
+        "outputs": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["path", "owner", "checksum", "mode"],
+            "properties": {
+              "path": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 512,
+                "pattern": "^(?!/)(?![A-Za-z]:)(?!.*\\\\)(?!.*(?:^|/)\\.{1,2}(?:/|$))(?!.*//)(?!.*[\\u0000])(?!.*/$).+$"
+              },
+              "owner": { "$ref": "#/$defs/componentId" },
+              "checksum": { "$ref": "#/$defs/digest" },
+              "mode": { "type": "integer", "minimum": 0, "maximum": 511 }
+            }
+          }
+        },
+        "certification": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["profile", "matrix", "status"],
+          "properties": {
+            "profile": { "enum": ["minimal", "standard", "production", "regulated"] },
+            "matrix": { "$ref": "#/$defs/releaseBaseline" },
+            "status": { "enum": ["certified", "supported", "experimental"] }
+          }
+        },
+        "scaffolds": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/scaffold" }
+        },
+        "scaffoldsDigest": { "$ref": "#/$defs/digest" },
         "integrity": { "$ref": "#/$defs/digest" }
       }
     }

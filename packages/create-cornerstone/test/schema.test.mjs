@@ -20,6 +20,10 @@ import test from 'node:test'
 import { stringify } from 'yaml'
 import {
   bundledCapabilityCatalog,
+  canonicalScaffoldId,
+  computeScaffoldsDigest,
+  isGeneratorControlPath,
+  portableScaffoldPathsConflict,
   createProject,
   createProjectFromManifest,
   formatJsonDocument,
@@ -29,10 +33,12 @@ import {
   planProject,
   planProjectUpdate,
   projectLockSchema,
+  projectLockV3Schema,
   canonicalTemplateMetadataSchema,
   resolveCapabilities,
   resolveManifest,
   validateCanonicalOwnership,
+  validateScaffoldRegistry,
   verifyProject,
   updateProject,
 } from '../dist/index.js'
@@ -147,6 +153,34 @@ function validV2Lock() {
     certification: { profile: 'minimal', matrix: 'node24-pnpm11', status: 'supported' },
     integrity: digest,
   }
+}
+
+function validV3Lock() {
+  const lock = {
+    ...structuredClone(validV2Lock()),
+    schemaVersion: 3,
+    scaffolds: [
+      {
+        id: 'api:users',
+        kind: 'api',
+        version: 1,
+        name: 'users',
+        optionsDigest: digest,
+        paths: ['apps/api/src/users/users.controller.ts'],
+      },
+      {
+        id: 'package:@sample/audit',
+        kind: 'package',
+        version: 1,
+        name: '@sample/audit',
+        optionsDigest: digest,
+        paths: ['packages/audit/package.json', 'packages/audit/src/index.ts'],
+      },
+    ],
+    scaffoldsDigest: '',
+  }
+  lock.scaffoldsDigest = computeScaffoldsDigest(lock.scaffolds)
+  return lock
 }
 
 test('resolves the minimal profile without optional capabilities', () => {
@@ -280,6 +314,170 @@ test('parses legacy v1 and strict reader-first v2 project locks', () => {
   )
 })
 
+test('parses strict reader-first v3 scaffold registries', () => {
+  const lock = validV3Lock()
+  assert.equal(projectLockSchema.parse(lock).schemaVersion, 3)
+  assert.equal(projectLockV3Schema.parse(lock).scaffolds.length, 2)
+  assert.equal(canonicalScaffoldId('feature', 'billing'), 'feature:billing')
+  assert.deepEqual(validateScaffoldRegistry(lock.scaffolds), lock.scaffolds)
+  assert.throws(
+    () => validateScaffoldRegistry(lock.scaffolds, ['PACKAGES/AUDIT/PACKAGE.JSON']),
+    /conflicts with an existing lock output/i,
+  )
+  assert.equal(isGeneratorControlPath('.CORNERSTONE/update.journal.json'), true)
+  assert.equal(isGeneratorControlPath('apps/api/src/index.ts'), false)
+  assert.equal(portableScaffoldPathsConflict('src/index.ts', 'SRC/INDEX.TS/generated.ts'), true)
+  assert.equal(portableScaffoldPathsConflict('src/index.ts', 'src/index.tsx'), false)
+  assert.throws(
+    () => validateScaffoldRegistry(lock.scaffolds, ['packages/audit']),
+    /existing lock output/i,
+  )
+
+  const migration = {
+    id: 'migration:CreateAuditLog',
+    kind: 'migration',
+    version: 1,
+    name: 'CreateAuditLog',
+    optionsDigest: digest,
+    paths: ['apps/api/src/database/migrations/CreateAuditLog.ts'],
+  }
+  assert.deepEqual(validateScaffoldRegistry([migration]), [migration])
+  assert.throws(
+    () =>
+      validateScaffoldRegistry([
+        { ...migration, id: 'migration:create-audit-log', name: 'create-audit-log' },
+      ]),
+    /Invalid migration scaffold name/i,
+  )
+  for (const kind of ['api', 'feature']) {
+    assert.throws(
+      () =>
+        validateScaffoldRegistry([
+          { id: `${kind}:a`, kind, version: 1, name: 'a', optionsDigest: digest, paths: ['a.ts'] },
+        ]),
+      new RegExp(`Invalid ${kind} scaffold name`, 'i'),
+    )
+  }
+
+  const wrongId = validV3Lock()
+  wrongId.scaffolds[0].id = 'api:accounts'
+  wrongId.scaffoldsDigest = computeScaffoldsDigest(wrongId.scaffolds)
+  assert.throws(() => projectLockSchema.parse(wrongId), /canonical kind:name relationship/i)
+
+  const unsortedRegistry = validV3Lock()
+  unsortedRegistry.scaffolds.reverse()
+  unsortedRegistry.scaffoldsDigest = computeScaffoldsDigest(unsortedRegistry.scaffolds)
+  assert.throws(() => projectLockSchema.parse(unsortedRegistry), /sorted by id/i)
+
+  const unsortedPaths = validV3Lock()
+  unsortedPaths.scaffolds[1].paths.reverse()
+  unsortedPaths.scaffoldsDigest = computeScaffoldsDigest(unsortedPaths.scaffolds)
+  assert.throws(() => projectLockSchema.parse(unsortedPaths), /paths must be sorted/i)
+
+  const emptyPaths = validV3Lock()
+  emptyPaths.scaffolds[0].paths = []
+  emptyPaths.scaffoldsDigest = computeScaffoldsDigest(emptyPaths.scaffolds)
+  assert.throws(() => projectLockSchema.parse(emptyPaths), /too small|at least one/i)
+
+  const traversal = validV3Lock()
+  traversal.scaffolds[0].paths = ['../secrets.txt']
+  traversal.scaffoldsDigest = computeScaffoldsDigest(traversal.scaffolds)
+  assert.throws(() => projectLockSchema.parse(traversal), /normalized POSIX relative path/i)
+
+  const nonNfc = validV3Lock()
+  nonNfc.scaffolds[0].paths = ['docs/cafe\u0301.md']
+  nonNfc.scaffoldsDigest = computeScaffoldsDigest(nonNfc.scaffolds)
+  assert.throws(() => projectLockSchema.parse(nonNfc), /NFC normalization/i)
+
+  for (const reserved of ['CON', 'aux.txt', 'path/LPT1.md', 'path/trailing.']) {
+    const reservedPath = validV3Lock()
+    reservedPath.scaffolds[0].paths = [reserved]
+    reservedPath.scaffoldsDigest = computeScaffoldsDigest(reservedPath.scaffolds)
+    assert.throws(() => projectLockSchema.parse(reservedPath), /Windows-reserved/i)
+  }
+
+  for (const reservedName of ['con', 'aux']) {
+    const reserved = validV3Lock()
+    reserved.scaffolds[0].name = reservedName
+    reserved.scaffolds[0].id = `api:${reservedName}`
+    reserved.scaffoldsDigest = computeScaffoldsDigest(reserved.scaffolds)
+    assert.throws(() => projectLockSchema.parse(reserved), /Windows-reserved name/i)
+  }
+
+  const reservedPackageName = validV3Lock()
+  reservedPackageName.scaffolds[1].name = '@sample/com1'
+  reservedPackageName.scaffolds[1].id = 'package:@sample/com1'
+  reservedPackageName.scaffoldsDigest = computeScaffoldsDigest(reservedPackageName.scaffolds)
+  assert.throws(() => projectLockSchema.parse(reservedPackageName), /Windows-reserved name/i)
+
+  const trailingPackageName = validV3Lock()
+  trailingPackageName.scaffolds[1].name = '@sample/audit.'
+  trailingPackageName.scaffolds[1].id = 'package:@sample/audit.'
+  trailingPackageName.scaffoldsDigest = computeScaffoldsDigest(trailingPackageName.scaffolds)
+  assert.throws(() => projectLockSchema.parse(trailingPackageName), /trailing dot\/space/i)
+
+  const globalCollision = validV3Lock()
+  globalCollision.scaffolds[1].paths = ['APPS/API/SRC/USERS/USERS.CONTROLLER.TS']
+  globalCollision.scaffoldsDigest = computeScaffoldsDigest(globalCollision.scaffolds)
+  assert.throws(() => projectLockSchema.parse(globalCollision), /globally unique/i)
+
+  const scaffoldAncestorCollision = validV3Lock()
+  scaffoldAncestorCollision.scaffolds[0].paths = [
+    'apps/api/src/users',
+    'apps/api/src/users/generated.ts',
+  ]
+  scaffoldAncestorCollision.scaffoldsDigest = computeScaffoldsDigest(
+    scaffoldAncestorCollision.scaffolds,
+  )
+  assert.throws(
+    () => projectLockSchema.parse(scaffoldAncestorCollision),
+    /ancestor\/descendant conflicts/i,
+  )
+
+  const fragmentOutputCollision = validV3Lock()
+  fragmentOutputCollision.scaffolds[0].paths = ['SRC/INDEX.TS']
+  fragmentOutputCollision.scaffoldsDigest = computeScaffoldsDigest(
+    fragmentOutputCollision.scaffolds,
+  )
+  assert.throws(() => projectLockSchema.parse(fragmentOutputCollision), /existing lock output/i)
+
+  const outputDescendantCollision = validV3Lock()
+  outputDescendantCollision.scaffolds[0].paths = ['src/index.ts/generated.ts']
+  outputDescendantCollision.scaffoldsDigest = computeScaffoldsDigest(
+    outputDescendantCollision.scaffolds,
+  )
+  assert.throws(() => projectLockSchema.parse(outputDescendantCollision), /existing lock output/i)
+
+  const outputAncestorCollision = validV3Lock()
+  outputAncestorCollision.outputs[0].path = 'packages/audit/package.json/generated.json'
+  outputAncestorCollision.scaffoldsDigest = computeScaffoldsDigest(
+    outputAncestorCollision.scaffolds,
+  )
+  assert.throws(() => projectLockSchema.parse(outputAncestorCollision), /existing lock output/i)
+
+  for (const reservedControlPath of [
+    '.cornerstone/manifest.lock.json',
+    '.CORNERSTONE/update-backup-id/README.md',
+    '.cornerstone/scaffolds/registry.json',
+    'cornerstone.config.yml',
+    'CORNERSTONE.CONFIG.YML/nested',
+  ]) {
+    const controlCollision = validV3Lock()
+    controlCollision.scaffolds[0].paths = [reservedControlPath]
+    controlCollision.scaffoldsDigest = computeScaffoldsDigest(controlCollision.scaffolds)
+    assert.throws(() => projectLockSchema.parse(controlCollision), /generator control namespace/i)
+  }
+
+  const badDigest = validV3Lock()
+  badDigest.scaffoldsDigest = digest
+  assert.throws(() => projectLockSchema.parse(badDigest), /registry digest mismatch/i)
+
+  assert.throws(
+    () => projectLockSchema.parse({ ...validV3Lock(), unexpected: true }),
+    /unrecognized key/i,
+  )
+})
+
 test('resolves exported JSON schemas and preserves structural uniqueItems checks', async () => {
   const catalogSchemaPath = import.meta
     .resolve('create-cornerstone/schemas/capability-catalog.schema.json')
@@ -292,6 +490,9 @@ test('resolves exported JSON schemas and preserves structural uniqueItems checks
   assert.equal(lockSchema.$defs.v2.properties.fragments.uniqueItems, true)
   assert.equal(lockSchema.$defs.v2.properties.composers.uniqueItems, true)
   assert.equal(lockSchema.$defs.v2.properties.outputs.uniqueItems, true)
+  assert.equal(lockSchema.$defs.v3.properties.scaffolds.uniqueItems, true)
+  assert.equal(lockSchema.$defs.scaffold.properties.paths.minItems, 1)
+  assert.equal(lockSchema.$defs.scaffold.properties.paths.uniqueItems, true)
 })
 
 test('parses v2 locks before generator-owned verification', async () => {
@@ -310,6 +511,34 @@ test('parses v2 locks before generator-owned verification', async () => {
     `${JSON.stringify(invalid, null, 2)}\n`,
   )
   await assert.rejects(verifyProject(fixture), /unrecognized key/i)
+})
+
+test('reads valid v3 locks but keeps generator verification fail-closed', async () => {
+  const fixture = await mkdtemp(join(tmpdir(), 'cornerstone-v3-reader-test-'))
+  await mkdir(join(fixture, '.cornerstone'))
+  await writeFile(
+    join(fixture, 'cornerstone.config.yml'),
+    'schemaVersion: 1\nname: sample-app\nprofile: minimal\n',
+  )
+  const lock = validV3Lock()
+  lock.userManifestDigest = checksum(
+    JSON.stringify(
+      stable({
+        schemaVersion: 1,
+        name: 'sample-app',
+        profile: 'minimal',
+        capabilities: [],
+        providers: {},
+      }),
+    ),
+  )
+  const { integrity: _integrity, ...unsigned } = lock
+  lock.integrity = checksum(JSON.stringify(stable(unsigned)))
+  await writeFile(
+    join(fixture, '.cornerstone', 'manifest.lock.json'),
+    `${JSON.stringify(lock, null, 2)}\n`,
+  )
+  await assert.rejects(verifyProject(fixture), /schemaVersion 3 is reader-only/i)
 })
 
 test('rejects unresolved production provider slots', () => {
