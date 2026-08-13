@@ -6,6 +6,7 @@ import {
   isGeneratorControlPath,
   portableScaffoldPathsConflict,
   scaffoldRegistrySchema,
+  validateScaffoldOptionsDigest,
   type ScaffoldRegistryEntry,
 } from './scaffold/registry.js'
 
@@ -250,6 +251,15 @@ export const projectLockV3Schema = z
 
     const outputPaths = lock.outputs.map(({ path }) => path)
     lock.scaffolds.forEach((scaffold, scaffoldIndex) => {
+      try {
+        validateScaffoldOptionsDigest(scaffold)
+      } catch (error) {
+        context.addIssue({
+          code: 'custom',
+          path: ['scaffolds', scaffoldIndex, 'optionsDigest'],
+          message: error instanceof Error ? error.message : 'Invalid scaffold options digest',
+        })
+      }
       scaffold.paths.forEach((path, pathIndex) => {
         if (outputPaths.some((outputPath) => portableScaffoldPathsConflict(outputPath, path))) {
           context.addIssue({

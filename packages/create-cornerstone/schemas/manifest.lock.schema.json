@@ -74,49 +74,138 @@
       }
     },
     "scaffold": {
-      "type": "object",
-      "additionalProperties": false,
-      "allOf": [
+      "oneOf": [
         {
-          "if": { "properties": { "kind": { "const": "package" } }, "required": ["kind"] },
-          "then": {
-            "properties": {
-              "name": {
-                "pattern": "^(?:@[a-z0-9][a-z0-9._-]{0,62}/)?[a-z0-9][a-z0-9._-]{0,62}$"
+          "type": "object",
+          "additionalProperties": false,
+          "allOf": [
+            {
+              "if": { "properties": { "kind": { "const": "package" } }, "required": ["kind"] },
+              "then": {
+                "properties": {
+                  "name": {
+                    "pattern": "^(?:@[a-z0-9][a-z0-9._-]{0,62}/)?[a-z0-9][a-z0-9._-]{0,62}$"
+                  }
+                }
               }
+            },
+            {
+              "if": {
+                "properties": { "kind": { "enum": ["feature", "api"] } },
+                "required": ["kind"]
+              },
+              "then": {
+                "properties": {
+                  "name": { "pattern": "^[a-z][a-z0-9-]{1,62}$" }
+                }
+              }
+            },
+            {
+              "if": { "properties": { "kind": { "const": "migration" } }, "required": ["kind"] },
+              "then": { "properties": { "name": { "pattern": "^[A-Z][A-Za-z0-9]*$" } } }
             }
+          ],
+          "required": ["id", "kind", "version", "name", "optionsDigest", "paths"],
+          "properties": {
+            "id": { "type": "string", "minLength": 1, "maxLength": 192 },
+            "kind": { "enum": ["package", "feature", "api", "migration"] },
+            "version": { "const": 1 },
+            "name": { "type": "string", "minLength": 1, "maxLength": 128 },
+            "optionsDigest": { "$ref": "#/$defs/digest" },
+            "paths": { "$ref": "#/$defs/scaffoldPaths" }
           }
         },
         {
-          "if": {
-            "properties": { "kind": { "enum": ["feature", "api"] } },
-            "required": ["kind"]
-          },
-          "then": { "properties": { "name": { "pattern": "^[a-z][a-z0-9-]{1,62}$" } } }
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["id", "kind", "version", "name", "options", "optionsDigest", "paths"],
+          "properties": {
+            "id": { "type": "string", "minLength": 1, "maxLength": 192 },
+            "kind": { "const": "package" },
+            "version": { "const": 2 },
+            "name": {
+              "type": "string",
+              "pattern": "^(?:@[a-z0-9][a-z0-9._-]{0,62}/)?[a-z0-9][a-z0-9._-]{0,62}$"
+            },
+            "options": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["visibility"],
+              "properties": { "visibility": { "const": "private" } }
+            },
+            "optionsDigest": { "$ref": "#/$defs/digest" },
+            "paths": { "$ref": "#/$defs/scaffoldPaths" }
+          }
         },
         {
-          "if": { "properties": { "kind": { "const": "migration" } }, "required": ["kind"] },
-          "then": { "properties": { "name": { "pattern": "^[A-Z][A-Za-z0-9]*$" } } }
-        }
-      ],
-      "required": ["id", "kind", "version", "name", "optionsDigest", "paths"],
-      "properties": {
-        "id": { "type": "string", "minLength": 1, "maxLength": 192 },
-        "kind": { "enum": ["package", "feature", "api", "migration"] },
-        "version": { "const": 1 },
-        "name": { "type": "string", "minLength": 1, "maxLength": 128 },
-        "optionsDigest": { "$ref": "#/$defs/digest" },
-        "paths": {
-          "type": "array",
-          "minItems": 1,
-          "uniqueItems": true,
-          "items": {
-            "type": "string",
-            "minLength": 1,
-            "maxLength": 512,
-            "pattern": "^(?!/)(?![A-Za-z]:)(?!.*\\\\)(?!.*(?:^|/)\\.{1,2}(?:/|$))(?!.*//)(?!.*[\\u0000])(?!.*/$).+$"
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["id", "kind", "version", "name", "options", "optionsDigest", "paths"],
+          "properties": {
+            "id": { "type": "string", "minLength": 1, "maxLength": 192 },
+            "kind": { "const": "feature" },
+            "version": { "const": 2 },
+            "name": { "type": "string", "pattern": "^(?=.{2,63}$)[a-z][a-z0-9]*(?:-[a-z0-9]+)*$" },
+            "options": { "type": "object", "additionalProperties": false, "maxProperties": 0 },
+            "optionsDigest": { "$ref": "#/$defs/digest" },
+            "paths": { "$ref": "#/$defs/scaffoldPaths" }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["id", "kind", "version", "name", "options", "optionsDigest", "paths"],
+          "properties": {
+            "id": { "type": "string", "minLength": 1, "maxLength": 192 },
+            "kind": { "const": "api" },
+            "version": { "const": 2 },
+            "name": { "type": "string", "pattern": "^(?=.{2,63}$)[a-z][a-z0-9]*(?:-[a-z0-9]+)*$" },
+            "options": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["exposure"],
+              "properties": { "exposure": { "const": "contract-only" } }
+            },
+            "optionsDigest": { "$ref": "#/$defs/digest" },
+            "paths": { "$ref": "#/$defs/scaffoldPaths" }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["id", "kind", "version", "name", "options", "optionsDigest", "paths"],
+          "properties": {
+            "id": { "type": "string", "minLength": 1, "maxLength": 192 },
+            "kind": { "const": "migration" },
+            "version": { "const": 2 },
+            "name": { "type": "string", "pattern": "^[A-Z][A-Za-z0-9]*$" },
+            "options": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["timestamp"],
+              "properties": {
+                "timestamp": {
+                  "type": "integer",
+                  "minimum": 1000000000000,
+                  "maximum": 9999999999999
+                }
+              }
+            },
+            "optionsDigest": { "$ref": "#/$defs/digest" },
+            "paths": { "$ref": "#/$defs/scaffoldPaths" }
           }
         }
+      ]
+    },
+    "scaffoldPaths": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 512,
+        "pattern": "^(?!/)(?![A-Za-z]:)(?!.*\\\\)(?!.*(?:^|/)\\.{1,2}(?:/|$))(?!.*//)(?!.*[\\u0000])(?!.*/$).+$"
       }
     },
     "v2": {

@@ -14,6 +14,7 @@ import {
   writeFile,
 } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
+import { fileURLToPath } from 'node:url'
 import { join } from 'node:path'
 import { spawnSync } from 'node:child_process'
 import test from 'node:test'
@@ -22,6 +23,7 @@ import {
   bundledCapabilityCatalog,
   canonicalScaffoldId,
   computeScaffoldsDigest,
+  generateScaffold,
   isGeneratorControlPath,
   portableScaffoldPathsConflict,
   createProject,
@@ -32,6 +34,7 @@ import {
   mergeJsonContributions,
   parseCapabilityCatalog,
   planProject,
+  planScaffoldGeneration,
   readManifest,
   planStandardV3Adoption,
   planProjectUpdate,
@@ -375,6 +378,15 @@ test('parses strict reader-first v3 scaffold registries', () => {
   assert.equal(isGeneratorControlPath('apps/api/src/index.ts'), false)
   assert.equal(portableScaffoldPathsConflict('src/index.ts', 'SRC/INDEX.TS/generated.ts'), true)
   assert.equal(portableScaffoldPathsConflict('src/index.ts', 'src/index.tsx'), false)
+  const legacyOddName = {
+    id: 'feature:billing-',
+    kind: 'feature',
+    version: 1,
+    name: 'billing-',
+    optionsDigest: digest,
+    paths: ['apps/api/src/legacy-feature.ts'],
+  }
+  assert.deepEqual(validateScaffoldRegistry([legacyOddName]), [legacyOddName])
   assert.throws(
     () => validateScaffoldRegistry(lock.scaffolds, ['packages/audit']),
     /existing lock output/i,
@@ -538,8 +550,10 @@ test('resolves exported JSON schemas and preserves structural uniqueItems checks
   assert.equal(lockSchema.$defs.v2.properties.composers.uniqueItems, true)
   assert.equal(lockSchema.$defs.v2.properties.outputs.uniqueItems, true)
   assert.equal(lockSchema.$defs.v3.properties.scaffolds.uniqueItems, true)
-  assert.equal(lockSchema.$defs.scaffold.properties.paths.minItems, 1)
-  assert.equal(lockSchema.$defs.scaffold.properties.paths.uniqueItems, true)
+  assert.equal(lockSchema.$defs.scaffoldPaths.minItems, 1)
+  assert.equal(lockSchema.$defs.scaffoldPaths.uniqueItems, true)
+  assert.equal(lockSchema.$defs.scaffold.oneOf.length, 5)
+  assert.equal(lockSchema.$defs.scaffold.oneOf[0].allOf.length, 3)
 })
 
 test('parses v2 locks before generator-owned verification', async () => {
@@ -2048,4 +2062,141 @@ test('parses delete Journal v2 entries but rejects delete execution and unsafe r
     }),
     /portable or ancestor collision/i,
   )
+})
+
+test('plans and generates all four canonical Lock v3 scaffold kinds', async () => {
+  const fixture = await mkdtemp(join(tmpdir(), 'cornerstone-scaffold-generator-test-'))
+  const target = join(fixture, 'project')
+  await createProjectFromManifest(target, {
+    schemaVersion: 1,
+    name: 'scaffold-generator-app',
+    profile: 'standard',
+  })
+  const cases = [
+    ['package', '@example/generated', {}],
+    ['feature', 'billing', {}],
+    ['api', 'reports', {}],
+    ['migration', 'AddReports', { timestamp: '1786579400000' }],
+  ]
+  for (const [kind, name, options] of cases) {
+    const lockBefore = await readFile(join(target, '.cornerstone/manifest.lock.json'))
+    const first = await planScaffoldGeneration(target, kind, name, options)
+    const second = await planScaffoldGeneration(target, kind, name, options)
+    assert.deepEqual(first, second)
+    assert.deepEqual(await readFile(join(target, '.cornerstone/manifest.lock.json')), lockBefore)
+    assert.equal(first.changes.at(-1).path, '.cornerstone/manifest.lock.json')
+    const generated = await generateScaffold(target, kind, name, options)
+    assert.deepEqual(generated.changes, first.changes)
+    const verified = await verifyProject(target)
+    assert.equal(verified.schemaVersion, 3)
+    assert.equal(
+      verified.scaffolds.some(({ id }) => id === `${kind}:${name}`),
+      true,
+    )
+  }
+  const appModule = await readFile(join(target, 'apps/api/src/app.module.ts'), 'utf8')
+  assert.match(appModule, /BillingModule/)
+  assert.doesNotMatch(appModule, /ReportsModule/)
+  assert.doesNotMatch(
+    await readFile(join(target, 'apps/api/src/contracts/api-contract.module.ts'), 'utf8'),
+    /ReportsContractController/,
+  )
+  assert.match(
+    await readFile(
+      join(target, 'apps/api/src/database/migrations/1786579400000-AddReports.ts'),
+      'utf8',
+    ),
+    /implementation required before execution/,
+  )
+  const migrationMetadata = JSON.parse(
+    await readFile(
+      join(target, 'apps/api/src/database/migrations/1786579400000-AddReports.metadata.json'),
+      'utf8',
+    ),
+  )
+  assert.deepEqual(migrationMetadata.abortConditions, ['implementation_review_not_completed'])
+  const finalLock = await verifyProject(target)
+  const prettier = spawnSync(
+    process.platform === 'win32' ? 'pnpm.cmd' : 'pnpm',
+    [
+      'exec',
+      'prettier',
+      '--check',
+      ...cases.flatMap(([kind, name]) => {
+        const entry = finalLock.scaffolds.find(({ id }) => id === `${kind}:${name}`)
+        return (entry?.paths ?? []).map((path) => join(target, path))
+      }),
+      join(target, 'apps/api/src/app.module.ts'),
+      join(target, 'apps/api/src/contracts/api-contract.module.ts'),
+    ],
+    { cwd: new URL('../../..', import.meta.url), encoding: 'utf8' },
+  )
+  assert.equal(prettier.status, 0, `${prettier.stdout}${prettier.stderr}`)
+})
+
+test('rejects duplicate scaffold generation and preserves the lock on rollback', async () => {
+  const fixture = await mkdtemp(join(tmpdir(), 'cornerstone-scaffold-rollback-test-'))
+  const target = join(fixture, 'project')
+  await createProjectFromManifest(target, {
+    schemaVersion: 1,
+    name: 'scaffold-rollback-app',
+    profile: 'standard',
+  })
+  const before = await readFile(join(target, '.cornerstone/manifest.lock.json'))
+  injectUpdateFailureForTest('mutation-after-output')
+  await assert.rejects(generateScaffold(target, 'feature', 'billing'), /injected update failure/i)
+  assert.deepEqual(await readFile(join(target, '.cornerstone/manifest.lock.json')), before)
+  await assert.rejects(access(join(target, 'apps/api/src/billing/billing.module.ts')))
+  await generateScaffold(target, 'feature', 'billing')
+  await assert.rejects(generateScaffold(target, 'feature', 'billing'), /already exists/i)
+})
+
+test('rejects non-canonical scaffold options and strict CLI generate arguments', async () => {
+  const fixture = await mkdtemp(join(tmpdir(), 'cornerstone-scaffold-cli-test-'))
+  const target = join(fixture, 'project')
+  await createProjectFromManifest(target, {
+    schemaVersion: 1,
+    name: 'scaffold-cli-app',
+    profile: 'standard',
+  })
+  await assert.rejects(
+    planScaffoldGeneration(target, 'migration', 'AddReports'),
+    /requires --timestamp/i,
+  )
+  await assert.rejects(
+    planScaffoldGeneration(target, 'feature', 'billing', { timestamp: '1786579400000' }),
+    /does not accept options/i,
+  )
+  for (const invalidName of ['billing-', 'billing--report']) {
+    await assert.rejects(
+      planScaffoldGeneration(target, 'feature', invalidName),
+      /invalid feature scaffold name/i,
+    )
+  }
+  await generateScaffold(target, 'migration', 'AddReports', {
+    timestamp: '1786579400000',
+  })
+  await assert.rejects(
+    planScaffoldGeneration(target, 'migration', 'AddInvoices', {
+      timestamp: '1786579400000',
+    }),
+    /duplicate migration timestamp/i,
+  )
+  const cli = fileURLToPath(new URL('../dist/cli.js', import.meta.url))
+  for (const args of [
+    ['generate', 'feature', 'billing', '--target', target, '--unknown'],
+    ['generate', 'feature', 'billing', '--target', target, '--target', target],
+    ['generate', 'feature', 'billing', target],
+  ]) {
+    const result = spawnSync(process.execPath, [cli, ...args], { encoding: 'utf8' })
+    assert.equal(result.status, 2, `${result.stdout}${result.stderr}`)
+  }
+  const dryRun = spawnSync(
+    process.execPath,
+    [cli, 'generate', 'feature', 'billing', '--target', target, '--dry-run'],
+    { encoding: 'utf8' },
+  )
+  assert.equal(dryRun.status, 0, `${dryRun.stdout}${dryRun.stderr}`)
+  assert.match(dryRun.stdout, /feature:billing/)
+  await assert.rejects(access(join(target, 'apps/api/src/billing/billing.module.ts')))
 })

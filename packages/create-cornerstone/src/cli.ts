@@ -4,6 +4,7 @@ import { basename, resolve } from 'node:path'
 import {
   createProject,
   createProjectFromManifest,
+  generateScaffold,
   planProject,
   planProjectUpdate,
   readManifest,
@@ -11,6 +12,7 @@ import {
   verifyProject,
   updateProject,
 } from './index.js'
+import { scaffoldKindSchema } from './scaffold/registry.js'
 
 const args = process.argv.slice(2)
 const command = args.shift()
@@ -52,12 +54,58 @@ try {
     const plan = await updateProject(target, { dryRun })
     console.log(JSON.stringify(plan, null, 2))
     if (!dryRun) console.error(`Updated ${target} to template ${plan.toTemplateVersion}`)
+  } else if (command === 'generate') {
+    const generated = parseGenerateArguments(args)
+    const { kindInput, name, target, dryRun, timestamp } = generated
+    const kind = scaffoldKindSchema.parse(kindInput)
+    const plan = await generateScaffold(target, kind, name, {
+      dryRun,
+      ...(timestamp === undefined ? {} : { timestamp }),
+    })
+    console.log(JSON.stringify(plan, null, 2))
+    if (!dryRun) console.error(`Generated ${plan.scaffold.id} in ${target}`)
   } else {
     usage()
   }
 } catch (error) {
   console.error(error instanceof Error ? error.message : String(error))
   process.exit(1)
+}
+
+function parseGenerateArguments(args: string[]): {
+  kindInput: string
+  name: string
+  target: string
+  dryRun: boolean
+  timestamp?: string
+} {
+  const [kindInput, name, ...rest] = args
+  if (!kindInput || !name || kindInput.startsWith('--') || name.startsWith('--')) usage()
+  const values = new Map<string, string | true>()
+  for (let index = 0; index < rest.length; index += 1) {
+    const argument = rest[index]!
+    if (!['--target', '--timestamp', '--dry-run'].includes(argument) || values.has(argument)) {
+      usage()
+    }
+    if (argument === '--dry-run') {
+      values.set(argument, true)
+      continue
+    }
+    const value = rest[index + 1]
+    if (!value || value.startsWith('--')) usage()
+    values.set(argument, value)
+    index += 1
+  }
+  const target = values.get('--target')
+  if (typeof target !== 'string') usage()
+  const timestamp = values.get('--timestamp')
+  return {
+    kindInput,
+    name,
+    target,
+    dryRun: values.get('--dry-run') === true,
+    ...(typeof timestamp === 'string' ? { timestamp } : {}),
+  }
 }
 
 function positional(args: string[]): string {
@@ -125,7 +173,7 @@ function promptAnswers(
 
 function usage(): never {
   console.error(
-    'Usage:\n  create-cornerstone plan --manifest <file>\n  create-cornerstone plan <target> --dry-run\n  create-cornerstone create <target> [--manifest <file>]\n  create-cornerstone update <target> [--dry-run]\n  create-cornerstone verify <target>',
+    'Usage:\n  create-cornerstone plan --manifest <file>\n  create-cornerstone plan <target> --dry-run\n  create-cornerstone create <target> [--manifest <file>]\n  create-cornerstone update <target> [--dry-run]\n  create-cornerstone generate <package|feature|api|migration> <name> --target <project> [--timestamp <13-digit>] [--dry-run]\n  create-cornerstone verify <target>',
   )
   process.exit(2)
 }

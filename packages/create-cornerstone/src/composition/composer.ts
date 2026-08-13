@@ -177,7 +177,12 @@ export function composeNestModule(module: NonNullable<ComposerDefinition['nestMo
     )
   }
   if (module.controllers.length > 0) {
-    fields.push(`  controllers: [${module.controllers.join(', ')}],`)
+    const inline = `  controllers: [${module.controllers.join(', ')}],`
+    fields.push(
+      module.controllers.length <= 2 && inline.length <= jsonPrintWidth
+        ? inline
+        : `  controllers: [\n${module.controllers.map((value) => `    ${value},`).join('\n')}\n  ],`,
+    )
   }
   if (module.providers.length > 0) {
     fields.push(

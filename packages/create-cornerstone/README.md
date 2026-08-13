@@ -8,8 +8,13 @@ pnpm exec create-cornerstone plan ./my-app --dry-run
 pnpm exec create-cornerstone create ./my-app --manifest cornerstone.config.yml
 pnpm exec create-cornerstone update ./my-app --dry-run
 pnpm exec create-cornerstone update ./my-app
+pnpm exec create-cornerstone generate feature billing --target ./my-app --dry-run
+pnpm exec create-cornerstone generate api reports --target ./my-app
+pnpm exec create-cornerstone generate migration AddReports --target ./my-app --timestamp 1786579400000
 pnpm exec create-cornerstone verify ./my-app
 ```
+
+`generate`는 검증된 Standard Lock v3 프로젝트에 `package`, `feature`, `api`, `migration` scaffold를 추가한다. `--target`은 필수이며 `--dry-run`은 파일과 operation lock을 쓰지 않는다. Version 2 계약에서 package는 private-only이고, feature/api identifier는 name에서 고정 파생한다. Feature만 AppModule에 등록한다. API는 authorization policy를 추측하지 않으므로 runtime AppModule과 OpenAPI용 ApiContractModule 어디에도 자동 등록하지 않는 fail-closed draft다. 운영 route와 OpenAPI로 활성화하려면 명시적 route-policy 계약과 structured composer 지원이 필요하다. Migration timestamp는 plan 재현성을 위해 명시적 13자리 값만 허용하며 생성된 `up`/`down`은 구현·검토 전 실행을 명시적으로 거절한다. Scaffold 옵션은 canonical non-secret 값으로 제한하며 lock에는 strict options와 digest를 함께 저장한다. 기존 파일, portable path 충돌, generator control namespace와 composer-owned output 충돌은 적용 전에 거절한다. Journaled apply는 add/modify 전체를 rollback할 수 있도록 기록하고 manifest lock을 마지막에 교체한다.
 
 `--manifest`를 생략하면 프로젝트명, Profile과 제품 license를 대화형으로 선택한다. 대화형 입력과 manifest 입력은 동일한 resolver와 생성 plan을 사용한다.
 

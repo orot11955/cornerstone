@@ -31,6 +31,7 @@ import {
   type ComposerDefinition,
 } from './composition/template.js'
 import { sha256, stableJson } from './hash.js'
+import { composeScaffoldAwareOutputs } from './scaffold/composition.js'
 import { computeScaffoldsDigest } from './scaffold/registry.js'
 import {
   projectLockSchema,
@@ -369,7 +370,10 @@ async function verifyStandardProject(
   }
 
   await assertCapabilityResidue(target, metadata, manifest)
-  const expectedComposed = await composeStructuredOutputs(templateRoot, metadata, manifest)
+  const expectedComposed =
+    lock.schemaVersion === 3
+      ? await composeScaffoldAwareOutputs(templateRoot, metadata, manifest, lock.scaffolds)
+      : await composeStructuredOutputs(templateRoot, metadata, manifest)
   const expectedDefinitions = applicableComposers(metadata, manifest)
   if (
     lock.composers.length !== expectedDefinitions.length ||
@@ -425,7 +429,7 @@ async function verifyStandardProject(
   }
   const expectedLock =
     lock.schemaVersion === 3
-      ? await buildStandardV3Lock(target, userManifest, manifest)
+      ? await buildStandardV3Lock(target, userManifest, manifest, expectedComposed)
       : await buildStandardLock(target, userManifest, manifest)
   if (expectedLock.schemaVersion === 3 && lock.schemaVersion === 3) {
     expectedLock.scaffolds = lock.scaffolds

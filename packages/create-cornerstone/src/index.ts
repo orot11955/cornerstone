@@ -26,6 +26,7 @@ export type {
 } from './schema.js'
 export {
   canonicalScaffoldId,
+  computeScaffoldOptionsDigest,
   computeScaffoldsDigest,
   isGeneratorControlPath,
   portableScaffoldPathsConflict,
@@ -33,9 +34,14 @@ export {
   scaffoldPathSchema,
   scaffoldRegistryEntrySchema,
   scaffoldRegistrySchema,
+  validateScaffoldOptionsDigest,
   validateScaffoldRegistry,
 } from './scaffold/registry.js'
 export type { ScaffoldKind, ScaffoldRegistryEntry } from './scaffold/registry.js'
+export { generateScaffold, planScaffoldGeneration } from './scaffold/generator.js'
+export type { ScaffoldPlan } from './scaffold/generator.js'
+export { renderScaffold } from './scaffold/render.js'
+export type { RenderedScaffold, ScaffoldGenerateOptions } from './scaffold/render.js'
 export {
   bundledCapabilityCatalog,
   capabilityCatalogSchema,
