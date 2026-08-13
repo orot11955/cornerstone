@@ -7,7 +7,9 @@ import { createServer } from 'node:net'
 
 const root = new URL('..', import.meta.url)
 const executable = process.platform === 'win32' ? 'pnpm.cmd' : 'pnpm'
-const [apiPort, webPort] = await reservePorts(2)
+const [apiReservation, webReservation] = await reservePorts(2)
+const apiPort = apiReservation.port
+const webPort = webReservation.port
 const databaseEnvironment = {
   ...process.env,
   NODE_ENV: 'test',
@@ -61,12 +63,14 @@ try {
   })
 
   run(['api:build'], databaseEnvironment)
+  await apiReservation.release()
   apiProcess = spawn(process.execPath, ['apps/api/dist/main.js'], {
     cwd: root,
     env: databaseEnvironment,
     stdio: ['ignore', 'inherit', 'inherit'],
   })
   await waitForApi(apiProcess)
+  await webReservation.release()
   run(['--filter', 'web', 'test:e2e:auth'], {
     ...process.env,
     M6_E2E_API_PORT: String(apiPort),
@@ -81,6 +85,7 @@ try {
     apiProcess.kill('SIGTERM')
     await waitForExit(apiProcess)
   }
+  await Promise.allSettled([apiReservation.release(), webReservation.release()])
   if (temporaryDirectory) await rm(temporaryDirectory, { recursive: true, force: true })
   if (databaseStarted) run(['db:test:down'], process.env, true)
 }
@@ -136,14 +141,23 @@ async function reservePorts(count) {
       })
       servers.push(server)
     }
-    return servers.map((server) => {
-      const address = server.address()
-      if (!address || typeof address === 'string') throw new Error('Failed to reserve E2E port')
-      return address.port
-    })
-  } finally {
-    await Promise.all(
+  } catch (error) {
+    await Promise.allSettled(
       servers.map((server) => new Promise((resolve) => server.close(() => resolve(undefined)))),
     )
+    throw error
   }
+  return servers.map((server) => {
+    const address = server.address()
+    if (!address || typeof address === 'string') throw new Error('Failed to reserve E2E port')
+    return {
+      port: address.port,
+      async release() {
+        if (!server.listening) return
+        await new Promise((resolve, reject) =>
+          server.close((error) => (error ? reject(error) : resolve(undefined))),
+        )
+      },
+    }
+  })
 }
