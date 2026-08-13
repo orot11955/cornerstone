@@ -22,6 +22,7 @@ import {
   tokenSourceId,
 } from '../dist/index.js'
 import { applyAppearance, Portal, readStoredAppearance } from '../dist/browser.js'
+import { createSingleDialogLabelRegistry } from '../dist/dialog.js'
 
 test('root entry renders on the server without browser globals', () => {
   const html = renderToString(createElement(Button, { loading: true }, 'Save'))
@@ -186,6 +187,14 @@ test('container-responsive grid values and closed grid measures serialize predic
 
 test('Portal renders no server markup before hydration', () => {
   assert.equal(renderToString(createElement(Portal, null, 'Overlay')), '')
+})
+
+test('Dialog label registry rejects duplicate instances even with the same id', () => {
+  const registry = createSingleDialogLabelRegistry('Dialog.Title')
+  const unregister = registry.register('shared-id')
+  assert.throws(() => registry.register('shared-id'), /must be unique/)
+  unregister()
+  assert.doesNotThrow(() => registry.register('shared-id'))
 })
 
 test('selection and dialog primitives expose native accessible semantics', () => {

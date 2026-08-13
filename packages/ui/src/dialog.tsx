@@ -107,22 +107,16 @@ export function Content({
   const generatedTitleId = useId()
   const generatedDescriptionId = useId()
   const synchronizingClose = useRef(false)
-  const titleRegistrations = useRef(new Set<string>())
-  const descriptionRegistrations = useRef(new Set<string>())
+  const titleRegistrations = useRef(createSingleDialogLabelRegistry('Dialog.Title'))
+  const descriptionRegistrations = useRef(createSingleDialogLabelRegistry('Dialog.Description'))
   const [titleId, setTitleId] = useState<string | null>(null)
   const [descriptionId, setDescriptionId] = useState<string | null>(null)
   const registerTitle = useCallback(
-    (id: string) => registerSingleDialogLabel('Dialog.Title', id, titleRegistrations, setTitleId),
+    (id: string) => registerSingleDialogLabel(id, titleRegistrations, setTitleId),
     [],
   )
   const registerDescription = useCallback(
-    (id: string) =>
-      registerSingleDialogLabel(
-        'Dialog.Description',
-        id,
-        descriptionRegistrations,
-        setDescriptionId,
-      ),
+    (id: string) => registerSingleDialogLabel(id, descriptionRegistrations, setDescriptionId),
     [],
   )
   const actualContentId = props.id ?? contentId
@@ -252,19 +246,34 @@ function firstFocusable(container: HTMLElement): HTMLElement | null {
 }
 
 function registerSingleDialogLabel(
-  component: 'Dialog.Title' | 'Dialog.Description',
   id: string,
-  registrations: MutableRefObject<Set<string>>,
+  registrations: MutableRefObject<SingleDialogLabelRegistry>,
   update: (id: string | null) => void,
 ): () => void {
-  if (registrations.current.size > 0 && !registrations.current.has(id)) {
-    throw new Error(`${component} must be unique per Dialog.`)
-  }
-  registrations.current.add(id)
+  const unregister = registrations.current.register(id)
   update(id)
   return () => {
-    registrations.current.delete(id)
-    update(registrations.current.values().next().value ?? null)
+    unregister()
+    update(null)
+  }
+}
+
+export interface SingleDialogLabelRegistry {
+  register: (id: string) => () => void
+}
+
+export function createSingleDialogLabelRegistry(
+  component: 'Dialog.Title' | 'Dialog.Description',
+): SingleDialogLabelRegistry {
+  let registered = false
+  return {
+    register: () => {
+      if (registered) throw new Error(`${component} must be unique per Dialog.`)
+      registered = true
+      return () => {
+        registered = false
+      }
+    },
   }
 }
 
