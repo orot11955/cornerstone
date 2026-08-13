@@ -5,6 +5,7 @@ import { resolveDirection } from '../i18n'
 import { createRootMetadata } from '../metadata/root'
 import { NetworkStatus } from './network-status'
 import { WebVitals } from './web-vitals'
+import { QueryProvider } from '../query/provider'
 import '@cornerstone/ui/styles.css'
 import './globals.css'
 
@@ -25,7 +26,7 @@ export default function RootLayout({ children }: RootLayoutProps) {
     >
       <body>
         <NetworkStatus locale={webConfig.locale} />
-        {children}
+        <QueryProvider>{children}</QueryProvider>
         <WebVitals />
       </body>
     </html>

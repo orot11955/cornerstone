@@ -16,6 +16,11 @@ import {
 } from '../src/security/headers.ts'
 import { BrowserTelemetry } from '../src/telemetry/browser.ts'
 import { createRootMetadata } from '../src/metadata/root.ts'
+import { safeReturnPath } from '../src/auth/redirect.ts'
+import { isAuthQuery } from '../src/query/client.ts'
+import { parseAuthCookies } from '../src/api/cookies.ts'
+import { parseActionTokenFragment } from '../src/auth/action-token.ts'
+import { sanitizeApiRequestHeaders } from '../src/security/api-headers.ts'
 
 test('web config는 origin을 정규화하고 production HTTPS를 강제한다', () => {
   const config = resolveWebConfig({
@@ -26,12 +31,111 @@ test('web config는 origin을 정규화하고 production HTTPS를 강제한다',
   })
   assert.equal(config.siteUrl.toString(), 'https://example.com/')
   assert.equal(config.locale, 'en')
+  assert.equal(config.internalApiUrl.toString(), 'http://localhost:4000/')
   assert.throws(
     () => resolveWebConfig({ SITE_URL: 'http://example.com' }, { requireSecureOrigin: true }),
     /must use HTTPS/,
   )
   assert.throws(() => resolveWebConfig({ SITE_URL: 'javascript:alert(1)' }), /HTTP or HTTPS/)
   assert.throws(() => resolveWebConfig({ SITE_URL: 'https://user@example.com' }), /origin/)
+})
+
+test('internal API origin은 credentials, path, production HTTP를 거절한다', () => {
+  assert.throws(() => resolveWebConfig({ INTERNAL_API_URL: 'https://a:b@example.com' }), /origin/)
+  assert.throws(
+    () =>
+      resolveWebConfig(
+        { INTERNAL_API_URL: 'http://api.example.com' },
+        { requireSecureOrigin: true },
+      ),
+    /HTTPS/,
+  )
+})
+
+test('인증 return path는 명시 allowlist만 통과한다', () => {
+  assert.equal(safeReturnPath('/settings/security'), '/settings/security')
+  assert.equal(safeReturnPath('//evil.example'), '/')
+  assert.equal(safeReturnPath('/login'), '/')
+  assert.equal(safeReturnPath('/%2f%2fevil.example'), '/')
+  assert.equal(safeReturnPath('/settings\\security'), '/')
+})
+
+test('SSR 인증 cookie forwarding은 정확히 하나의 access cookie만 허용한다', () => {
+  assert.deepEqual(parseAuthCookies('cs_access=x').access, { name: 'cs_access', value: 'x' })
+  assert.deepEqual(parseAuthCookies('analytics=abc==; cs_access=valid').access, {
+    name: 'cs_access',
+    value: 'valid',
+  })
+  assert.deepEqual(parseAuthCookies('analytics=%; cs_access=valid').access, {
+    name: 'cs_access',
+    value: 'valid',
+  })
+  assert.equal(parseAuthCookies('cs_access=x; __Host-cs_access=y').access, undefined)
+  assert.equal(parseAuthCookies('cs_access=%').access, undefined)
+  assert.equal(parseAuthCookies('cs_access=; cs_refresh=valid').access, undefined)
+})
+
+test('SSR refresh 전환은 정확히 하나의 refresh cookie만 허용한다', () => {
+  assert.equal(parseAuthCookies('cs_refresh=x').hasRefresh, true)
+  assert.equal(parseAuthCookies('cs_refresh=x; __Host-cs_refresh=y').hasRefresh, false)
+})
+
+test('action token은 단일 fragment token만 허용한다', () => {
+  assert.equal(parseActionTokenFragment('#token=a%2Fb'), 'a/b')
+  assert.equal(parseActionTokenFragment('#token=a&next=/'), undefined)
+  assert.equal(parseActionTokenFragment('#other=x'), undefined)
+  assert.equal(parseActionTokenFragment('#token=%'), undefined)
+  assert.equal(parseActionTokenFragment(`#token=${'a'.repeat(4097)}`), undefined)
+})
+
+test('internal API URL은 origin path만 허용한다', () => {
+  assert.throws(
+    () => resolveWebConfig({ INTERNAL_API_URL: 'https://api.example.com/v1' }),
+    /without a path/,
+  )
+})
+
+test('API rewrite 전 spoof 가능한 routing과 identity header를 제거한다', () => {
+  const headers = sanitizeApiRequestHeaders(
+    new Headers({
+      authorization: 'Bearer token',
+      forwarded: 'host=evil',
+      'x-forwarded-host': 'evil',
+      'x-user-id': 'admin',
+      'x-role': 'admin',
+      'x-auth-subject': 'admin',
+      origin: 'https://web.example',
+      cookie: 'session=x',
+      'content-type': 'application/json',
+      'x-csrf-token': 'csrf',
+      'idempotency-key': 'idempotency',
+      'if-match': '1',
+    }),
+  )
+  for (const name of [
+    'authorization',
+    'forwarded',
+    'x-forwarded-host',
+    'x-user-id',
+    'x-role',
+    'x-auth-subject',
+  ])
+    assert.equal(headers.has(name), false)
+  for (const name of [
+    'origin',
+    'cookie',
+    'content-type',
+    'x-csrf-token',
+    'idempotency-key',
+    'if-match',
+  ])
+    assert.equal(headers.has(name), true)
+})
+
+test('auth, user, session query는 dehydration 대상이 아니다', () => {
+  assert.equal(isAuthQuery(['public', 'catalog']), false)
+  assert.equal(isAuthQuery(['auth', 'me']), true)
+  assert.equal(isAuthQuery(['account:session']), true)
 })
 
 test('locale, direction과 번역 fallback은 결정적이다', () => {

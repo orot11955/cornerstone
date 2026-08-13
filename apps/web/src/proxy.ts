@@ -1,8 +1,12 @@
 import type { NextRequest } from 'next/server'
 import { NextResponse } from 'next/server'
 import { browserSecurityHeaders, buildContentSecurityPolicy, createNonce } from './security/headers'
+import { sanitizeApiRequestHeaders } from './security/api-headers'
 
 export function proxy(request: NextRequest) {
+  if (request.nextUrl.pathname.startsWith('/api/v1/')) {
+    return NextResponse.next({ request: { headers: sanitizeApiRequestHeaders(request.headers) } })
+  }
   const nonce = createNonce()
   const contentSecurityPolicy = buildContentSecurityPolicy(nonce, {
     development: process.env.NODE_ENV === 'development',
@@ -22,7 +26,7 @@ export function proxy(request: NextRequest) {
 export const config = {
   matcher: [
     {
-      source: '/((?!api|_next/static|_next/image|favicon.ico|sitemap.xml|robots.txt).*)',
+      source: '/((?!_next/static|_next/image|favicon.ico|sitemap.xml|robots.txt).*)',
       missing: [
         { type: 'header', key: 'next-router-prefetch' },
         { type: 'header', key: 'purpose', value: 'prefetch' },
