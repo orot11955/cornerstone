@@ -327,6 +327,7 @@ async function applyPreparedMutation(target: string, prepared: PreparedMutation)
     for (const change of orderLockLast(prepared.plan.changes, prepared.plan.lockPath)) {
       await applyChange(target, change, prepared.contents.get(change.path)!)
       await runUpdateHookForTest('mutation-after-write', change.path)
+      failMutationCrashIfInjected('mutation-crash-after-write')
     }
     await runUpdateHookForTest('mutation-after-output')
     failMutationCrashIfInjected('mutation-crash-after-output')

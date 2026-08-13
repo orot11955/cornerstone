@@ -1,0 +1,49 @@
+{
+  "$schema": "https://turborepo.dev/schema.json",
+  "globalDependencies": ["pnpm-lock.yaml"],
+  "tasks": {
+    "dev": {
+      "cache": false,
+      "persistent": true
+    },
+    "build": {
+      "dependsOn": ["^build"],
+      "outputs": [".next/**", "!.next/cache/**", "dist/**"]
+    },
+    "lint": {
+      "dependsOn": ["^build", "^lint"]
+    },
+    "typecheck": {
+      "dependsOn": ["^build"]
+    },
+    "test:unit": {
+      "dependsOn": ["^test:unit"]
+    },
+    "test:component": {
+      "dependsOn": ["^test:component"]
+    },
+    "test:integration": {
+      "dependsOn": ["^test:integration"],
+      "cache": false,
+      "passThroughEnv": [
+        "NODE_ENV",
+        "DATABASE_URL",
+        "DATABASE_MIGRATION_URL",
+        "DATABASE_MAINTENANCE_URL",
+        "DATABASE_ADMIN_BOOTSTRAP_URL",
+        "DATABASE_SSL_MODE",
+        "DATABASE_SSL_CA",
+        "DATABASE_POOL_MAX",
+        "DATABASE_CONNECT_TIMEOUT_MS",
+        "DATABASE_STATEMENT_TIMEOUT_MS",
+        "DATABASE_LOCK_TIMEOUT_MS",
+        "DATABASE_IDLE_TRANSACTION_TIMEOUT_MS",
+        "MIGRATION_LOCK_WAIT_MS"
+      ]
+    },
+    "test:e2e": {
+      "dependsOn": ["^test:e2e"],
+      "cache": false
+    }
+  }
+}

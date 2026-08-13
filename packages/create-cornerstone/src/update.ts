@@ -6,6 +6,11 @@ import {
   type StandardV4AdoptionPlan,
 } from './mutation/standard-v4-adoption.js'
 import {
+  adoptStandardV5,
+  planStandardV5Adoption,
+  type StandardV5AdoptionPlan,
+} from './mutation/standard-v5-adoption.js'
+import {
   planProjectUpdate as planLegacyProjectUpdate,
   updateProject as updateLegacyProject,
   type ProjectUpdatePlan as LegacyProjectUpdatePlan,
@@ -16,12 +21,16 @@ import {
   safeTargetPath,
 } from './mutation/update-engine.js'
 
-export type ProjectUpdatePlan = LegacyProjectUpdatePlan | StandardV4AdoptionPlan
+export type ProjectUpdatePlan =
+  LegacyProjectUpdatePlan | StandardV4AdoptionPlan | StandardV5AdoptionPlan
 
 export async function planProjectUpdate(targetPath: string): Promise<ProjectUpdatePlan> {
   const target = await canonicalTarget(targetPath)
   const lock = await readLock(target)
-  return lock.schemaVersion === 3 ? planStandardV4Adoption(target) : planLegacyProjectUpdate(target)
+  if (lock.schemaVersion !== 3) return planLegacyProjectUpdate(target)
+  return lock.templateVersion === '0.3.0'
+    ? planStandardV4Adoption(target)
+    : planStandardV5Adoption(target)
 }
 
 export async function updateProject(
@@ -31,7 +40,8 @@ export async function updateProject(
   if (options.dryRun) return planProjectUpdate(targetPath)
   const target = await canonicalTarget(targetPath)
   const lock = await readLock(target)
-  return lock.schemaVersion === 3 ? adoptStandardV4(target) : updateLegacyProject(target)
+  if (lock.schemaVersion !== 3) return updateLegacyProject(target)
+  return lock.templateVersion === '0.3.0' ? adoptStandardV4(target) : adoptStandardV5(target)
 }
 
 async function canonicalTarget(targetPath: string): Promise<string> {

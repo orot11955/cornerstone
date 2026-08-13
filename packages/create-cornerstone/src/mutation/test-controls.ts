@@ -7,6 +7,7 @@ type UpdateFailurePoint =
   | 'after-rollback-backup-cleanup'
   | 'before-operation-lock-cleanup'
   | 'mutation-after-write'
+  | 'mutation-crash-after-write'
   | 'mutation-after-output'
   | 'mutation-before-rollback'
   | 'mutation-crash-after-journal'

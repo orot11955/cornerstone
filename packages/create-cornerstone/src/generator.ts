@@ -39,6 +39,10 @@ import {
   resolveStandardV3Predecessor,
 } from './composition/standard-v3-predecessor.js'
 import {
+  buildStandardV4PredecessorLock,
+  resolveStandardV4Predecessor,
+} from './composition/standard-v4-predecessor.js'
+import {
   projectLockSchema,
   projectManifestSchema,
   resolveManifest,
@@ -364,6 +368,11 @@ async function verifyStandardProject(
     return
   }
 
+  if (lock.schemaVersion === 3 && lock.templateVersion === '0.4.0') {
+    await verifyStandardV4Predecessor(target, userManifest, manifest, lock, metadata)
+    return
+  }
+
   const expectedFragments = selectedFragmentDefinitions(metadata, manifest)
   for (const fragment of expectedFragments) {
     const locked = lock.fragments.find(({ id }) => id === fragment.id)
@@ -461,7 +470,7 @@ async function verifyStandardV3Predecessor(
   metadata: CanonicalTemplateMetadata,
 ): Promise<void> {
   const predecessor = await resolveStandardV3Predecessor(manifest, lock.scaffolds)
-  await assertCapabilityResidue(target, metadata, manifest)
+  assertCatalogCompatibility(metadata, manifest)
   for (const output of predecessor.outputs) {
     const path = safeTargetPath(target, output.path)
     const info = await lstat(path)
@@ -506,6 +515,46 @@ async function verifyStandardV3Predecessor(
   }
 }
 
+async function verifyStandardV4Predecessor(
+  target: string,
+  userManifest: ProjectManifest,
+  manifest: ResolvedManifest,
+  lock: ProjectLockV3Data,
+  metadata: CanonicalTemplateMetadata,
+): Promise<void> {
+  const predecessor = await resolveStandardV4Predecessor(manifest, lock.scaffolds)
+  assertCatalogCompatibility(metadata, manifest)
+  for (const output of predecessor.outputs) {
+    const path = safeTargetPath(target, output.path)
+    const info = await lstat(path)
+    if (
+      !info.isFile() ||
+      info.isSymbolicLink() ||
+      (info.mode & 0o777) !== output.mode ||
+      sha256(await readFile(path)) !== output.checksum
+    ) {
+      throw new Error(`Generator-owned output drift: ${output.path}`)
+    }
+  }
+  for (const scaffold of lock.scaffolds) {
+    for (const scaffoldPath of scaffold.paths) {
+      const info = await lstat(safeTargetPath(target, scaffoldPath))
+      if (!info.isFile() || info.isSymbolicLink()) {
+        throw new Error(`Scaffold registry path must be a regular file: ${scaffoldPath}`)
+      }
+    }
+  }
+  const expected = buildStandardV4PredecessorLock(
+    predecessor,
+    userManifest,
+    manifest,
+    lock.scaffolds,
+  )
+  if (stableJson(lock) !== stableJson(expected)) {
+    throw new Error('Lock manifest differs from immutable Standard 0.4.0 resolution')
+  }
+}
+
 async function verifyLegacyStandardV2(
   target: string,
   userManifest: ProjectManifest,
@@ -517,7 +566,7 @@ async function verifyLegacyStandardV2(
     throw new Error('Legacy Standard v2 verification requires template 0.2.0 or 0.2.1')
   }
   const predecessor = await resolvePredecessor(lock.templateVersion as PredecessorVersion, manifest)
-  await assertCapabilityResidue(target, metadata, manifest)
+  assertCatalogCompatibility(metadata, manifest)
   for (const output of predecessor.outputs) {
     const path = safeTargetPath(target, output.path)
     const info = await lstat(path)

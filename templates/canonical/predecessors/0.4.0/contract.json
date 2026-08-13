@@ -1,0 +1,400 @@
+{
+  "schemaVersion": 2,
+  "templateVersion": "0.4.0",
+  "fixtureName": "snapshot-app",
+  "generatorVersion": "0.1.0",
+  "compatibility": {
+    "node": ">=22.20.0 <25",
+    "pnpm": "11.20.0",
+    "typescript": "5.9.3"
+  },
+  "baselines": {
+    "manifest": 1,
+    "database": "1786579300000-GrantAdminBootstrap",
+    "openapi": "1.0.0"
+  },
+  "certification": {
+    "profile": "standard",
+    "matrix": "standard-preview-node24-pg17",
+    "status": "supported"
+  },
+  "fragments": [
+    {
+      "id": "api",
+      "version": 1,
+      "checksum": "sha256:571b35ebb80702b1ac21dfd4b94000b7eeaeaf139854fa49de6e6b6a849c5c15"
+    },
+    {
+      "id": "auth",
+      "version": 1,
+      "checksum": "sha256:ed055774c04e4f6285f6818ef5403832dda783c3a6dc9a71132ce0bc0ce530b3"
+    },
+    {
+      "id": "base",
+      "version": 1,
+      "checksum": "sha256:884c14ec938e32cb9111f49785571d74c028591edeb97952846f69b5850bf28f"
+    },
+    {
+      "id": "database",
+      "version": 1,
+      "checksum": "sha256:bc106ca0ee81764cb113180e17e33b08a966ef767fdf348b33dc82869eacd96a"
+    },
+    {
+      "id": "ui",
+      "version": 1,
+      "checksum": "sha256:af52eb1c744994911127fd5e262d3a60a479fe45c8904e13dcedd3747005803e"
+    },
+    {
+      "id": "web",
+      "version": 1,
+      "checksum": "sha256:ef7668c9c2e1ba9801de708bce4c1fdfd02d1f5093d5777bcdaaf9aec9a45bd4"
+    }
+  ],
+  "composers": [
+    {
+      "id": "api-app-module",
+      "version": 1,
+      "checksum": "sha256:db8f7146bdd7df0acfa7d02c98f8917d38006dff7d441bace56578fb182e7ccf"
+    },
+    {
+      "id": "api-contract-module",
+      "version": 1,
+      "checksum": "sha256:70cb5af12244e076872851555960f5a188ea697f0ca59eb6e3a83f3206294824"
+    },
+    {
+      "id": "api-route-policy",
+      "version": 1,
+      "checksum": "sha256:8c2c7c52dff6648c008aab410e517f528e8c2e933c0537e484c6432c71ce849c"
+    },
+    {
+      "id": "ci-workflow",
+      "version": 1,
+      "checksum": "sha256:71252c301eb584407ed9390f9c2a672664ffbb779b2618fdc738a90a2e5815c0"
+    },
+    {
+      "id": "notice",
+      "version": 1,
+      "checksum": "sha256:56be2f38cbeadb31683e175365c0e157640ef3a8cf24649f2191a5af3ea8bb03"
+    },
+    {
+      "id": "pnpm-workspace",
+      "version": 1,
+      "checksum": "sha256:6cb57f1b14633a5fe1ae98f1f90435206639a7f8dcb882cb030fadd0b39dbcf6"
+    },
+    {
+      "id": "project-readme",
+      "version": 2,
+      "checksum": "sha256:2c2ba58c82eb65285a2ef8769d76b6fab1b24aef465031003ea41720ab3dc0da"
+    },
+    {
+      "id": "root-package-json",
+      "version": 1,
+      "checksum": "sha256:7076b107157c2a35a54edefc8259e30617d41df6a5f1486d55675bea29ea05c7"
+    },
+    {
+      "id": "test-scope-json",
+      "version": 1,
+      "checksum": "sha256:ad517d59da9109f8e6f8b1666c4627a2a9294c1464d4f0cee15feeed81ae809d"
+    },
+    {
+      "id": "turbo-json",
+      "version": 1,
+      "checksum": "sha256:4533229aae6de776c357666cec05eaea4b02f5c2186b78395b4f7d1fd32bca81"
+    }
+  ],
+  "outputs": [
+    {
+      "path": ".github/workflows/ci.yml",
+      "owner": "ci-workflow",
+      "checksum": "sha256:dbfe40c080e5d3843ec1d7973a1ebb812525df96ff27a38f1be809b4ce9a4c8c",
+      "mode": 420
+    },
+    {
+      "path": "apps/api/src/app.module.ts",
+      "owner": "api-app-module",
+      "checksum": "sha256:e721a391f2b2c966a94579a169699980dc2669a9067eb54387197340442636c3",
+      "mode": 420
+    },
+    {
+      "path": "apps/api/src/authorization/route-policy.ts",
+      "owner": "api-route-policy",
+      "checksum": "sha256:58f4a54e34633282f4a16d16282b6e93d565075f506f049e6c1189c0fd903e1f",
+      "mode": 420
+    },
+    {
+      "path": "apps/api/src/contracts/api-contract.module.ts",
+      "owner": "api-contract-module",
+      "checksum": "sha256:7b1cb446ed0ebc4d401c9256ccfbf8b945d8a735e540744f03f6a001101a75df",
+      "mode": 420
+    },
+    {
+      "path": "NOTICE",
+      "owner": "notice",
+      "checksum": "sha256:c74f6b6e3cb1bd802b925c280672798bec6822cf7d043e6ecdbe9f3591f3eefb",
+      "mode": 420
+    },
+    {
+      "path": "package.json",
+      "owner": "root-package-json",
+      "checksum": "sha256:83f2cbe23a60700bc74add96b504c6085448408605b24ebfe671f895df62dea4",
+      "mode": 420
+    },
+    {
+      "path": "pnpm-workspace.yaml",
+      "owner": "pnpm-workspace",
+      "checksum": "sha256:2e01029091f581f70c6c54935fd8243d04ddb6feabde23a770632f39f5893b4e",
+      "mode": 420
+    },
+    {
+      "path": "README.md",
+      "owner": "project-readme",
+      "checksum": "sha256:b82d56b26672bccee280db568a11d0f612de57bbc7abaf9d7e9fba9882767446",
+      "mode": 420
+    },
+    {
+      "path": "test-scope.json",
+      "owner": "test-scope-json",
+      "checksum": "sha256:ae4468cdbc43141c576b0bae0f3fe3ee6e8b3887d53078e9aeeb96577932f7c9",
+      "mode": 420
+    },
+    {
+      "path": "turbo.json",
+      "owner": "turbo-json",
+      "checksum": "sha256:804f98a774f0fa3dce828d8a88dc7488fbe950fe827001793a778272f3db9c66",
+      "mode": 420
+    }
+  ],
+  "scaffoldContract": {
+    "entryVersions": [
+      1,
+      2,
+      3
+    ],
+    "composedEntries": [
+      "api:3",
+      "feature:2"
+    ]
+  },
+  "licenses": {
+    "ISC": {
+      "composer": {
+        "id": "license",
+        "version": 1,
+        "checksum": "sha256:09d62ef83697ee34208c06931ada1af9734b7d6cc27266dbe4f25d6879e1cd79"
+      },
+      "output": {
+        "path": "LICENSE",
+        "owner": "license",
+        "checksum": "sha256:9b124063be094b36bb9c5ed609a1dcc99b684e57367529d7fa38dd35264e027e",
+        "mode": 420
+      }
+    },
+    "MIT": {
+      "composer": {
+        "id": "license",
+        "version": 1,
+        "checksum": "sha256:09d62ef83697ee34208c06931ada1af9734b7d6cc27266dbe4f25d6879e1cd79"
+      },
+      "output": {
+        "path": "LICENSE",
+        "owner": "license",
+        "checksum": "sha256:d11f47c929898fc21422ba497bdee527de6acfa16983373f9bd0251527d1d07e",
+        "mode": 420
+      }
+    }
+  },
+  "adoptionSources": [
+    {
+      "path": ".gitignore",
+      "checksum": "sha256:57f522b6f315bca9630e6ee329ad99b3e9d34bab5a7a844388cadfa23787cf0f",
+      "mode": 420
+    },
+    {
+      "path": ".prettierignore",
+      "checksum": "sha256:76350b33eb37813fcadaf598dadedb98db49cf54141b0ee4465aa80eaf0608ab",
+      "mode": 420
+    },
+    {
+      "path": "apps/web/eslint.config.mjs",
+      "checksum": "sha256:0a139c4d624f9ed1b6c0a2337c4f01b2cc6f0bb9dc30acac34b629f3868a6712",
+      "mode": 420
+    },
+    {
+      "path": "apps/web/next.config.ts",
+      "checksum": "sha256:5b9d549730adc27e0e98a43f9fff2be318941c97884b3736349bbb8a67758638",
+      "mode": 420
+    },
+    {
+      "path": "apps/web/package.json",
+      "checksum": "sha256:09d007c61252df112d19503c0c5858a6d3699750ba9da6f7d23a591216e95b4e",
+      "mode": 420
+    },
+    {
+      "path": "packages/ui/src/appearance.ts",
+      "checksum": "sha256:47408565e83696ba1b35b4d2c23a40bb7410fec8e9d211a99e30f0135eebaac1",
+      "mode": 420
+    },
+    {
+      "path": "packages/ui/src/browser.ts",
+      "checksum": "sha256:9d220b3a6171b85608e9cb805d5049860a3015658040d3580d8be3771f2ed837",
+      "mode": 420
+    },
+    {
+      "path": "packages/ui/src/components.tsx",
+      "checksum": "sha256:dba1c30a2e624bad40e8f454c07f1133eb9fd2f8ca3fd9489da53b911824bd10",
+      "mode": 420
+    },
+    {
+      "path": "packages/ui/src/index.ts",
+      "checksum": "sha256:83a1ffb08d81821c236c64e83a63175443db9140db258835618f0ba1ba515028",
+      "mode": 420
+    },
+    {
+      "path": "packages/ui/src/portal.tsx",
+      "checksum": "sha256:83456a555f7b4cf91826f68dff03ae008a771564deb03d934b1adbef7965499b",
+      "mode": 420
+    },
+    {
+      "path": "packages/ui/src/responsive.ts",
+      "checksum": "sha256:1e693d704d47fbe2e9c97d0573508a5bfa04a0005073beff0756c600d594efce",
+      "mode": 420
+    },
+    {
+      "path": "packages/ui/styles.css",
+      "checksum": "sha256:086999fade46d90ab475ca43e39806c6dd172223d5a29154a4c052ec34ffa785",
+      "mode": 420
+    },
+    {
+      "path": "packages/ui/test/components.test.mjs",
+      "checksum": "sha256:84b384bb1ad20b4da03ebbd43d20f70a14ac6837fb43ae48cb921e6d3c710a73",
+      "mode": 420
+    },
+    {
+      "path": "pnpm-lock.yaml",
+      "checksum": "sha256:b6ccb12018753b9dacbfb7b6ec09b4d5ffe9769972314404abf9653b48d54943",
+      "mode": 420
+    }
+  ],
+  "adoptionTargets": [
+    {
+      "action": "modify",
+      "path": ".gitignore",
+      "checksum": "sha256:ca7a1b41684419cc4166b5e9b9a6b128456e6a3f186a1a8e2b298f1de166d065",
+      "mode": 420
+    },
+    {
+      "action": "modify",
+      "path": ".prettierignore",
+      "checksum": "sha256:f174ac56f0526d585055ba01229b90ad0b2b3eeb35ab8029f605ca084098185b",
+      "mode": 420
+    },
+    {
+      "action": "add",
+      "path": "apps/web/e2e/ui-foundation.spec.ts",
+      "checksum": "sha256:eaaaece7197e5322d2b69ef8cf54a405aae8dab4b3eee6eafb40d5ae69c30f47",
+      "mode": 420
+    },
+    {
+      "action": "modify",
+      "path": "apps/web/eslint.config.mjs",
+      "checksum": "sha256:1015c86235065e3cf05d609af32f50b8dbfd3bd7328442059ed97e391897f26f",
+      "mode": 420
+    },
+    {
+      "action": "modify",
+      "path": "apps/web/next.config.ts",
+      "checksum": "sha256:169051bd4e3bc73c31552f18cd83de4e78cc26d231f9f31f6479402e699f2637",
+      "mode": 420
+    },
+    {
+      "action": "modify",
+      "path": "apps/web/package.json",
+      "checksum": "sha256:a463211fcca63532375efa35bbf21c12ce34db671698afc68428d628eab2f536",
+      "mode": 420
+    },
+    {
+      "action": "add",
+      "path": "apps/web/playwright.config.ts",
+      "checksum": "sha256:f731283ed126ce9e3872025a7abdc3606ec1b9e38febe1013b71740fc467670c",
+      "mode": 420
+    },
+    {
+      "action": "add",
+      "path": "apps/web/src/app/ui-foundation/page.tsx",
+      "checksum": "sha256:4597fbf02c03c12ffde4c3c1bcfd11390e6baa0086856bb03554d82702bb3b86",
+      "mode": 420
+    },
+    {
+      "action": "add",
+      "path": "apps/web/src/app/ui-foundation/ui-foundation-fixture.tsx",
+      "checksum": "sha256:b55381e8bcf7367d2a06933ef727369dd1687fdc4544036b8cf5e9d09cff19c3",
+      "mode": 420
+    },
+    {
+      "action": "modify",
+      "path": "packages/ui/src/appearance.ts",
+      "checksum": "sha256:06736024df2645c798f7f5a060865eef95f69b62049c3d339d1b38fb8b63049c",
+      "mode": 420
+    },
+    {
+      "action": "modify",
+      "path": "packages/ui/src/browser.ts",
+      "checksum": "sha256:02137798096395f869ce62dedeb3ea8232a7e9e14d67d4b92aa5e285c012870b",
+      "mode": 420
+    },
+    {
+      "action": "modify",
+      "path": "packages/ui/src/components.tsx",
+      "checksum": "sha256:2872ea26674c2f06650150e5b253f3761f25847cf99e2f1a9cbedc96ee9b721b",
+      "mode": 420
+    },
+    {
+      "action": "add",
+      "path": "packages/ui/src/dialog.tsx",
+      "checksum": "sha256:81544768f10373df03228d4b4b4164cfd7e815f894fd199b7337185df78bf29f",
+      "mode": 420
+    },
+    {
+      "action": "modify",
+      "path": "packages/ui/src/index.ts",
+      "checksum": "sha256:8bcb918fc2715c2ce49aee1660d2b1f91f9b27465af184b0ff64cbf997c52274",
+      "mode": 420
+    },
+    {
+      "action": "modify",
+      "path": "packages/ui/src/portal.tsx",
+      "checksum": "sha256:d25b5b22d0ca3bdef039935de1996c841534d6e3d3ac3d27b9bc314e6ad3138d",
+      "mode": 420
+    },
+    {
+      "action": "modify",
+      "path": "packages/ui/src/responsive.ts",
+      "checksum": "sha256:88b38aea75a535784111d5a1f69d7484ed855f79e1cf8b70da07efff0189bda2",
+      "mode": 420
+    },
+    {
+      "action": "add",
+      "path": "packages/ui/src/tokens.ts",
+      "checksum": "sha256:48bdad41eb8db9a0eaf1811832dd61266ac0e31c6321a4ef25c7acecb5a7203b",
+      "mode": 420
+    },
+    {
+      "action": "modify",
+      "path": "packages/ui/styles.css",
+      "checksum": "sha256:90ec37242a4e2d5b4b18a236e646db19808f3fa2a98f794ab3a235daa210e672",
+      "mode": 420
+    },
+    {
+      "action": "modify",
+      "path": "packages/ui/test/components.test.mjs",
+      "checksum": "sha256:dde70a39560ac38d5b2e53690c362178e2cc5b264195b442e9e25684fca05757",
+      "mode": 420
+    },
+    {
+      "action": "modify",
+      "path": "pnpm-lock.yaml",
+      "checksum": "sha256:b711d355a9681a08fb26ba9675452ac995349067dd52f113e220a9e6ce5eb1bf",
+      "mode": 420
+    }
+  ]
+}

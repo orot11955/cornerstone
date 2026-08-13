@@ -2,14 +2,16 @@ import { lstat } from 'node:fs/promises'
 import { resolve } from 'node:path'
 import { formatJsonDocument } from '../composition/composer.js'
 import {
+  buildStandardV4PredecessorLock,
+  resolveStandardV4Predecessor,
+} from '../composition/standard-v4-predecessor.js'
+import {
   readStandardV3AdoptionSource,
   resolveStandardV3Predecessor,
 } from '../composition/standard-v3-predecessor.js'
-import { loadCanonicalTemplateMetadata } from '../composition/template.js'
-import { buildStandardV3Lock, readManifest, verifyProject } from '../generator.js'
+import { readManifest, verifyProject } from '../generator.js'
 import { sha256 } from '../hash.js'
 import { stableJson } from '../hash.js'
-import { composeScaffoldAwareOutputs } from '../scaffold/composition.js'
 import { projectLockV3Schema, resolveManifest } from '../schema.js'
 import {
   applyGeneratorMutation,
@@ -62,13 +64,9 @@ async function prepareAdoption(
   const lockPath = safeTargetPath(target, lockRelativePath)
   let lockBytes = await readBoundedFile(lockPath, 'Standard v3 adoption lock', maximumMetadataBytes)
   let lock = projectLockV3Schema.parse(JSON.parse(lockBytes.toString('utf8')))
-  let recovering = false
-  if (lock.templateVersion === currentTemplateVersion) {
-    const journalPath = safeTargetPath(target, '.cornerstone/mutation.journal.json')
-    if (!(await pathExists(journalPath))) {
-      await verifyProject(target)
-      return { target }
-    }
+  const journalPath = safeTargetPath(target, '.cornerstone/mutation.journal.json')
+  const recovering = await pathExists(journalPath)
+  if (recovering) {
     const journal = parseMutationJournalV2(
       JSON.parse(
         (
@@ -85,7 +83,9 @@ async function prepareAdoption(
       maximumMetadataBytes,
     )
     lock = projectLockV3Schema.parse(JSON.parse(lockBytes.toString('utf8')))
-    recovering = true
+  } else if (lock.templateVersion === currentTemplateVersion) {
+    await verifyProject(target)
+    return { target }
   }
   if (lock.templateVersion !== predecessorTemplateVersion) {
     throw new Error(`Standard v4 adoption requires exact template ${predecessorTemplateVersion}`)
@@ -102,10 +102,6 @@ async function prepareAdoption(
 
   const userManifest = await readManifest(safeTargetPath(target, 'cornerstone.config.yml'))
   const manifest = resolveManifest(userManifest)
-  const metadata = loadCanonicalTemplateMetadata()
-  if (metadata.templateVersion !== currentTemplateVersion) {
-    throw new Error(`Standard v4 adoption metadata must be ${currentTemplateVersion}`)
-  }
   const predecessor = await resolveStandardV3Predecessor(manifest, lock.scaffolds)
   const expectedPredecessorLock = (
     await import('../composition/standard-v3-predecessor.js')
@@ -128,21 +124,15 @@ async function prepareAdoption(
     }
   }
 
-  const composed = await composeScaffoldAwareOutputs(
-    resolve(import.meta.dirname, '..', 'templates', 'canonical'),
-    metadata,
-    manifest,
-    lock.scaffolds,
-  )
-  const desiredLock = await buildStandardV3Lock(
-    target,
+  const desired = await resolveStandardV4Predecessor(manifest, lock.scaffolds)
+  const desiredLock = buildStandardV4PredecessorLock(
+    desired,
     userManifest,
     manifest,
-    composed,
     lock.scaffolds,
   )
   const entries: GeneratorMutationRequest['entries'][number][] = []
-  for (const output of composed) {
+  for (const output of desired.outputs) {
     const previous = predecessor.outputs.find(({ path }) => path === output.path)
     const adoptionSource = predecessor.snapshot.adoptionSources.find(
       ({ path }) => path === output.path,
@@ -153,11 +143,13 @@ async function prepareAdoption(
         `Manual migration required: Standard 0.4.0 adds unknown output ${output.path}`,
       )
     }
-    if (sha256(output.content) === before.checksum && previous?.owner === output.owner) continue
+    const content = desired.contents.get(output.path)
+    if (!content) throw new Error(`Immutable Standard 0.4.0 output is missing: ${output.path}`)
+    if (sha256(content) === before.checksum && previous?.owner === output.owner) continue
     entries.push({
       action: 'modify',
       path: output.path,
-      content: output.content,
+      content,
       mode: generatedFileMode,
       beforeChecksum: before.checksum,
       beforeMode: before.mode,
