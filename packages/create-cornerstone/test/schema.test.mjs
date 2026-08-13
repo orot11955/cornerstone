@@ -43,8 +43,11 @@ import {
   updateProject,
 } from '../dist/index.js'
 import {
+  applyGeneratorMutation,
   injectUpdateFailureForTest,
   isTrustedUpdateParentPolicy,
+  parseMutationJournalV2,
+  planGeneratorMutation,
   setUpdateHookForTest,
 } from '../dist/update-internal.js'
 import { createHash } from 'node:crypto'
@@ -181,6 +184,49 @@ function validV3Lock() {
   }
   lock.scaffoldsDigest = computeScaffoldsDigest(lock.scaffolds)
   return lock
+}
+
+async function makeMutationFixture() {
+  const fixture = await mkdtemp(join(tmpdir(), 'cornerstone-mutation-v2-test-'))
+  const target = join(fixture, 'project')
+  await mkdir(join(target, '.cornerstone'), { recursive: true })
+  await mkdir(join(target, 'shared'))
+  const beforeLock = Buffer.from('{"version":1}\n')
+  const afterLock = Buffer.from('{"version":2}\n')
+  const beforeShared = Buffer.from('before\n')
+  const afterShared = Buffer.from('after\n')
+  await writeFile(join(target, '.cornerstone/manifest.lock.json'), beforeLock, { mode: 0o644 })
+  await writeFile(join(target, 'shared/config.json'), beforeShared, { mode: 0o644 })
+  const request = {
+    operationKind: 'generate',
+    lockPath: '.cornerstone/manifest.lock.json',
+    createdDirectories: ['packages', 'packages/example', 'packages/example/src'],
+    entries: [
+      {
+        action: 'add',
+        path: 'packages/example/src/index.ts',
+        content: Buffer.from('export const generated = true\n'),
+        mode: 0o644,
+      },
+      {
+        action: 'modify',
+        path: 'shared/config.json',
+        content: afterShared,
+        mode: 0o644,
+        beforeChecksum: checksum(beforeShared),
+        beforeMode: 0o644,
+      },
+      {
+        action: 'modify',
+        path: '.cornerstone/manifest.lock.json',
+        content: afterLock,
+        mode: 0o644,
+        beforeChecksum: checksum(beforeLock),
+        beforeMode: 0o644,
+      },
+    ],
+  }
+  return { target, request, beforeLock, afterLock, beforeShared, afterShared }
 }
 
 test('resolves the minimal profile without optional capabilities', () => {
@@ -1613,4 +1659,248 @@ test('interactive and manifest create use the same resolved plan', async () => {
   const interactiveLock = await verifyProject(interactiveTarget)
   assert.equal(interactiveLock.userManifestDigest, manifestLock.userManifestDigest)
   assert.deepEqual(interactiveLock.resolved, manifestLock.resolved)
+})
+
+test('plans without writes and applies Journal v2 add and modify with lock last', async () => {
+  const { target, request, beforeLock, afterLock, afterShared } = await makeMutationFixture()
+  const beforeNames = await readdir(target, { recursive: true })
+  const plan = await planGeneratorMutation(target, request)
+  assert.deepEqual(
+    plan.changes.map(({ action }) => action),
+    ['add', 'modify', 'modify'],
+  )
+  assert.deepEqual(await readdir(target, { recursive: true }), beforeNames)
+  assert.deepEqual(await readFile(join(target, '.cornerstone/manifest.lock.json')), beforeLock)
+  assert.deepEqual(
+    (await applyGeneratorMutation(target, request, { dryRun: true })).changes,
+    plan.changes,
+  )
+
+  const writeOrder = []
+  setUpdateHookForTest((point, path) => {
+    if (point === 'mutation-after-write') writeOrder.push(path)
+  })
+  try {
+    await applyGeneratorMutation(target, request)
+  } finally {
+    setUpdateHookForTest(undefined)
+  }
+  assert.equal(writeOrder.at(-1), '.cornerstone/manifest.lock.json')
+  assert.deepEqual(await readFile(join(target, '.cornerstone/manifest.lock.json')), afterLock)
+  assert.deepEqual(await readFile(join(target, 'shared/config.json')), afterShared)
+  assert.equal(
+    await readFile(join(target, 'packages/example/src/index.ts'), 'utf8'),
+    'export const generated = true\n',
+  )
+  for (const directory of ['packages', 'packages/example', 'packages/example/src']) {
+    assert.equal((await stat(join(target, directory))).mode & 0o777, 0o755)
+  }
+  await assert.rejects(access(join(target, '.cornerstone/mutation.journal.json')))
+})
+
+test('recovers Journal v2 preparing and committed crash boundaries', async () => {
+  {
+    const { target, request, afterLock } = await makeMutationFixture()
+    injectUpdateFailureForTest('mutation-crash-after-journal')
+    await assert.rejects(applyGeneratorMutation(target, request), /injected mutation crash/i)
+    assert.equal(
+      JSON.parse(await readFile(join(target, '.cornerstone/mutation.journal.json'), 'utf8')).status,
+      'preparing',
+    )
+    await applyGeneratorMutation(target, request)
+    assert.deepEqual(await readFile(join(target, '.cornerstone/manifest.lock.json')), afterLock)
+  }
+  {
+    const { target, request, afterLock } = await makeMutationFixture()
+    injectUpdateFailureForTest('mutation-crash-after-commit')
+    await assert.rejects(applyGeneratorMutation(target, request), /injected mutation crash/i)
+    assert.equal(
+      JSON.parse(await readFile(join(target, '.cornerstone/mutation.journal.json'), 'utf8')).status,
+      'committed',
+    )
+    await applyGeneratorMutation(target, request)
+    assert.deepEqual(await readFile(join(target, '.cornerstone/manifest.lock.json')), afterLock)
+    await assert.rejects(access(join(target, '.cornerstone/mutation.journal.json')))
+  }
+})
+
+test('rolls back Journal v2 add and modify failure and removes generated empty parents', async () => {
+  const { target, request, beforeLock, beforeShared } = await makeMutationFixture()
+  setUpdateHookForTest((point, path) => {
+    if (point === 'mutation-after-write' && path === 'shared/config.json') {
+      throw new Error('injected mid-apply failure')
+    }
+  })
+  try {
+    await assert.rejects(applyGeneratorMutation(target, request), /injected mid-apply failure/i)
+  } finally {
+    setUpdateHookForTest(undefined)
+  }
+  assert.deepEqual(await readFile(join(target, '.cornerstone/manifest.lock.json')), beforeLock)
+  assert.deepEqual(await readFile(join(target, 'shared/config.json')), beforeShared)
+  await assert.rejects(access(join(target, 'packages/example/src/index.ts')))
+  await assert.rejects(access(join(target, 'packages')))
+})
+
+test('preserves drifted Journal v2 add output and fails closed during rollback', async () => {
+  const { target, request } = await makeMutationFixture()
+  setUpdateHookForTest(async (point, path) => {
+    if (point === 'mutation-after-write' && path === 'packages/example/src/index.ts') {
+      await writeFile(join(target, path), 'user drift\n')
+    }
+  })
+  injectUpdateFailureForTest('mutation-after-output')
+  try {
+    await assert.rejects(applyGeneratorMutation(target, request), /precondition changed/i)
+  } finally {
+    setUpdateHookForTest(undefined)
+    injectUpdateFailureForTest(undefined)
+  }
+  assert.equal(
+    await readFile(join(target, 'packages/example/src/index.ts'), 'utf8'),
+    'user drift\n',
+  )
+})
+
+test('recovers a crashed pending Journal v2 before reapplying the exact request', async () => {
+  const { target, request, afterLock } = await makeMutationFixture()
+  injectUpdateFailureForTest('mutation-crash-after-output')
+  await assert.rejects(applyGeneratorMutation(target, request), /injected mutation crash/i)
+  assert.equal(
+    JSON.parse(await readFile(join(target, '.cornerstone/mutation.journal.json'), 'utf8')).status,
+    'pending',
+  )
+  await applyGeneratorMutation(target, request)
+  assert.deepEqual(await readFile(join(target, '.cornerstone/manifest.lock.json')), afterLock)
+  await assert.rejects(access(join(target, '.cornerstone/mutation.journal.json')))
+})
+
+test('recovers durable Journal v2 rolled-back cleanup after a crash', async () => {
+  const { target, request, afterLock } = await makeMutationFixture()
+  setUpdateHookForTest((point) => {
+    if (point === 'mutation-before-rollback') {
+      injectUpdateFailureForTest('mutation-crash-after-rollback')
+    }
+  })
+  injectUpdateFailureForTest('mutation-after-output')
+  try {
+    await assert.rejects(applyGeneratorMutation(target, request), /injected mutation crash/i)
+  } finally {
+    setUpdateHookForTest(undefined)
+    injectUpdateFailureForTest(undefined)
+  }
+  const journalPath = join(target, '.cornerstone/mutation.journal.json')
+  const journal = JSON.parse(await readFile(journalPath, 'utf8'))
+  assert.equal(journal.status, 'rolled-back')
+  await access(join(target, journal.backupRoot))
+  await access(join(target, 'packages'))
+
+  await applyGeneratorMutation(target, request)
+  assert.deepEqual(await readFile(join(target, '.cornerstone/manifest.lock.json')), afterLock)
+  await assert.rejects(access(journalPath))
+  await assert.rejects(access(join(target, journal.backupRoot)))
+})
+
+test('rejects malicious Journal v2 and keeps unrelated files unchanged', async () => {
+  const { target, request } = await makeMutationFixture()
+  injectUpdateFailureForTest('mutation-crash-after-output')
+  await assert.rejects(applyGeneratorMutation(target, request), /injected mutation crash/i)
+  const unrelated = join(target, 'unrelated.txt')
+  await writeFile(unrelated, 'preserve\n')
+  const journalPath = join(target, '.cornerstone/mutation.journal.json')
+  const journal = JSON.parse(await readFile(journalPath, 'utf8'))
+  journal.entries[1].backupPath = 'unrelated.txt'
+  await writeFile(journalPath, formatJsonDocument(journal))
+  await assert.rejects(
+    applyGeneratorMutation(target, request),
+    /invalid mutation journal v2 entry/i,
+  )
+  assert.equal(await readFile(unrelated, 'utf8'), 'preserve\n')
+})
+
+test('rejects Journal v2 created directory injection without deleting an existing ancestor', async () => {
+  const { target, request } = await makeMutationFixture()
+  await mkdir(join(target, 'packages'))
+  const requestWithExistingParent = {
+    ...request,
+    createdDirectories: ['packages/example', 'packages/example/src'],
+  }
+  injectUpdateFailureForTest('mutation-crash-after-output')
+  await assert.rejects(
+    applyGeneratorMutation(target, requestWithExistingParent),
+    /injected mutation crash/i,
+  )
+  const journalPath = join(target, '.cornerstone/mutation.journal.json')
+  const journal = JSON.parse(await readFile(journalPath, 'utf8'))
+  journal.createdDirectories.unshift('packages')
+  await writeFile(journalPath, formatJsonDocument(journal))
+  await assert.rejects(
+    applyGeneratorMutation(target, requestWithExistingParent),
+    /created directories do not match the exact request/i,
+  )
+  assert.deepEqual(await readdir(join(target, 'packages')), ['example'])
+})
+
+test('parses delete Journal v2 entries but rejects delete execution and unsafe requests', async () => {
+  const operationId = '12345678-1234-4234-8234-123456789abc'
+  const journal = {
+    schemaVersion: 2,
+    operationId,
+    operationKind: 'generate',
+    backupRoot: `.cornerstone/mutation-backup-${operationId}`,
+    status: 'pending',
+    createdDirectories: [],
+    entries: [
+      {
+        action: 'delete',
+        path: 'src/old.ts',
+        backupPath: `.cornerstone/mutation-backup-${operationId}/src/old.ts`,
+        beforeChecksum: digest,
+        beforeMode: 0o644,
+        afterChecksum: null,
+        afterMode: null,
+      },
+      {
+        action: 'modify',
+        path: '.cornerstone/manifest.lock.json',
+        backupPath: `.cornerstone/mutation-backup-${operationId}/.cornerstone/manifest.lock.json`,
+        beforeChecksum: digest,
+        beforeMode: 0o644,
+        afterChecksum: digest,
+        afterMode: 0o644,
+      },
+    ],
+  }
+  assert.equal(parseMutationJournalV2(journal).entries[0].action, 'delete')
+  const { target, request } = await makeMutationFixture()
+  await assert.rejects(
+    planGeneratorMutation(target, {
+      ...request,
+      entries: [
+        ...request.entries,
+        {
+          action: 'delete',
+          path: 'src/old.ts',
+          beforeChecksum: digest,
+          beforeMode: 0o644,
+        },
+      ],
+    }),
+    /delete execution is reserved/i,
+  )
+  await assert.rejects(
+    planGeneratorMutation(target, { ...request, lockPath: 'other.lock' }),
+    /lock path must be the manifest lock/i,
+  )
+  await assert.rejects(
+    planGeneratorMutation(target, { ...request, createdDirectories: [] }),
+    /exact missing add ancestors/i,
+  )
+  await assert.rejects(
+    planGeneratorMutation(target, {
+      ...request,
+      entries: [...request.entries, { ...request.entries[0], path: 'PACKAGES/EXAMPLE' }],
+    }),
+    /portable or ancestor collision/i,
+  )
 })

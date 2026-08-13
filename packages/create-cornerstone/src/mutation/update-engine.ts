@@ -41,10 +41,10 @@ import {
 const predecessorTemplateVersion = '0.2.0'
 const currentTemplateVersion = '0.2.1'
 const journalRelativePath = '.cornerstone/update.journal.json'
-const lockRelativePath = '.cornerstone/manifest.lock.json'
-const maximumMetadataBytes = 1024 * 1024
+export const lockRelativePath = '.cornerstone/manifest.lock.json'
+export const maximumMetadataBytes = 1024 * 1024
 const maximumGeneratedFileBytes = 16 * 1024 * 1024
-const generatedFileMode = 0o644
+export const generatedFileMode = 0o644
 const templateRoot = resolve(import.meta.dirname, '..', 'templates', 'canonical')
 const updateLockRelativePath = '.cornerstone/update.lock'
 const approvedGeneratorVersion = '0.1.0'
@@ -134,7 +134,10 @@ export async function updateProject(
   })
 }
 
-async function withUpdateOperationLock<T>(target: string, operation: () => Promise<T>): Promise<T> {
+export async function withUpdateOperationLock<T>(
+  target: string,
+  operation: () => Promise<T>,
+): Promise<T> {
   const lockPath = safeTargetPath(target, updateLockRelativePath)
   const nonce = randomUUID()
   await assertOwnedWriteAncestors(target, updateLockRelativePath)
@@ -410,7 +413,7 @@ async function applyUpdate(target: string, prepared: PreparedUpdate): Promise<vo
   await cleanupJournal(target, journal)
 }
 
-async function ensureBackupParents(
+export async function ensureBackupParents(
   target: string,
   backupRoot: string,
   outputPath: string,
@@ -429,7 +432,7 @@ async function ensureBackupParents(
   }
 }
 
-async function syncBackupDirectories(
+export async function syncBackupDirectories(
   target: string,
   backupRoot: string,
   entries: readonly JournalEntry[],
@@ -603,7 +606,7 @@ async function validateCommittedJournalWithoutBackup(
   }
 }
 
-async function pathExists(path: string): Promise<boolean> {
+export async function pathExists(path: string): Promise<boolean> {
   try {
     await lstat(path)
     return true
@@ -791,7 +794,7 @@ async function cleanupPreparingJournal(target: string, journal: UpdateJournal): 
   await syncDirectory(safeTargetPath(target, '.cornerstone'))
 }
 
-async function removeValidatedDirectory(target: string, path: string): Promise<void> {
+export async function removeValidatedDirectory(target: string, path: string): Promise<void> {
   await assertOwnedWriteAncestors(target, path)
   await assertExactDirectoryWithinTarget(target, path)
   const directory = safeTargetPath(target, path)
@@ -809,14 +812,14 @@ async function removeValidatedDirectory(target: string, path: string): Promise<v
   await syncDirectory(dirname(directory))
 }
 
-async function assertDirectory(path: string, label: string): Promise<void> {
+export async function assertDirectory(path: string, label: string): Promise<void> {
   const info = await lstat(path)
   if (!info.isDirectory() || info.isSymbolicLink()) {
     throw new Error(`Update recovery path must be a real directory: ${label}`)
   }
 }
 
-async function assertProjectBoundary(target: string): Promise<string> {
+export async function assertProjectBoundary(target: string): Promise<string> {
   const targetInfo = await lstat(target)
   if (!targetInfo.isDirectory() || targetInfo.isSymbolicLink()) {
     throw new Error('Update target must be a real directory')
@@ -869,6 +872,23 @@ async function assertUpdateOwnershipBoundary(target: string): Promise<void> {
   for (const path of paths) await assertOwnedWriteAncestors(target, path, effectiveUserId)
 }
 
+export async function assertMutationOwnershipBoundary(target: string): Promise<void> {
+  if (process.platform === 'win32' || typeof process.geteuid !== 'function') return
+  const effectiveUserId = process.geteuid()
+  if (effectiveUserId === 0) {
+    throw new Error('Actual mutation must not run with root or elevated privileges')
+  }
+  await assertSecureTargetParentChain(target, effectiveUserId)
+  const targetReal = await assertProjectBoundary(target)
+  await assertOwnedDirectory(target, 'Mutation target', effectiveUserId, targetReal)
+  await assertOwnedDirectory(
+    safeTargetPath(target, '.cornerstone'),
+    '.cornerstone',
+    effectiveUserId,
+    targetReal,
+  )
+}
+
 async function assertSecureTargetParentChain(
   target: string,
   effectiveUserId: number,
@@ -908,7 +928,7 @@ async function assertSecureTargetParentChain(
   }
 }
 
-async function assertOwnedWriteAncestors(
+export async function assertOwnedWriteAncestors(
   target: string,
   path: string,
   effectiveUserId = effectiveUpdateUserId(),
@@ -951,7 +971,7 @@ function effectiveUpdateUserId(): number {
   return process.geteuid()
 }
 
-async function assertSafeAncestors(target: string, path: string): Promise<void> {
+export async function assertSafeAncestors(target: string, path: string): Promise<void> {
   const targetReal = await assertProjectBoundary(target)
   const segments = path.split('/').slice(0, -1)
   let current = target
@@ -967,7 +987,10 @@ async function assertSafeAncestors(target: string, path: string): Promise<void> 
   }
 }
 
-async function assertExactDirectoryWithinTarget(target: string, path: string): Promise<void> {
+export async function assertExactDirectoryWithinTarget(
+  target: string,
+  path: string,
+): Promise<void> {
   await assertSafeAncestors(target, `${path}/sentinel`)
   const directory = safeTargetPath(target, path)
   const info = await lstat(directory)
@@ -1005,7 +1028,7 @@ async function writeJournal(target: string, journal: UpdateJournal): Promise<voi
   )
 }
 
-async function replaceFile(
+export async function replaceFile(
   target: string,
   path: string,
   content: Uint8Array,
@@ -1033,7 +1056,11 @@ async function replaceFile(
   }
 }
 
-async function writeNewDurableFile(path: string, content: Uint8Array, mode: number): Promise<void> {
+export async function writeNewDurableFile(
+  path: string,
+  content: Uint8Array,
+  mode: number,
+): Promise<void> {
   assertGeneratedSize(content, path)
   const handle = await open(path, 'wx', mode)
   try {
@@ -1045,7 +1072,7 @@ async function writeNewDurableFile(path: string, content: Uint8Array, mode: numb
   }
 }
 
-async function syncDirectory(path: string): Promise<void> {
+export async function syncDirectory(path: string): Promise<void> {
   if (process.platform === 'win32') return
   let handle
   try {
@@ -1064,7 +1091,7 @@ async function syncDirectory(path: string): Promise<void> {
   }
 }
 
-async function assertExpectedFileState(
+export async function assertExpectedFileState(
   path: string,
   label: string,
   expectedStates: readonly ExpectedFileState[],
@@ -1317,7 +1344,7 @@ async function readManifest(path: string): Promise<ProjectManifest> {
   return projectManifestSchema.parse(document.toJS({ maxAliasCount: 0 }))
 }
 
-async function readBoundedFile(
+export async function readBoundedFile(
   path: string,
   label: string,
   limit = maximumMetadataBytes,
@@ -1344,11 +1371,11 @@ async function readBoundedFile(
   }
 }
 
-async function readGeneratedFile(path: string, label: string): Promise<Buffer> {
+export async function readGeneratedFile(path: string, label: string): Promise<Buffer> {
   return readBoundedFile(path, label, maximumGeneratedFileBytes)
 }
 
-function assertGeneratedSize(content: Uint8Array, label: string): void {
+export function assertGeneratedSize(content: Uint8Array, label: string): void {
   if (content.byteLength > maximumGeneratedFileBytes) {
     throw new Error(`${label} exceeds the 16 MiB generated-file limit`)
   }
@@ -1413,7 +1440,7 @@ function parseJournal(value: unknown): UpdateJournal {
   return journal
 }
 
-function hasExactKeys(value: Record<string, unknown>, expected: readonly string[]): boolean {
+export function hasExactKeys(value: Record<string, unknown>, expected: readonly string[]): boolean {
   const actual = Object.keys(value).sort()
   return stableJson(actual) === stableJson([...expected].sort())
 }
@@ -1437,7 +1464,7 @@ function lineDiff(before: string, after: string): string {
   ].join('\n')
 }
 
-function safeTargetPath(target: string, path: string): string {
+export function safeTargetPath(target: string, path: string): string {
   if (
     path.includes('\\') ||
     path.includes('\0') ||

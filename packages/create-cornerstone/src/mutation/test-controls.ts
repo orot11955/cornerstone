@@ -6,6 +6,13 @@ type UpdateFailurePoint =
   | 'after-rollback-before-cleanup'
   | 'after-rollback-backup-cleanup'
   | 'before-operation-lock-cleanup'
+  | 'mutation-after-write'
+  | 'mutation-after-output'
+  | 'mutation-before-rollback'
+  | 'mutation-crash-after-journal'
+  | 'mutation-crash-after-output'
+  | 'mutation-crash-after-commit'
+  | 'mutation-crash-after-rollback'
 
 let injectedFailure: UpdateFailurePoint | undefined
 let updateHook: ((point: UpdateFailurePoint, path?: string) => void | Promise<void>) | undefined
@@ -18,6 +25,18 @@ export function failUpdateIfInjected(point: UpdateFailurePoint): void {
   if (injectedFailure !== point) return
   injectedFailure = undefined
   throw new Error(`Injected update failure: ${point}`)
+}
+
+class InjectedMutationCrash extends Error {}
+
+export function failMutationCrashIfInjected(point: UpdateFailurePoint): void {
+  if (injectedFailure !== point) return
+  injectedFailure = undefined
+  throw new InjectedMutationCrash(`Injected mutation crash: ${point}`)
+}
+
+export function isInjectedMutationCrash(error: unknown): boolean {
+  return error instanceof InjectedMutationCrash
 }
 
 export function setUpdateHookForTest(
