@@ -11,26 +11,33 @@ import {
   type StandardV5AdoptionPlan,
 } from './mutation/standard-v5-adoption.js'
 import {
+  adoptStandardV6,
+  planStandardV6Adoption,
+  type StandardV6AdoptionPlan,
+} from './mutation/standard-v6-adoption.js'
+import { parseMutationJournalV2 } from './mutation/generator-engine.js'
+import {
   planProjectUpdate as planLegacyProjectUpdate,
   updateProject as updateLegacyProject,
   type ProjectUpdatePlan as LegacyProjectUpdatePlan,
   assertProjectBoundary,
   lockRelativePath,
   maximumMetadataBytes,
+  pathExists,
   readBoundedFile,
   safeTargetPath,
 } from './mutation/update-engine.js'
 
 export type ProjectUpdatePlan =
-  LegacyProjectUpdatePlan | StandardV4AdoptionPlan | StandardV5AdoptionPlan
+  LegacyProjectUpdatePlan | StandardV4AdoptionPlan | StandardV5AdoptionPlan | StandardV6AdoptionPlan
 
 export async function planProjectUpdate(targetPath: string): Promise<ProjectUpdatePlan> {
   const target = await canonicalTarget(targetPath)
   const lock = await readLock(target)
   if (lock.schemaVersion !== 3) return planLegacyProjectUpdate(target)
-  return lock.templateVersion === '0.3.0'
-    ? planStandardV4Adoption(target)
-    : planStandardV5Adoption(target)
+  if (lock.templateVersion === '0.3.0') return planStandardV4Adoption(target)
+  if (lock.templateVersion === '0.4.0') return planStandardV5Adoption(target)
+  return planStandardV6Adoption(target)
 }
 
 export async function updateProject(
@@ -41,7 +48,9 @@ export async function updateProject(
   const target = await canonicalTarget(targetPath)
   const lock = await readLock(target)
   if (lock.schemaVersion !== 3) return updateLegacyProject(target)
-  return lock.templateVersion === '0.3.0' ? adoptStandardV4(target) : adoptStandardV5(target)
+  if (lock.templateVersion === '0.3.0') return adoptStandardV4(target)
+  if (lock.templateVersion === '0.4.0') return adoptStandardV5(target)
+  return adoptStandardV6(target)
 }
 
 async function canonicalTarget(targetPath: string): Promise<string> {
@@ -49,6 +58,29 @@ async function canonicalTarget(targetPath: string): Promise<string> {
 }
 
 async function readLock(target: string) {
+  const journalPath = safeTargetPath(target, '.cornerstone/mutation.journal.json')
+  if (await pathExists(journalPath)) {
+    const journal = parseMutationJournalV2(
+      JSON.parse(
+        (
+          await readBoundedFile(journalPath, 'Project update journal', maximumMetadataBytes)
+        ).toString('utf8'),
+      ),
+    )
+    const lockEntry = journal.entries.find(({ path }) => path === lockRelativePath)
+    if (!lockEntry?.backupPath) throw new Error('Project update recovery lock backup is missing')
+    return projectLockSchema.parse(
+      JSON.parse(
+        (
+          await readBoundedFile(
+            safeTargetPath(target, lockEntry.backupPath),
+            'Project update predecessor lock backup',
+            maximumMetadataBytes,
+          )
+        ).toString('utf8'),
+      ),
+    )
+  }
   return projectLockSchema.parse(
     JSON.parse(
       (

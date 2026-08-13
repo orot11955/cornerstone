@@ -72,3 +72,5 @@ export { adoptStandardV4, planStandardV4Adoption } from './mutation/standard-v4-
 export type { StandardV4AdoptionPlan } from './mutation/standard-v4-adoption.js'
 export { adoptStandardV5, planStandardV5Adoption } from './mutation/standard-v5-adoption.js'
 export type { StandardV5AdoptionPlan } from './mutation/standard-v5-adoption.js'
+export { adoptStandardV6, planStandardV6Adoption } from './mutation/standard-v6-adoption.js'
+export type { StandardV6AdoptionPlan } from './mutation/standard-v6-adoption.js'

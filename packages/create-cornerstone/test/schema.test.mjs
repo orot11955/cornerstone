@@ -32,6 +32,7 @@ import {
   adoptStandardV3,
   adoptStandardV4,
   adoptStandardV5,
+  adoptStandardV6,
   apiAuthorizationContract,
   formatJsonDocument,
   getCapabilityApplicationOrder,
@@ -43,6 +44,7 @@ import {
   planStandardV3Adoption,
   planStandardV4Adoption,
   planStandardV5Adoption,
+  planStandardV6Adoption,
   planProjectUpdate,
   projectLockSchema,
   projectLockV3Schema,
@@ -80,6 +82,11 @@ import {
   readStandardV4AdoptionSource,
   resolveStandardV4Predecessor,
 } from '../dist/composition/standard-v4-predecessor.js'
+import {
+  buildStandardV5PredecessorLock,
+  readStandardV5AdoptionSource,
+  resolveStandardV5Predecessor,
+} from '../dist/composition/standard-v5-predecessor.js'
 import { createHash } from 'node:crypto'
 
 const digest = `sha256:${'a'.repeat(64)}`
@@ -101,6 +108,7 @@ function checksum(value) {
 }
 
 async function restorePreUifPlatformFiles(target) {
+  await restorePreAuthPlatformFiles(target)
   const snapshot = (
     await resolveStandardV4Predecessor(
       resolveManifest(await readManifest(join(target, 'cornerstone.config.yml'))),
@@ -118,6 +126,42 @@ async function restorePreUifPlatformFiles(target) {
   }
   await rmdir(join(target, 'apps/web/e2e'))
   await rmdir(join(target, 'apps/web/src/app/ui-foundation'))
+}
+
+async function restorePreAuthPlatformFiles(target) {
+  const snapshot = (
+    await resolveStandardV5Predecessor(
+      resolveManifest(await readManifest(join(target, 'cornerstone.config.yml'))),
+      [],
+    )
+  ).snapshot
+  for (const source of snapshot.adoptionSources) {
+    await writeFile(join(target, source.path), await readStandardV5AdoptionSource(source.path), {
+      mode: source.mode,
+    })
+    await chmod(join(target, source.path), source.mode)
+  }
+  for (const addition of snapshot.adoptionTargets.filter(({ action }) => action === 'add')) {
+    await rm(join(target, addition.path), { force: true })
+  }
+  for (const directory of [
+    'apps/web/src/app/settings/security',
+    'apps/web/src/app/password/reset',
+    'apps/web/src/app/password/forgot',
+    'apps/web/src/app/auth/refresh',
+    'apps/web/src/app/verify-email',
+    'apps/web/src/app/settings',
+    'apps/web/src/app/register',
+    'apps/web/src/app/password',
+    'apps/web/src/app/login',
+    'apps/web/src/app/auth',
+    'apps/web/src/query',
+    'apps/web/src/auth',
+    'apps/web/src/api',
+    'apps/web/e2e-auth',
+  ]) {
+    await rmdir(join(target, directory))
+  }
 }
 
 async function makePredecessorStandard(target, name = 'update-app', version = '0.2.0') {
@@ -195,6 +239,24 @@ async function makeStandardV4Predecessor(target, name = 'v4-app') {
   }
   await restorePreUifPlatformFiles(target)
   const lock = buildStandardV4PredecessorLock(predecessor, persistedManifest, manifest, [])
+  await writeFile(join(target, '.cornerstone/manifest.lock.json'), formatJsonDocument(lock), {
+    mode: 0o644,
+  })
+  return lock
+}
+
+async function makeStandardV5Predecessor(target, name = 'v5-app') {
+  const userManifest = { schemaVersion: 1, name, profile: 'standard' }
+  await createProjectFromManifest(target, userManifest)
+  const persistedManifest = await readManifest(join(target, 'cornerstone.config.yml'))
+  const manifest = resolveManifest(persistedManifest)
+  const predecessor = await resolveStandardV5Predecessor(manifest, [])
+  for (const [path, content] of predecessor.contents) {
+    await writeFile(join(target, path), content, { mode: 0o644 })
+    await chmod(join(target, path), 0o644)
+  }
+  await restorePreAuthPlatformFiles(target)
+  const lock = buildStandardV5PredecessorLock(predecessor, persistedManifest, manifest, [])
   await writeFile(join(target, '.cornerstone/manifest.lock.json'), formatJsonDocument(lock), {
     mode: 0o644,
   })
@@ -786,11 +848,31 @@ test('creates the exact standard preview deterministically with real v2 ownershi
     'node scripts/verify-package-consumer.mjs',
   )
   assert.equal(generatedPackage.scripts['license:check'], 'node scripts/check-package-licenses.mjs')
+  assert.equal(generatedPackage.scripts.build, 'turbo build')
+  assert.equal(generatedPackage.scripts.typecheck, 'turbo typecheck')
+  assert.equal(generatedPackage.scripts['test:unit'], 'node scripts/test-scope.mjs test:unit --run')
+  assert.equal(
+    generatedPackage.scripts['test:e2e'],
+    'pnpm test:e2e:api && pnpm test:e2e:web && pnpm test:e2e:web:auth',
+  )
+  assert.equal(generatedPackage.scripts['test:e2e:web:auth'], 'node scripts/run-web-auth-suite.mjs')
   assert.equal(generatedPackage.scripts['generator:portability:compare'], undefined)
+  const generatedWebPackage = JSON.parse(
+    await readFile(join(first, 'apps/web/package.json'), 'utf8'),
+  )
+  assert.equal(generatedWebPackage.scripts.build, 'next build --webpack')
+  assert.equal(generatedWebPackage.scripts.typecheck, 'tsc --noEmit')
+  assert.equal(generatedWebPackage.scripts['test:unit'], 'node --test test/*.test.mjs')
+  assert.equal(generatedWebPackage.scripts['test:e2e'], 'playwright test')
+  assert.equal(
+    generatedWebPackage.scripts['test:e2e:auth'],
+    'playwright test --config playwright.auth.config.ts',
+  )
   const generatedCi = await readFile(join(first, '.github/workflows/ci.yml'), 'utf8')
   assert.doesNotMatch(generatedCi, /generator-portability(?:-compare)?/)
   for (const script of [
     'check-package-licenses.mjs',
+    'run-web-auth-suite.mjs',
     'validate-package-boundaries.mjs',
     'verify-package-consumer.mjs',
   ]) {
@@ -1158,7 +1240,7 @@ test('preserves a Standard 0.3.0 contract-only API v2 registry during adoption',
   assert.equal(lock.schemaVersion === 3 && lock.scaffolds[0]?.version, 2)
 })
 
-test('chains immutable Standard 0.2.0 through 0.2.1, 0.3.0, 0.4.0, and 0.5.0', async () => {
+test('chains immutable Standard 0.2.0 through 0.2.1, 0.3.0, 0.4.0, 0.5.0, and 0.6.0', async () => {
   const fixture = await mkdtemp(join(tmpdir(), 'cornerstone-v4-full-chain-test-'))
   const target = join(fixture, 'project')
   await makePredecessorStandard(target, 'full-chain-app', '0.2.0')
@@ -1170,6 +1252,8 @@ test('chains immutable Standard 0.2.0 through 0.2.1, 0.3.0, 0.4.0, and 0.5.0', a
   assert.equal((await verifyProject(target)).templateVersion, '0.4.0')
   await updateProject(target)
   assert.equal((await verifyProject(target)).templateVersion, '0.5.0')
+  await updateProject(target)
+  assert.equal((await verifyProject(target)).templateVersion, '0.6.0')
 })
 
 test('adopts exact Standard 0.4.0 platform files to 0.5.0 with lock last', async () => {
@@ -1189,7 +1273,7 @@ test('adopts exact Standard 0.4.0 platform files to 0.5.0 with lock last', async
   await updateProject(target)
   assert.equal((await verifyProject(target)).templateVersion, '0.5.0')
   await access(join(target, 'apps/web/e2e/ui-foundation.spec.ts'))
-  assert.deepEqual((await updateProject(target)).changes, [])
+  assert.deepEqual((await adoptStandardV5(target)).changes, [])
 })
 
 test('fails closed before Standard 0.5.0 writes on platform drift or an occupied add path', async () => {
@@ -1238,6 +1322,125 @@ test('rolls back and recovers Standard 0.4.0 to 0.5.0 Journal v2 mutations', asy
   await assert.rejects(updateProject(recoveryTarget), /injected mutation crash/i)
   await updateProject(recoveryTarget)
   assert.equal((await verifyProject(recoveryTarget)).templateVersion, '0.5.0')
+})
+
+test('adopts exact Standard 0.5.0 auth platform files to 0.6.0 with lock last', async () => {
+  const fixture = await mkdtemp(join(tmpdir(), 'cornerstone-v6-adoption-test-'))
+  const target = join(fixture, 'project')
+  await makeStandardV5Predecessor(target, 'v6-adoption-app')
+  const lockPath = join(target, '.cornerstone/manifest.lock.json')
+  const beforeLock = await readFile(lockPath)
+  const userSource = join(target, 'apps/web/src/app/page.tsx')
+  await writeFile(userSource, `${await readFile(userSource, 'utf8')}\n// user preserved\n`)
+  const plan = await planStandardV6Adoption(target)
+  assert.deepEqual(await readFile(lockPath), beforeLock)
+  assert.equal((await verifyProject(target)).templateVersion, '0.5.0')
+  assert.equal(plan.changes.at(-1).path, '.cornerstone/manifest.lock.json')
+  assert.ok(plan.changes.some(({ path }) => path === 'apps/web/src/api/browser.ts'))
+  assert.ok(plan.changes.some(({ path }) => path === 'scripts/run-web-auth-suite.mjs'))
+  assert.ok(plan.changes.some(({ path }) => path === 'package.json'))
+  assert.ok(plan.changes.some(({ path }) => path === '.github/workflows/ci.yml'))
+  assert.deepEqual((await adoptStandardV6(target, { dryRun: true })).changes, plan.changes)
+  await updateProject(target)
+  assert.equal((await verifyProject(target)).templateVersion, '0.6.0')
+  assert.match(await readFile(userSource, 'utf8'), /user preserved/)
+  assert.deepEqual((await updateProject(target)).changes, [])
+})
+
+test('fails closed before Standard 0.6.0 writes on auth source drift or an occupied add path', async () => {
+  const fixture = await mkdtemp(join(tmpdir(), 'cornerstone-v6-drift-test-'))
+  const driftTarget = join(fixture, 'drift')
+  await makeStandardV5Predecessor(driftTarget, 'v6-drift-app')
+  const driftLock = await readFile(join(driftTarget, '.cornerstone/manifest.lock.json'))
+  const sourcePath = join(driftTarget, 'apps/web/src/config/web.ts')
+  await writeFile(sourcePath, `${await readFile(sourcePath, 'utf8')}\n// user\n`)
+  await assert.rejects(planStandardV6Adoption(driftTarget), /manual migration required/i)
+  assert.deepEqual(await readFile(join(driftTarget, '.cornerstone/manifest.lock.json')), driftLock)
+
+  const occupiedTarget = join(fixture, 'occupied')
+  await makeStandardV5Predecessor(occupiedTarget, 'v6-occupied-app')
+  const occupiedLock = await readFile(join(occupiedTarget, '.cornerstone/manifest.lock.json'))
+  const occupiedPath = join(occupiedTarget, 'apps/web/src/api/browser.ts')
+  await mkdir(join(occupiedTarget, 'apps/web/src/api'))
+  await writeFile(occupiedPath, '// user file\n')
+  await assert.rejects(planStandardV6Adoption(occupiedTarget), /manual migration required/i)
+  assert.deepEqual(
+    await readFile(join(occupiedTarget, '.cornerstone/manifest.lock.json')),
+    occupiedLock,
+  )
+  assert.equal(await readFile(occupiedPath, 'utf8'), '// user file\n')
+})
+
+test('rolls back and recovers Standard 0.5.0 to 0.6.0 Journal v2 mutations', async () => {
+  const fixture = await mkdtemp(join(tmpdir(), 'cornerstone-v6-recovery-test-'))
+  const rollbackTarget = join(fixture, 'rollback')
+  await makeStandardV5Predecessor(rollbackTarget, 'v6-rollback-app')
+  const rollbackLock = join(rollbackTarget, '.cornerstone/manifest.lock.json')
+  const beforeLock = await readFile(rollbackLock)
+  injectUpdateFailureForTest('mutation-after-output')
+  await assert.rejects(adoptStandardV6(rollbackTarget), /injected update failure/i)
+  assert.deepEqual(await readFile(rollbackLock), beforeLock)
+  assert.equal((await verifyProject(rollbackTarget)).templateVersion, '0.5.0')
+  await assert.rejects(access(join(rollbackTarget, 'apps/web/src/api/browser.ts')))
+
+  const recoveryTarget = join(fixture, 'recovery')
+  await makeStandardV5Predecessor(recoveryTarget, 'v6-recovery-app')
+  injectUpdateFailureForTest('mutation-crash-after-output')
+  await assert.rejects(adoptStandardV6(recoveryTarget), /injected mutation crash/i)
+  await adoptStandardV6(recoveryTarget)
+  assert.equal((await verifyProject(recoveryTarget)).templateVersion, '0.6.0')
+})
+
+test('dispatches crashed Standard 0.5.0 to 0.6.0 writes from the exact backup lock', async () => {
+  const fixture = await mkdtemp(join(tmpdir(), 'cornerstone-v6-dispatch-recovery-test-'))
+  for (const crashOrdinal of [1, 5]) {
+    const target = join(fixture, `write-${crashOrdinal}`)
+    await makeStandardV5Predecessor(target, `v6-dispatch-${crashOrdinal}-app`)
+    const lockPath = join(target, '.cornerstone/manifest.lock.json')
+    const beforeLock = await readFile(lockPath)
+    const beforePlan = await planProjectUpdate(target)
+    assert.equal(beforePlan.fromTemplateVersion, '0.5.0')
+    assert.equal(beforePlan.toTemplateVersion, '0.6.0')
+    const outputChanges = beforePlan.changes.filter(
+      ({ path }) => path !== '.cornerstone/manifest.lock.json',
+    )
+    assert.ok(outputChanges.length > crashOrdinal)
+    const userPath = join(target, `user-preserved-${crashOrdinal}.txt`)
+    const userBytes = Buffer.from(`preserve crash ${crashOrdinal}\n`)
+    await writeFile(userPath, userBytes)
+
+    let writes = 0
+    setUpdateHookForTest((point, path) => {
+      if (point !== 'mutation-after-write' || path === '.cornerstone/manifest.lock.json') return
+      writes += 1
+      if (writes === crashOrdinal) {
+        setUpdateHookForTest(undefined)
+        injectUpdateFailureForTest('mutation-crash-after-write')
+      }
+    })
+    await assert.rejects(updateProject(target), /injected mutation crash/i)
+    setUpdateHookForTest(undefined)
+    assert.equal(writes, crashOrdinal)
+    assert.deepEqual(await readFile(lockPath), beforeLock)
+    assert.equal(JSON.parse(beforeLock.toString('utf8')).templateVersion, '0.5.0')
+    assert.deepEqual(await readFile(userPath), userBytes)
+
+    const journalPath = join(target, '.cornerstone/mutation.journal.json')
+    const journal = JSON.parse(await readFile(journalPath, 'utf8'))
+    assert.equal(journal.status, 'pending')
+    const lockEntry = journal.entries.find(({ path }) => path === '.cornerstone/manifest.lock.json')
+    assert.ok(lockEntry?.backupPath)
+    const backupLock = await readFile(join(target, lockEntry.backupPath))
+    assert.deepEqual(backupLock, beforeLock)
+    assert.equal(JSON.parse(backupLock.toString('utf8')).templateVersion, '0.5.0')
+
+    await assert.rejects(planProjectUpdate(target), /pending journal requires recovery/i)
+    await updateProject(target)
+    assert.equal((await verifyProject(target)).templateVersion, '0.6.0')
+    assert.deepEqual(await readFile(userPath), userBytes)
+    await assert.rejects(access(journalPath))
+    await assert.rejects(access(join(target, journal.backupRoot)))
+  }
 })
 
 test('recovers Standard v4 and v5 crashes before their lock-last write', async () => {

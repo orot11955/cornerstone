@@ -1,19 +1,16 @@
 import { lstat } from 'node:fs/promises'
-import { dirname, resolve } from 'node:path'
+import { resolve } from 'node:path'
 import { formatJsonDocument } from '../composition/composer.js'
-import {
-  buildStandardV4PredecessorLock,
-  readStandardV4AdoptionSource,
-  readStandardV4AdoptionTarget,
-  resolveStandardV4Predecessor,
-} from '../composition/standard-v4-predecessor.js'
 import {
   buildStandardV5PredecessorLock,
   readStandardV5AdoptionSource,
+  readStandardV5AdoptionTarget,
   resolveStandardV5Predecessor,
 } from '../composition/standard-v5-predecessor.js'
-import { readManifest, verifyProject } from '../generator.js'
+import { loadCanonicalTemplateMetadata } from '../composition/template.js'
+import { buildStandardV3Lock, readManifest, verifyProject } from '../generator.js'
 import { sha256, stableJson } from '../hash.js'
+import { composeScaffoldAwareOutputs } from '../scaffold/composition.js'
 import { projectLockV3Schema, resolveManifest } from '../schema.js'
 import {
   applyGeneratorMutation,
@@ -32,10 +29,10 @@ import {
   safeTargetPath,
 } from './update-engine.js'
 
-const predecessorTemplateVersion = '0.4.0' as const
-const currentTemplateVersion = '0.5.0' as const
+const predecessorTemplateVersion = '0.5.0' as const
+const currentTemplateVersion = '0.6.0' as const
 
-export interface StandardV5AdoptionPlan {
+export interface StandardV6AdoptionPlan {
   schemaVersion: 1
   target: string
   fromTemplateVersion: typeof predecessorTemplateVersion | typeof currentTemplateVersion
@@ -43,17 +40,17 @@ export interface StandardV5AdoptionPlan {
   changes: GeneratorMutationPlan['changes']
 }
 
-export async function planStandardV5Adoption(targetPath: string): Promise<StandardV5AdoptionPlan> {
+export async function planStandardV6Adoption(targetPath: string): Promise<StandardV6AdoptionPlan> {
   const prepared = await prepareAdoption(targetPath)
   if (!prepared.request) return noOpPlan(prepared.target)
   return toPlan(await planGeneratorMutation(prepared.target, prepared.request))
 }
 
-export async function adoptStandardV5(
+export async function adoptStandardV6(
   targetPath: string,
   options: { dryRun?: boolean } = {},
-): Promise<StandardV5AdoptionPlan> {
-  if (options.dryRun) return planStandardV5Adoption(targetPath)
+): Promise<StandardV6AdoptionPlan> {
+  if (options.dryRun) return planStandardV6Adoption(targetPath)
   const prepared = await prepareAdoption(targetPath)
   if (!prepared.request) return noOpPlan(prepared.target)
   return toPlan(await applyGeneratorMutation(prepared.target, prepared.request))
@@ -64,7 +61,7 @@ async function prepareAdoption(
 ): Promise<{ target: string; request?: GeneratorMutationRequest }> {
   const target = await assertProjectBoundary(resolve(targetPath))
   const lockPath = safeTargetPath(target, lockRelativePath)
-  let lockBytes = await readBoundedFile(lockPath, 'Standard v5 adoption lock', maximumMetadataBytes)
+  let lockBytes = await readBoundedFile(lockPath, 'Standard v6 adoption lock', maximumMetadataBytes)
   let lock = projectLockV3Schema.parse(JSON.parse(lockBytes.toString('utf8')))
   const journalPath = safeTargetPath(target, '.cornerstone/mutation.journal.json')
   const recovering = await pathExists(journalPath)
@@ -72,17 +69,17 @@ async function prepareAdoption(
     const journal = parseMutationJournalV2(
       JSON.parse(
         (
-          await readBoundedFile(journalPath, 'Standard v5 adoption journal', maximumMetadataBytes)
+          await readBoundedFile(journalPath, 'Standard v6 adoption journal', maximumMetadataBytes)
         ).toString('utf8'),
       ),
     )
     const lockEntry = journal.entries.find(({ path }) => path === lockRelativePath)
     if (!lockEntry?.backupPath) {
-      throw new Error('Standard v5 recovery journal lock backup is missing')
+      throw new Error('Standard v6 recovery journal lock backup is missing')
     }
     lockBytes = await readBoundedFile(
       safeTargetPath(target, lockEntry.backupPath),
-      'Standard v5 predecessor lock backup',
+      'Standard v6 predecessor lock backup',
       maximumMetadataBytes,
     )
     lock = projectLockV3Schema.parse(JSON.parse(lockBytes.toString('utf8')))
@@ -91,13 +88,13 @@ async function prepareAdoption(
     return { target }
   }
   if (lock.templateVersion !== predecessorTemplateVersion) {
-    throw new Error(`Standard v5 adoption requires exact template ${predecessorTemplateVersion}`)
+    throw new Error(`Standard v6 adoption requires exact template ${predecessorTemplateVersion}`)
   }
   if (!recovering) {
     try {
       await verifyProject(target)
     } catch (error) {
-      throw new Error('Manual migration required: exact Standard 0.4.0 predecessor check failed', {
+      throw new Error('Manual migration required: exact Standard 0.5.0 predecessor check failed', {
         cause: error,
       })
     }
@@ -105,49 +102,55 @@ async function prepareAdoption(
 
   const userManifest = await readManifest(safeTargetPath(target, 'cornerstone.config.yml'))
   const manifest = resolveManifest(userManifest)
-  const predecessor = await resolveStandardV4Predecessor(manifest, lock.scaffolds)
-  const expectedPredecessorLock = buildStandardV4PredecessorLock(
+  const metadata = loadCanonicalTemplateMetadata()
+  if (metadata.templateVersion !== currentTemplateVersion) {
+    throw new Error(`Standard v6 adoption metadata must be ${currentTemplateVersion}`)
+  }
+  const predecessor = await resolveStandardV5Predecessor(manifest, lock.scaffolds)
+  const expectedPredecessorLock = buildStandardV5PredecessorLock(
     predecessor,
     userManifest,
     manifest,
     lock.scaffolds,
   )
   if (stableJson(lock) !== stableJson(expectedPredecessorLock)) {
-    throw new Error('Manual migration required: immutable Standard 0.4.0 lock mismatch')
+    throw new Error('Manual migration required: immutable Standard 0.5.0 lock mismatch')
   }
   if (!recovering) await assertExactPlatformSources(target, predecessor.snapshot)
 
-  const desired = await resolveStandardV5Predecessor(manifest, lock.scaffolds)
-  const desiredLock = buildStandardV5PredecessorLock(
-    desired,
-    userManifest,
+  const composed = await composeScaffoldAwareOutputs(
+    resolve(import.meta.dirname, '..', 'templates', 'canonical'),
+    metadata,
     manifest,
     lock.scaffolds,
   )
+  const desiredLock = await buildStandardV3Lock(
+    target,
+    userManifest,
+    manifest,
+    composed,
+    lock.scaffolds,
+  )
   const entries: GeneratorMutationRequest['entries'][number][] = []
-  for (const output of desired.outputs) {
+  for (const output of composed) {
     const previous = predecessor.outputs.find(({ path }) => path === output.path)
     if (!previous) {
       throw new Error(
-        `Manual migration required: Standard 0.5.0 adds unknown output ${output.path}`,
+        `Manual migration required: Standard 0.6.0 adds unknown output ${output.path}`,
       )
     }
-    const content = desired.contents.get(output.path)
-    if (!content) throw new Error(`Immutable Standard 0.5.0 output is missing: ${output.path}`)
-    if (output.checksum === previous.checksum && previous.owner === output.owner) continue
+    if (sha256(output.content) === previous.checksum && previous.owner === output.owner) continue
     entries.push({
       action: 'modify',
       path: output.path,
-      content,
+      content: output.content,
       mode: generatedFileMode,
       beforeChecksum: previous.checksum,
       beforeMode: previous.mode,
     })
   }
   for (const transition of predecessor.snapshot.adoptionTargets) {
-    const content = desired.snapshot.adoptionSources.some(({ path }) => path === transition.path)
-      ? await readStandardV5AdoptionSource(transition.path)
-      : await readStandardV4AdoptionTarget(transition.path)
+    const content = await readStandardV5AdoptionTarget(transition.path)
     const source = predecessor.snapshot.adoptionSources.find(({ path }) => path === transition.path)
     entries.push(
       transition.action === 'add'
@@ -177,15 +180,21 @@ async function prepareAdoption(
     beforeMode: generatedFileMode,
   })
   const createdDirectories = [
-    ...new Set(
-      predecessor.snapshot.adoptionTargets
-        .filter(({ action }) => action === 'add')
-        .map(({ path }) => dirname(path))
-        .filter((path) => path === 'apps/web/e2e' || path === 'apps/web/src/app/ui-foundation'),
-    ),
-  ].sort(
-    (left, right) => left.split('/').length - right.split('/').length || left.localeCompare(right),
-  )
+    'apps/web/e2e-auth',
+    'apps/web/src/api',
+    'apps/web/src/auth',
+    'apps/web/src/query',
+    'apps/web/src/app/auth',
+    'apps/web/src/app/login',
+    'apps/web/src/app/password',
+    'apps/web/src/app/register',
+    'apps/web/src/app/settings',
+    'apps/web/src/app/verify-email',
+    'apps/web/src/app/auth/refresh',
+    'apps/web/src/app/password/forgot',
+    'apps/web/src/app/password/reset',
+    'apps/web/src/app/settings/security',
+  ]
   return {
     target,
     request: {
@@ -199,7 +208,7 @@ async function prepareAdoption(
 
 async function assertExactPlatformSources(
   target: string,
-  snapshot: Awaited<ReturnType<typeof resolveStandardV4Predecessor>>['snapshot'],
+  snapshot: Awaited<ReturnType<typeof resolveStandardV5Predecessor>>['snapshot'],
 ): Promise<void> {
   for (const source of snapshot.adoptionSources) {
     const path = safeTargetPath(target, source.path)
@@ -208,7 +217,7 @@ async function assertExactPlatformSources(
       info = await lstat(path)
     } catch (error) {
       throw new Error(
-        `Manual migration required: Standard 0.4.0 source is missing: ${source.path}`,
+        `Manual migration required: Standard 0.5.0 source is missing: ${source.path}`,
         {
           cause: error,
         },
@@ -218,23 +227,23 @@ async function assertExactPlatformSources(
       !info.isFile() ||
       info.isSymbolicLink() ||
       (info.mode & 0o777) !== source.mode ||
-      sha256(await readBoundedFile(path, `Standard 0.4.0 platform source ${source.path}`)) !==
+      sha256(await readBoundedFile(path, `Standard 0.5.0 platform source ${source.path}`)) !==
         source.checksum ||
-      sha256(await readStandardV4AdoptionSource(source.path)) !== source.checksum
+      sha256(await readStandardV5AdoptionSource(source.path)) !== source.checksum
     ) {
-      throw new Error(`Manual migration required: Standard 0.4.0 source changed: ${source.path}`)
+      throw new Error(`Manual migration required: Standard 0.5.0 source changed: ${source.path}`)
     }
   }
   for (const addition of snapshot.adoptionTargets.filter(({ action }) => action === 'add')) {
     if (await pathExists(safeTargetPath(target, addition.path))) {
       throw new Error(
-        `Manual migration required: Standard 0.5.0 path already exists: ${addition.path}`,
+        `Manual migration required: Standard 0.6.0 path already exists: ${addition.path}`,
       )
     }
   }
 }
 
-function toPlan(plan: GeneratorMutationPlan): StandardV5AdoptionPlan {
+function toPlan(plan: GeneratorMutationPlan): StandardV6AdoptionPlan {
   return {
     schemaVersion: 1,
     target: plan.target,
@@ -244,7 +253,7 @@ function toPlan(plan: GeneratorMutationPlan): StandardV5AdoptionPlan {
   }
 }
 
-function noOpPlan(target: string): StandardV5AdoptionPlan {
+function noOpPlan(target: string): StandardV6AdoptionPlan {
   return {
     schemaVersion: 1,
     target,

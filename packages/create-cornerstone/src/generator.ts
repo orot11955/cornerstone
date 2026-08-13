@@ -43,6 +43,10 @@ import {
   resolveStandardV4Predecessor,
 } from './composition/standard-v4-predecessor.js'
 import {
+  buildStandardV5PredecessorLock,
+  resolveStandardV5Predecessor,
+} from './composition/standard-v5-predecessor.js'
+import {
   projectLockSchema,
   projectManifestSchema,
   resolveManifest,
@@ -373,6 +377,11 @@ async function verifyStandardProject(
     return
   }
 
+  if (lock.schemaVersion === 3 && lock.templateVersion === '0.5.0') {
+    await verifyStandardV5Predecessor(target, userManifest, manifest, lock, metadata)
+    return
+  }
+
   const expectedFragments = selectedFragmentDefinitions(metadata, manifest)
   for (const fragment of expectedFragments) {
     const locked = lock.fragments.find(({ id }) => id === fragment.id)
@@ -552,6 +561,46 @@ async function verifyStandardV4Predecessor(
   )
   if (stableJson(lock) !== stableJson(expected)) {
     throw new Error('Lock manifest differs from immutable Standard 0.4.0 resolution')
+  }
+}
+
+async function verifyStandardV5Predecessor(
+  target: string,
+  userManifest: ProjectManifest,
+  manifest: ResolvedManifest,
+  lock: ProjectLockV3Data,
+  metadata: CanonicalTemplateMetadata,
+): Promise<void> {
+  const predecessor = await resolveStandardV5Predecessor(manifest, lock.scaffolds)
+  assertCatalogCompatibility(metadata, manifest)
+  for (const output of predecessor.outputs) {
+    const path = safeTargetPath(target, output.path)
+    const info = await lstat(path)
+    if (
+      !info.isFile() ||
+      info.isSymbolicLink() ||
+      (info.mode & 0o777) !== output.mode ||
+      sha256(await readFile(path)) !== output.checksum
+    ) {
+      throw new Error(`Generator-owned output drift: ${output.path}`)
+    }
+  }
+  for (const scaffold of lock.scaffolds) {
+    for (const scaffoldPath of scaffold.paths) {
+      const info = await lstat(safeTargetPath(target, scaffoldPath))
+      if (!info.isFile() || info.isSymbolicLink()) {
+        throw new Error(`Scaffold registry path must be a regular file: ${scaffoldPath}`)
+      }
+    }
+  }
+  const expected = buildStandardV5PredecessorLock(
+    predecessor,
+    userManifest,
+    manifest,
+    lock.scaffolds,
+  )
+  if (stableJson(lock) !== stableJson(expected)) {
+    throw new Error('Lock manifest differs from immutable Standard 0.5.0 resolution')
   }
 }
 
