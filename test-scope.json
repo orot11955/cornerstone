@@ -47,9 +47,8 @@
     }
   },
   "test:e2e": {
-    "participants": ["api"],
+    "participants": ["api", "web"],
     "excluded": {
-      "web": "Playwright E2E is introduced with M6/M8S.",
       "create-cornerstone": "Generator lifecycle evidence is covered by package unit and Standard candidate gates; browser Standard Core E2E remains an M8 certification prerequisite.",
       "@cornerstone/api-client": "The package is covered through app E2E after M4.",
       "@cornerstone/config": "The package has no standalone E2E boundary.",
@@ -57,7 +56,7 @@
       "@cornerstone/schemas": "The package has no standalone E2E boundary.",
       "@cornerstone/tsconfig": "The package has no standalone E2E boundary.",
       "@cornerstone/types": "The package has no standalone E2E boundary.",
-      "@cornerstone/ui": "Browser E2E is introduced with UIF/M8S.",
+      "@cornerstone/ui": "Browser E2E runs through the Web UIF reference consumer.",
       "@cornerstone/utils": "The package has no standalone E2E boundary."
     }
   }

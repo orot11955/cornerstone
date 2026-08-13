@@ -9,6 +9,7 @@ export default function nextConfig(phase: string): NextConfig {
   }
 
   return {
+    distDir: process.env.NEXT_DIST_DIR || '.next',
     env: {
       NEXT_PUBLIC_APP_LOCALE: webConfig.locale,
     },

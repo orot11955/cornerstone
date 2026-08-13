@@ -1,6 +1,9 @@
 node_modules
 .next
+.next-playwright
 dist
 coverage
+test-results
+playwright-report
 pnpm-lock.yaml
 templates/canonical/predecessors

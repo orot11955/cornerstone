@@ -76,7 +76,18 @@ jobs:
           package-manager-cache: false
 
       - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter web exec playwright install --with-deps chromium
       - run: pnpm test:e2e
+
+      - name: Upload UI browser evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: ui-browser-evidence
+          path: |
+            apps/web/test-results
+            apps/web/playwright-report
+          if-no-files-found: warn
 
   secrets:
     name: Security
