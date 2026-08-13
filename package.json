@@ -46,6 +46,7 @@
     "openapi:baseline:update": "node scripts/check-openapi-compatibility.mjs update-baseline",
     "client:generate": "pnpm --filter @cornerstone/api-client client:generate",
     "client:check": "pnpm --filter @cornerstone/api-client client:check",
+    "auth:password:benchmark": "pnpm --filter api benchmark:password --output ../../.artifacts/auth/password-benchmark.json",
     "seed": "pnpm api:build && pnpm --filter api seed",
     "admin:bootstrap": "pnpm api:build && pnpm --filter api admin:bootstrap",
     "license:check": "node scripts/check-package-licenses.mjs",

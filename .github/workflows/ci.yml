@@ -52,6 +52,40 @@ jobs:
       - run: pnpm generator:verify
       - run: pnpm license:check
 
+  auth-password-benchmark:
+    name: Auth password release benchmark
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@008330803749db0355799c700092d9a85fd074e9 # v6.0.9
+        with:
+          version: 11.20.0
+          run_install: false
+
+      - name: Setup Node
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
+        with:
+          node-version: 24.18.0
+          cache: pnpm
+          package-manager-cache: false
+
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm auth:password:benchmark
+
+      - name: Upload password benchmark evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: auth-password-benchmark-${{ runner.os }}-${{ runner.arch }}
+          path: .artifacts/auth/password-benchmark.json
+          if-no-files-found: error
+
   e2e:
     name: E2E
     runs-on: ubuntu-latest
