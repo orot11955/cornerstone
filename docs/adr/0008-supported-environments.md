@@ -27,6 +27,8 @@ Cornerstone Core UI는 다음 환경을 지원한다.
 - CSS 기능은 지원 matrix 전 범위에서 사용 가능하거나 progressive enhancement와 fallback이 있어야 한다.
 - 자동 axe 통과만으로 WCAG 2.2 AA 충족을 선언하지 않는다. 수동 결과와 알려진 제약을 release evidence에 남긴다.
 
+현재 PR Gate는 Web의 `/ui-foundation` reference fixture에서 Chromium hydration, 320/768/1440px reflow, 280/480/720/960px container query, RTL, reduced motion, native Dialog focus 복귀와 axe를 실행한다. Screenshot은 실패 분석용 artifact이며 승인된 visual baseline 비교는 아니다. Firefox/WebKit matrix, 200%·400% zoom과 NVDA/VoiceOver는 release candidate evidence로 승격하기 전까지 미완료로 표시한다.
+
 ## Appearance와 Density
 
 `Theme`, `Style`, `Brand`, `Density`는 서로 독립적인 축이다. Density는 정보나 기능을 제거하지 않고 hit target, focus order와 의미를 바꾸지 않는다. Server가 유효한 초기 Appearance를 HTML attribute로 출력하며 browser 저장값은 allowlist 검증 뒤에만 적용한다.
