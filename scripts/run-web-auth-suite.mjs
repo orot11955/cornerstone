@@ -3,14 +3,16 @@ import { mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { spawn, spawnSync } from 'node:child_process'
+import { createServer } from 'node:net'
 
 const root = new URL('..', import.meta.url)
 const executable = process.platform === 'win32' ? 'pnpm.cmd' : 'pnpm'
+const [apiPort, webPort] = await reservePorts(2)
 const databaseEnvironment = {
   ...process.env,
   NODE_ENV: 'test',
-  PORT: '4107',
-  WEB_URL: 'http://127.0.0.1:3107',
+  PORT: String(apiPort),
+  WEB_URL: `http://127.0.0.1:${webPort}`,
   DATABASE_URL:
     'postgresql://cornerstone_test_app:cornerstone-test-app@localhost:55432/cornerstone_test',
   DATABASE_MIGRATION_URL:
@@ -67,6 +69,8 @@ try {
   await waitForApi(apiProcess)
   run(['--filter', 'web', 'test:e2e:auth'], {
     ...process.env,
+    M6_E2E_API_PORT: String(apiPort),
+    M6_E2E_WEB_PORT: String(webPort),
     M6_E2E_PASSWORD_FILE: passwordFile,
   })
 } catch (error) {
@@ -98,8 +102,12 @@ async function waitForApi(child) {
   for (let attempt = 0; attempt < 120; attempt += 1) {
     if (child.exitCode !== null) throw new Error(`API exited with ${child.exitCode}`)
     try {
-      const response = await fetch('http://127.0.0.1:4107/api/v1/health/live')
-      if (response.ok) return
+      const response = await fetch(`http://127.0.0.1:${apiPort}/api/v1/health/live`)
+      if (response.ok) {
+        await new Promise((resolve) => setTimeout(resolve, 100))
+        if (child.exitCode !== null) throw new Error(`API exited with ${child.exitCode}`)
+        return
+      }
     } catch {}
     await new Promise((resolve) => setTimeout(resolve, 250))
   }
@@ -115,4 +123,27 @@ async function waitForExit(child) {
 
 function encode(value) {
   return Buffer.from(value).toString('base64url')
+}
+
+async function reservePorts(count) {
+  const servers = []
+  try {
+    for (let index = 0; index < count; index += 1) {
+      const server = createServer()
+      await new Promise((resolve, reject) => {
+        server.once('error', reject)
+        server.listen(0, '127.0.0.1', resolve)
+      })
+      servers.push(server)
+    }
+    return servers.map((server) => {
+      const address = server.address()
+      if (!address || typeof address === 'string') throw new Error('Failed to reserve E2E port')
+      return address.port
+    })
+  } finally {
+    await Promise.all(
+      servers.map((server) => new Promise((resolve) => server.close(() => resolve(undefined)))),
+    )
+  }
 }

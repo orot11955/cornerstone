@@ -31,10 +31,18 @@ test('protects SSR auth, refreshes once, and enforces CSRF through the same-orig
   })
   expect(csrfStatus).toBe(403)
 
+  let refreshRequests = 0
+  page.on('request', (request) => {
+    const url = new URL(request.url())
+    if (request.method() === 'POST' && url.pathname === '/api/v1/auth/refresh') {
+      refreshRequests += 1
+    }
+  })
   await context.clearCookies({ name: 'cs_access' })
   await page.goto('/settings/security')
   await expect(page).toHaveURL('/settings/security')
   await expect(page.getByText(email)).toBeVisible()
+  expect(refreshRequests).toBe(1)
 
   await page.goto('/login?next=https%3A%2F%2Fevil.example')
   await page.getByLabel('이메일').fill(email)
