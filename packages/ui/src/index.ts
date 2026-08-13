@@ -1,15 +1,30 @@
 export {
   appearanceDataAttributes,
+  appearancePresentation,
   brands,
+  createAppearanceRegistry,
   defaultAppearance,
+  defaultAppearanceRegistry,
   densities,
+  defineBrand,
   resolveAppearance,
   styles,
   themes,
 } from './appearance.js'
-export type { Appearance, Brand, Density, Style, Theme } from './appearance.js'
+export type {
+  Appearance,
+  AppearancePresentation,
+  AppearanceRegistry,
+  Brand,
+  BrandDefinition,
+  BrandPalette,
+  Density,
+  Style,
+  Theme,
+} from './appearance.js'
 export {
   Alert,
+  AspectRatio,
   Badge,
   Box,
   Button,
@@ -31,9 +46,12 @@ export {
   Switch,
   Text,
   Textarea,
+  ScrollArea,
+  VisuallyHidden,
 } from './components.js'
 export type {
   AlertProps,
+  AspectRatioProps,
   BadgeProps,
   BoxProps,
   ButtonProps,
@@ -45,6 +63,7 @@ export type {
   FormFieldControlProps,
   FormFieldProps,
   GridProps,
+  GridMeasure,
   HeadingProps,
   InlineProps,
   InputProps,
@@ -53,10 +72,31 @@ export type {
   SelectionProps,
   SelectProps,
   Space,
+  ScrollAreaProps,
   StackProps,
   SwitchProps,
   TextareaProps,
   TextProps,
 } from './components.js'
-export { breakpoints, responsiveProperties } from './responsive.js'
-export type { Breakpoint, Responsive } from './responsive.js'
+export {
+  breakpoints,
+  containerBreakpoints,
+  containerResponsiveProperties,
+  responsiveProperties,
+} from './responsive.js'
+export type {
+  Breakpoint,
+  ContainerBreakpoint,
+  ContainerResponsive,
+  ContainerResponsiveValues,
+  Responsive,
+  ResponsiveValues,
+} from './responsive.js'
+export {
+  appearanceAxes,
+  componentTokenNames,
+  foundationTokens,
+  semanticTokenNames,
+  tokenDeclarations,
+  tokenSourceId,
+} from './tokens.js'

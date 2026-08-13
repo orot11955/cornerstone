@@ -1,3 +1,4 @@
+/* GENERATED TOKEN REPRESENTATION: src/tokens.ts (cornerstone-ui-v1). */
 @layer cornerstone.tokens, cornerstone.base, cornerstone.components;
 
 @layer cornerstone.tokens {
@@ -59,12 +60,19 @@
     --cs-breakpoint-md: 48rem;
     --cs-breakpoint-lg: 64rem;
     --cs-breakpoint-xl: 80rem;
+    --cs-container-breakpoint-narrow: 28rem;
+    --cs-container-breakpoint-regular: 44rem;
+    --cs-container-breakpoint-wide: 60rem;
     --cs-safe-top: env(safe-area-inset-top, 0px);
     --cs-safe-right: env(safe-area-inset-right, 0px);
     --cs-safe-bottom: env(safe-area-inset-bottom, 0px);
     --cs-safe-left: env(safe-area-inset-left, 0px);
+    --cs-grid-measure-xs: 12rem;
+    --cs-grid-measure-sm: 16rem;
+    --cs-grid-measure-md: 20rem;
+    --cs-grid-measure-lg: 24rem;
 
-    --cs-brand: var(--cs-color-violet-500);
+    --cs-brand: var(--cs-color-violet-600);
     --cs-brand-contrast: var(--cs-color-white);
     --cs-success: var(--cs-color-emerald-500);
     --cs-warning: var(--cs-color-amber-500);
@@ -102,7 +110,7 @@
     --cs-brand: var(--cs-color-emerald-500);
   }
   [data-brand='signal-violet'] {
-    --cs-brand: var(--cs-color-violet-500);
+    --cs-brand: var(--cs-color-violet-600);
   }
 
   [data-density='compact'] {
@@ -170,6 +178,10 @@
     padding-inline-start: max(var(--cs-container-gutter), var(--cs-safe-left));
     padding-inline-end: max(var(--cs-container-gutter), var(--cs-safe-right));
   }
+  .cs-container[data-container-query] {
+    container-type: inline-size;
+    container-name: cornerstone;
+  }
   .cs-container[data-size='sm'] {
     --cs-container-max: 40rem;
   }
@@ -188,9 +200,10 @@
 
   .cs-stack {
     display: flex;
-    flex-direction: column;
+    flex-direction: var(--cs-stack-direction, column);
     gap: var(--cs-stack-gap);
     align-items: var(--cs-stack-align, stretch);
+    justify-content: var(--cs-stack-justify, flex-start);
   }
   .cs-stack[data-align='start'] {
     --cs-stack-align: flex-start;
@@ -237,8 +250,57 @@
     gap: var(--cs-grid-gap);
     grid-template-columns: repeat(var(--cs-grid-columns), minmax(0, 1fr));
   }
-  .cs-grid[style*='--cs-grid-min'] {
+  .cs-grid[data-grid-mode='min'] {
     grid-template-columns: repeat(auto-fit, minmax(min(100%, var(--cs-grid-min)), 1fr));
+  }
+  .cs-grid[data-grid-mode='container'] {
+    grid-template-columns: repeat(
+      var(--cs-grid-container-columns-resolved, var(--cs-grid-container-columns)),
+      minmax(0, 1fr)
+    );
+  }
+
+  .cs-visually-hidden {
+    position: absolute;
+    inline-size: 1px;
+    block-size: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    clip-path: inset(50%);
+    white-space: nowrap;
+    border: 0;
+  }
+  .cs-aspect-ratio {
+    aspect-ratio: var(--cs-aspect-ratio);
+  }
+  .cs-scroll-area {
+    min-inline-size: 0;
+    min-block-size: 0;
+    overscroll-behavior: contain;
+    scrollbar-gutter: stable;
+  }
+  .cs-scroll-area[data-axis='block'] {
+    overflow-x: hidden;
+    overflow-y: auto;
+    overflow-block: auto;
+    overflow-inline: hidden;
+  }
+  .cs-scroll-area[data-axis='inline'] {
+    overflow-x: auto;
+    overflow-y: hidden;
+    overflow-inline: auto;
+    overflow-block: hidden;
+  }
+  .cs-scroll-area[data-axis='both'] {
+    overflow: auto;
+  }
+  .cs-scroll-area[data-scrollbar='hidden'] {
+    scrollbar-width: none;
+  }
+  .cs-scroll-area[data-scrollbar='hidden']::-webkit-scrollbar {
+    display: none;
   }
 
   .cs-text {
@@ -386,6 +448,7 @@
     text-decoration: underline;
   }
   .cs-button[data-variant='soft'] {
+    background: transparent;
     background: color-mix(in srgb, var(--cs-action) 16%, transparent);
     color: var(--cs-action);
   }
@@ -585,6 +648,7 @@
     --cs-badge-tone: var(--cs-text-muted);
   }
   .cs-badge[data-variant='soft'] {
+    background: transparent;
     background: color-mix(in srgb, var(--cs-badge-tone) 16%, transparent);
     color: var(--cs-badge-tone);
   }
@@ -602,6 +666,7 @@
     gap: var(--cs-space-2);
     padding: var(--cs-space-4);
     border-inline-start: 0.25rem solid var(--cs-alert-tone);
+    background: var(--cs-bg-surface);
     background: color-mix(in srgb, var(--cs-alert-tone) 10%, var(--cs-bg-surface));
     color: var(--cs-text);
   }
@@ -665,6 +730,9 @@
     color: var(--cs-text);
     box-shadow: var(--cs-shadow-md);
   }
+  dialog.cs-dialog:not([open]) {
+    display: none;
+  }
   .cs-dialog-body {
     min-block-size: 0;
   }
@@ -715,6 +783,9 @@
     }
     .cs-stack {
       --cs-stack-gap: var(--cs-stack-gap-sm, var(--cs-stack-gap));
+      --cs-stack-direction: var(--cs-stack-direction-sm, var(--cs-stack-direction));
+      --cs-stack-align: var(--cs-stack-align-sm, var(--cs-stack-align));
+      --cs-stack-justify: var(--cs-stack-justify-sm, var(--cs-stack-justify));
     }
     .cs-inline {
       --cs-inline-gap: var(--cs-inline-gap-sm, var(--cs-inline-gap));
@@ -740,6 +811,15 @@
     }
     .cs-stack {
       --cs-stack-gap: var(--cs-stack-gap-md, var(--cs-stack-gap-sm, var(--cs-stack-gap)));
+      --cs-stack-direction: var(
+        --cs-stack-direction-md,
+        var(--cs-stack-direction-sm, var(--cs-stack-direction))
+      );
+      --cs-stack-align: var(--cs-stack-align-md, var(--cs-stack-align-sm, var(--cs-stack-align)));
+      --cs-stack-justify: var(
+        --cs-stack-justify-md,
+        var(--cs-stack-justify-sm, var(--cs-stack-justify))
+      );
     }
     .cs-inline {
       --cs-inline-gap: var(--cs-inline-gap-md, var(--cs-inline-gap-sm, var(--cs-inline-gap)));
@@ -771,6 +851,15 @@
     }
     .cs-stack {
       --cs-stack-gap: var(--cs-stack-gap-lg, var(--cs-stack-gap-md, var(--cs-stack-gap)));
+      --cs-stack-direction: var(
+        --cs-stack-direction-lg,
+        var(--cs-stack-direction-md, var(--cs-stack-direction))
+      );
+      --cs-stack-align: var(--cs-stack-align-lg, var(--cs-stack-align-md, var(--cs-stack-align)));
+      --cs-stack-justify: var(
+        --cs-stack-justify-lg,
+        var(--cs-stack-justify-md, var(--cs-stack-justify))
+      );
     }
     .cs-inline {
       --cs-inline-gap: var(--cs-inline-gap-lg, var(--cs-inline-gap-md, var(--cs-inline-gap)));
@@ -802,6 +891,15 @@
     }
     .cs-stack {
       --cs-stack-gap: var(--cs-stack-gap-xl, var(--cs-stack-gap-lg, var(--cs-stack-gap)));
+      --cs-stack-direction: var(
+        --cs-stack-direction-xl,
+        var(--cs-stack-direction-lg, var(--cs-stack-direction))
+      );
+      --cs-stack-align: var(--cs-stack-align-xl, var(--cs-stack-align-lg, var(--cs-stack-align)));
+      --cs-stack-justify: var(
+        --cs-stack-justify-xl,
+        var(--cs-stack-justify-lg, var(--cs-stack-justify))
+      );
     }
     .cs-inline {
       --cs-inline-gap: var(--cs-inline-gap-xl, var(--cs-inline-gap-lg, var(--cs-inline-gap)));
@@ -827,6 +925,34 @@
     .cs-panel,
     .cs-badge {
       border-color: CanvasText;
+    }
+  }
+
+  @container cornerstone (min-width: 28rem) {
+    .cs-grid[data-grid-mode='container'] {
+      --cs-grid-container-columns-resolved: var(
+        --cs-grid-container-columns-narrow,
+        var(--cs-grid-container-columns)
+      );
+    }
+  }
+  @container cornerstone (min-width: 44rem) {
+    .cs-grid[data-grid-mode='container'] {
+      --cs-grid-container-columns-resolved: var(
+        --cs-grid-container-columns-regular,
+        var(--cs-grid-container-columns-narrow, var(--cs-grid-container-columns))
+      );
+    }
+  }
+  @container cornerstone (min-width: 60rem) {
+    .cs-grid[data-grid-mode='container'] {
+      --cs-grid-container-columns-resolved: var(
+        --cs-grid-container-columns-wide,
+        var(
+          --cs-grid-container-columns-regular,
+          var(--cs-grid-container-columns-narrow, var(--cs-grid-container-columns))
+        )
+      );
     }
   }
 }

@@ -2,6 +2,7 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 import { createElement } from 'react'
 import { renderToString } from 'react-dom/server'
+import { readFile } from 'node:fs/promises'
 import {
   Button,
   Checkbox,
@@ -12,9 +13,15 @@ import {
   Progress,
   Switch,
   appearanceDataAttributes,
+  appearancePresentation,
+  createAppearanceRegistry,
+  defineBrand,
+  foundationTokens,
   resolveAppearance,
+  tokenDeclarations,
+  tokenSourceId,
 } from '../dist/index.js'
-import { applyAppearance, readStoredAppearance } from '../dist/browser.js'
+import { applyAppearance, Portal, readStoredAppearance } from '../dist/browser.js'
 
 test('root entry renders on the server without browser globals', () => {
   const html = renderToString(createElement(Button, { loading: true }, 'Save'))
@@ -51,6 +58,31 @@ test('responsive layout serializes breakpoint values without hiding content', ()
   assert.match(html, />Content</)
 })
 
+test('token source and generated stylesheet stay in exact agreement', async () => {
+  const css = await readFile(new URL('../styles.css', import.meta.url), 'utf8')
+  assert.match(
+    css,
+    new RegExp(`GENERATED TOKEN REPRESENTATION: src/tokens\\.ts \\(${tokenSourceId}\\)`),
+  )
+  for (const [name, value] of tokenDeclarations) {
+    const declarations = [
+      ...css.matchAll(new RegExp(`${name.replaceAll('-', '\\-')}\\s*:\\s*([^;]+);`, 'g')),
+    ]
+    assert.ok(declarations.length >= 1, `expected a generated declaration for ${name}`)
+    assert.equal(declarations[0]?.[1]?.trim(), value, `generated base token drift for ${name}`)
+  }
+  assert.equal(foundationTokens.breakpoint.md, '48rem')
+  for (const value of Object.values(foundationTokens.breakpoint)) {
+    assert.match(css, new RegExp(`@media \\(min-width: ${value.replace('.', '\\.')}\\)`))
+  }
+  for (const value of Object.values(foundationTokens.containerBreakpoint)) {
+    assert.match(
+      css,
+      new RegExp(`@container cornerstone \\(min-width: ${value.replace('.', '\\.')}\\)`),
+    )
+  }
+})
+
 test('invalid stored appearance falls back independently for each axis', () => {
   assert.deepEqual(
     readStoredAppearance({
@@ -84,9 +116,14 @@ test('appearance helpers emit and apply the four independent axes', () => {
     'data-brand': 'emerald',
     'data-density': 'comfortable',
   })
-  const element = { dataset: {} }
+  const properties = new Map()
+  const element = {
+    dataset: {},
+    style: { setProperty: (name, value) => properties.set(name, value) },
+  }
   applyAppearance(appearance, element)
   assert.deepEqual(element.dataset, appearance)
+  assert.equal(properties.get('--cs-brand'), '#10b981')
 })
 
 test('custom brands require an explicit allowlist', () => {
@@ -96,6 +133,59 @@ test('custom brands require an explicit allowlist', () => {
       .brand,
     'project-blue',
   )
+})
+
+test('custom brand definitions are safe, immutable and presentation-ready', () => {
+  const brand = defineBrand({
+    name: 'project-blue',
+    accent: '#1357c5',
+    contrast: '#ffffff',
+    theme: { dark: { focus: '#88b4ff' } },
+  })
+  const registry = createAppearanceRegistry([brand])
+  assert.equal(Object.isFrozen(registry), true)
+  assert.equal(Object.isFrozen(registry.definitions['project-blue']), true)
+  assert.equal(Object.isFrozen(registry.definitions['project-blue'].theme.dark), true)
+  const appearance = registry.resolve({ brand: 'project-blue', theme: 'dark' })
+  assert.equal(appearance.brand, 'project-blue')
+  assert.deepEqual(appearancePresentation(appearance, registry).style, {
+    '--cs-brand': '#1357c5',
+    '--cs-brand-contrast': '#ffffff',
+    '--cs-focus': '#88b4ff',
+  })
+  const properties = new Map()
+  applyAppearance(
+    appearance,
+    { dataset: {}, style: { setProperty: (name, value) => properties.set(name, value) } },
+    registry,
+  )
+  assert.equal(properties.get('--cs-brand'), '#1357c5')
+  assert.equal(
+    readStoredAppearance(
+      { getItem: () => JSON.stringify({ brand: 'project-blue' }) },
+      undefined,
+      undefined,
+      registry,
+    ).brand,
+    'project-blue',
+  )
+  assert.throws(() => defineBrand({ name: 'orange', accent: '#000', contrast: '#fff' }))
+  assert.throws(() => defineBrand({ name: 'unsafe brand', accent: '#000', contrast: '#fff' }))
+  assert.throws(() => defineBrand({ name: 'low-contrast', accent: '#8b5cf6', contrast: '#fff' }))
+})
+
+test('container-responsive grid values and closed grid measures serialize predictably', () => {
+  const html = renderToString(
+    createElement(Grid, { containerColumns: { base: 1, regular: 3, wide: 4 } }, 'Content'),
+  )
+  const measureHtml = renderToString(createElement(Grid, { minItemWidth: 'md' }, 'Content'))
+  assert.match(html, /--cs-grid-container-columns:1/)
+  assert.match(html, /--cs-grid-container-columns-regular:3/)
+  assert.match(measureHtml, /--cs-grid-min:var\(--cs-grid-measure-md\)/)
+})
+
+test('Portal renders no server markup before hydration', () => {
+  assert.equal(renderToString(createElement(Portal, null, 'Overlay')), '')
 })
 
 test('selection and dialog primitives expose native accessible semantics', () => {

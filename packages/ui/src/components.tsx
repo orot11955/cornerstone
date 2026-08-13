@@ -1,5 +1,6 @@
 import {
   createElement,
+  forwardRef,
   useId,
   type ButtonHTMLAttributes,
   type CSSProperties,
@@ -11,7 +12,12 @@ import {
   type SelectHTMLAttributes,
   type TextareaHTMLAttributes,
 } from 'react'
-import { responsiveProperties, type Responsive } from './responsive.js'
+import {
+  containerResponsiveProperties,
+  responsiveProperties,
+  type ContainerResponsive,
+  type Responsive,
+} from './responsive.js'
 
 export type ComponentSize = 'xs' | 'sm' | 'md' | 'lg' | 'xl'
 export type ComponentTone = 'neutral' | 'brand' | 'success' | 'warning' | 'danger' | 'info'
@@ -43,11 +49,14 @@ export function Box({ as = 'div', padding, display, className, style, ...props }
 export interface ContainerProps extends HTMLAttributes<HTMLDivElement> {
   readonly size?: 'sm' | 'md' | 'lg' | 'xl' | 'full'
   readonly gutter?: Responsive<Space>
+  /** Enables a named ancestor container for container-responsive descendants. */
+  readonly containerQuery?: boolean
 }
 
 export function Container({
   size = 'lg',
   gutter = '4',
+  containerQuery = false,
   className,
   style,
   ...props
@@ -56,6 +65,7 @@ export function Container({
     <div
       {...props}
       data-size={size}
+      data-container-query={containerQuery || undefined}
       className={classes('cs-container', className)}
       style={{
         ...responsiveProperties('container-gutter', gutter, spaceValue),
@@ -67,16 +77,32 @@ export function Container({
 
 export interface StackProps extends HTMLAttributes<HTMLDivElement> {
   readonly gap?: Responsive<Space>
-  readonly align?: 'stretch' | 'start' | 'center' | 'end'
+  readonly direction?: Responsive<'vertical' | 'horizontal'>
+  readonly align?: Responsive<'stretch' | 'start' | 'center' | 'end'>
+  readonly justify?: Responsive<'start' | 'center' | 'end' | 'between'>
 }
 
-export function Stack({ gap = '4', align = 'stretch', className, style, ...props }: StackProps) {
+export function Stack({
+  gap = '4',
+  direction = 'vertical',
+  align = 'stretch',
+  justify = 'start',
+  className,
+  style,
+  ...props
+}: StackProps) {
   return (
     <div
       {...props}
-      data-align={align}
+      data-align={typeof align === 'string' ? align : undefined}
       className={classes('cs-stack', className)}
-      style={{ ...responsiveProperties('stack-gap', gap, spaceValue), ...style }}
+      style={{
+        ...responsiveProperties('stack-gap', gap, spaceValue),
+        ...responsiveProperties('stack-direction', direction, directionValue),
+        ...responsiveProperties('stack-align', align, alignValue),
+        ...responsiveProperties('stack-justify', justify, justifyValue),
+        ...style,
+      }}
     />
   )
 }
@@ -109,27 +135,58 @@ export function Inline({
   )
 }
 
-export interface GridProps extends HTMLAttributes<HTMLDivElement> {
-  readonly columns?: Responsive<1 | 2 | 3 | 4 | 6 | 12>
-  readonly minItemWidth?: string
-  readonly gap?: Responsive<Space>
-}
+type GridColumnCount = 1 | 2 | 3 | 4 | 6 | 12
+export type GridMeasure = 'xs' | 'sm' | 'md' | 'lg'
+type GridTrackProps =
+  | {
+      readonly columns?: Responsive<GridColumnCount>
+      readonly minItemWidth?: never
+      readonly containerColumns?: never
+    }
+  | {
+      readonly columns?: never
+      readonly minItemWidth: GridMeasure
+      readonly containerColumns?: never
+    }
+  | {
+      readonly columns?: never
+      readonly minItemWidth?: never
+      readonly containerColumns: ContainerResponsive<GridColumnCount>
+    }
+
+export type GridProps = HTMLAttributes<HTMLDivElement> &
+  GridTrackProps & {
+    readonly gap?: Responsive<Space>
+  }
 
 export function Grid({
-  columns = 1,
+  columns,
   minItemWidth,
+  containerColumns,
   gap = '4',
   className,
   style,
   ...props
 }: GridProps) {
   const gridStyle: CSSProperties = {
-    ...responsiveProperties('grid-columns', columns),
+    ...(columns === undefined && !minItemWidth && !containerColumns
+      ? responsiveProperties('grid-columns', 1)
+      : responsiveProperties('grid-columns', columns)),
     ...responsiveProperties('grid-gap', gap, spaceValue),
-    ...(minItemWidth ? ({ '--cs-grid-min': minItemWidth } as CSSProperties) : {}),
+    ...(minItemWidth
+      ? ({ '--cs-grid-min': `var(--cs-grid-measure-${minItemWidth})` } as CSSProperties)
+      : {}),
+    ...containerResponsiveProperties('grid-container-columns', containerColumns),
     ...style,
   }
-  return <div {...props} className={classes('cs-grid', className)} style={gridStyle} />
+  return (
+    <div
+      {...props}
+      data-grid-mode={minItemWidth ? 'min' : containerColumns ? 'container' : 'columns'}
+      className={classes('cs-grid', className)}
+      style={gridStyle}
+    />
+  )
 }
 
 export interface TextProps extends HTMLAttributes<HTMLElement> {
@@ -223,17 +280,14 @@ interface ControlOptions {
 export interface InputProps
   extends Omit<InputHTMLAttributes<HTMLInputElement>, 'size'>, ControlOptions {}
 
-export function Input({
-  size = 'md',
-  radius = 'md',
-  invalid = false,
-  fullWidth = true,
-  className,
-  ...props
-}: InputProps) {
+export const Input = forwardRef<HTMLInputElement, InputProps>(function Input(
+  { size = 'md', radius = 'md', invalid = false, fullWidth = true, className, ...props },
+  ref,
+) {
   return (
     <input
       {...props}
+      ref={ref}
       aria-invalid={invalid || props['aria-invalid'] || undefined}
       data-size={size}
       data-radius={radius}
@@ -241,7 +295,7 @@ export function Input({
       className={classes('cs-control', 'cs-input', className)}
     />
   )
-}
+})
 
 export interface TextareaProps
   extends TextareaHTMLAttributes<HTMLTextAreaElement>, ControlOptions {}
@@ -588,6 +642,60 @@ export function Spinner({
   )
 }
 
+export function VisuallyHidden({ className, ...props }: HTMLAttributes<HTMLSpanElement>) {
+  return <span {...props} className={classes('cs-visually-hidden', className)} />
+}
+
+export interface AspectRatioProps extends HTMLAttributes<HTMLDivElement> {
+  readonly ratio: number | `${number} / ${number}`
+}
+
+export function AspectRatio({ ratio, className, style, ...props }: AspectRatioProps) {
+  const value = typeof ratio === 'number' ? String(ratio) : ratio
+  return (
+    <div
+      {...props}
+      className={classes('cs-aspect-ratio', className)}
+      style={{ '--cs-aspect-ratio': value, ...style } as CSSProperties}
+    />
+  )
+}
+
+export interface ScrollAreaProps extends HTMLAttributes<HTMLDivElement> {
+  readonly axis?: 'block' | 'inline' | 'both'
+  readonly scrollbar?: 'auto' | 'always' | 'hidden'
+}
+
+export function ScrollArea({
+  axis = 'block',
+  scrollbar = 'auto',
+  className,
+  ...props
+}: ScrollAreaProps) {
+  return (
+    <div
+      {...props}
+      data-axis={axis}
+      data-scrollbar={scrollbar}
+      className={classes('cs-scroll-area', className)}
+    />
+  )
+}
+
 function spaceValue(value: Space): string {
   return `var(--cs-space-${value})`
+}
+
+function directionValue(value: 'vertical' | 'horizontal'): string {
+  return value === 'vertical' ? 'column' : 'row'
+}
+
+function alignValue(value: 'stretch' | 'start' | 'center' | 'end'): string {
+  return value === 'start' ? 'flex-start' : value === 'end' ? 'flex-end' : value
+}
+
+function justifyValue(value: 'start' | 'center' | 'end' | 'between'): string {
+  if (value === 'start') return 'flex-start'
+  if (value === 'end') return 'flex-end'
+  return value === 'between' ? 'space-between' : value
 }
