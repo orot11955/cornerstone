@@ -537,6 +537,16 @@ Migration마다 기록:
 
 ### M5. Auth Backend Vertical Slice
 
+현재 완료:
+
+- Argon2id password policy·bounded work queue·rehash와 machine-readable Release benchmark Gate
+- purpose/key/version bound access·refresh·action token, rotation/reuse containment와 multi-replica Session revoke
+- exact Origin, preauth/session CSRF 분리, duplicate Cookie 거절과 shared DB rate limit
+- register/verify/resend/login/me/refresh/logout/recovery/password/recent-auth/Session 관리 runtime API
+- default-deny `APP_GUARD`, closed Role/permission matrix와 User self/admin lifecycle·IDOR 방어
+- audit/outbox 원자성, encrypted mail envelope와 protected one-off initial admin bootstrap
+- 실제 PostgreSQL Migration·integration·API E2E, backup restore와 password release benchmark 검증
+
 목표:
 
 - register, verify/resend verification, login, me, refresh, logout, forgot/reset/change password, recent-auth와 active Session list/revoke를 구현한다.
@@ -577,6 +587,16 @@ Migration마다 기록:
 ### M6. Frontend SSR/Data/Auth Vertical Slice
 
 진입 Gate: M4 OpenAPI/Cookie/error 계약과 UIF/WPF 완료.
+
+현재 완료:
+
+- generated OpenAPI type 기반 `@cornerstone/api-client` Auth adapter와 absolute path/origin/redirect/timeout 경계
+- Browser same-origin credential·preauth/session CSRF, safe auth GET 한정 single-flight refresh와 terminal failure 처리
+- request-scoped SSR QueryClient, 민감 query dehydrate/persistence 금지와 계정 전환 cache 제거
+- `/login`, `/register`, `/verify-email`, `/password/forgot`, `/password/reset`, `/auth/refresh`, `/settings/security`
+- server-only `INTERNAL_API_URL`, exact auth Cookie 전달, safe return allowlist와 development-only rewrite
+- query 대신 즉시 제거하는 `#token=` action deep link와 password/token telemetry·cache 비저장
+- 실제 PostgreSQL·one-off admin·Nest·Next·Chromium을 연결한 SSR 보호, CSRF, access 만료 refresh 1회와 open redirect E2E
 
 목표:
 

@@ -33,6 +33,16 @@
 - URL query/hash, form value, DOM text, Cookie, token, email과 자유 형식 Error object를 수집하지 않는다.
 - 기본 adapter는 no-op이고 provider가 명시적으로 구성된 경우에만 전송한다. sampling과 consent는 provider adapter 앞에서 적용한다.
 
+## API와 인증 실행 경계
+
+- Production Browser는 same-origin 상대 `/api/v1`만 호출한다. 범용 Next proxy/BFF와 caller가 지정하는 upstream URL은 제공하지 않는다.
+- Server Component는 server-only `INTERNAL_API_URL`과 고정 endpoint를 사용하며, 원본 Cookie/header를 전달하지 않고 중복되지 않은 승인 auth Cookie만 재구성한다.
+- SSR QueryClient는 request-scoped이고 auth/user/session query는 dehydrate 또는 persistent cache 대상이 아니다.
+- Browser의 자동 refresh와 원 요청 재시도는 `GET /auth/me`, `GET /auth/sessions`에 한해 1회 허용한다. 상태 변경 요청은 자동 재시도하지 않는다.
+- 같은 tab은 공유 Promise, 지원 Browser의 여러 tab은 Lock Manager로 refresh를 직렬화한다. Lock Manager가 없는 환경의 다중 tab 경쟁은 fail-secure 가용성 제한으로 기록한다.
+- Verify/reset 메일 deep link는 `#token=<percent-encoded-token>`만 사용한다. 화면은 fragment를 읽은 즉시 `history.replaceState`로 제거하며 query token은 거절한다. Mail adapter/template도 같은 형식을 사용해야 한다.
+- Production ingress는 `/api/v1`을 고정 API upstream으로 전달하고 spoof 가능한 identity, authorization, forwarded header를 신뢰하지 않는다.
+
 ## 성능 예산
 
 - Foundation home route의 initial JavaScript 180 KiB gzip, route CSS 60 KiB gzip, self-hosted font 100 KiB를 기본 상한으로 둔다.

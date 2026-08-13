@@ -2,7 +2,7 @@
 
 Cornerstone은 새 TypeScript 풀스택 프로젝트에서 반복되는 기반을 공통 패키지와 하나의 canonical template으로 제공하는 Starter Kit이다. 모든 기능을 한꺼번에 설치하지 않고 초기 설정이나 capability manifest에서 선택한 기반만 생성한다.
 
-현재 저장소는 기반을 단계적으로 구축 중이다. Next.js Web, NestJS API, shared package, PostgreSQL Migration 기반과 Core UI는 구현되어 있지만 Auth, 공개 Docs Portal과 운영 배포 전체가 완성된 상태는 아니다. 진행 상태는 [구현 계획](./docs/cornerstone_implementation_plan.md)을 기준으로 확인한다.
+현재 저장소는 기반을 단계적으로 구축 중이다. Next.js Web, NestJS API, shared package, PostgreSQL Migration, password-session Auth, SSR 인증 화면과 Core UI는 구현되어 있지만 공개 Docs Portal과 운영 배포 전체는 아직 완성되지 않았다. 진행 상태는 [구현 계획](./docs/cornerstone_implementation_plan.md)을 기준으로 확인한다.
 
 ## Workspace
 
@@ -48,7 +48,7 @@ pnpm test:e2e
 pnpm format:check
 ```
 
-`dev`, `build`, `lint`, `typecheck`와 workspace test는 Turborepo를 사용한다. DB integration/E2E는 격리된 test Compose를 재생성하고 종료하며, `format:check`는 Root Prettier가 저장소 전체를 검사한다. 세부 참여 범위와 완료 여부는 구현 계획을 따른다.
+`dev`, `build`, `lint`, `typecheck`와 workspace test는 Turborepo를 사용한다. DB integration/E2E는 격리된 test Compose를 재생성하고 종료한다. `test:e2e`는 API E2E, UI browser fixture와 실제 PostgreSQL·Nest·Next 인증 수직 경로를 실행하며 `format:check`는 Root Prettier가 저장소 전체를 검사한다. 세부 참여 범위와 완료 여부는 구현 계획을 따른다.
 
 개별 앱 명령은 [Web README](./apps/web/README.md)와 [API README](./apps/api/README.md)를 참고한다.
 
