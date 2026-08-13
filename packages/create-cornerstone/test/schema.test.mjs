@@ -29,6 +29,8 @@ import {
   createProject,
   createProjectFromManifest,
   adoptStandardV3,
+  adoptStandardV4,
+  apiAuthorizationContract,
   formatJsonDocument,
   getCapabilityApplicationOrder,
   mergeJsonContributions,
@@ -37,6 +39,7 @@ import {
   planScaffoldGeneration,
   readManifest,
   planStandardV3Adoption,
+  planStandardV4Adoption,
   planProjectUpdate,
   projectLockSchema,
   projectLockV3Schema,
@@ -47,6 +50,7 @@ import {
   validateScaffoldRegistry,
   verifyProject,
   updateProject,
+  renderScaffold,
 } from '../dist/index.js'
 import {
   applyGeneratorMutation,
@@ -63,6 +67,11 @@ import {
   readPredecessorAdoptionSource,
   resolvePredecessor,
 } from '../dist/composition/predecessor.js'
+import {
+  buildStandardV3PredecessorLock,
+  readStandardV3AdoptionSource,
+  resolveStandardV3Predecessor,
+} from '../dist/composition/standard-v3-predecessor.js'
 import { createHash } from 'node:crypto'
 
 const digest = `sha256:${'a'.repeat(64)}`
@@ -105,8 +114,42 @@ async function makePredecessorStandard(target, name = 'update-app', version = '0
     )
     await chmod(join(target, source.path), source.mode)
   }
+  const routePolicy = 'apps/api/src/authorization/route-policy.ts'
+  await writeFile(join(target, routePolicy), await readStandardV3AdoptionSource(routePolicy), {
+    mode: 0o644,
+  })
+  await chmod(join(target, routePolicy), 0o644)
   const lock = buildPredecessorLock(predecessor, persistedManifest, manifest)
   await writeFile(join(target, '.cornerstone/manifest.lock.json'), predecessorLockBytes(lock))
+  return lock
+}
+
+async function makeStandardV3Predecessor(target, name = 'v3-app', scaffoldKind = undefined) {
+  const userManifest = { schemaVersion: 1, name, profile: 'standard' }
+  await createProjectFromManifest(target, userManifest)
+  if (scaffoldKind === 'feature') await generateScaffold(target, 'feature', 'billing')
+  if (scaffoldKind === 'api') await generateScaffold(target, 'api', 'reports')
+  const currentLock = projectLockSchema.parse(
+    JSON.parse(await readFile(join(target, '.cornerstone/manifest.lock.json'), 'utf8')),
+  )
+  const scaffolds = currentLock.schemaVersion === 3 ? currentLock.scaffolds : []
+  const persistedManifest = await readManifest(join(target, 'cornerstone.config.yml'))
+  const manifest = resolveManifest(persistedManifest)
+  const predecessor = await resolveStandardV3Predecessor(manifest, scaffolds)
+  for (const [path, content] of predecessor.contents) {
+    await writeFile(join(target, path), content, { mode: 0o644 })
+    await chmod(join(target, path), 0o644)
+  }
+  for (const source of predecessor.snapshot.adoptionSources) {
+    await writeFile(join(target, source.path), await readStandardV3AdoptionSource(source.path), {
+      mode: source.mode,
+    })
+    await chmod(join(target, source.path), source.mode)
+  }
+  const lock = buildStandardV3PredecessorLock(predecessor, persistedManifest, manifest, scaffolds)
+  await writeFile(join(target, '.cornerstone/manifest.lock.json'), formatJsonDocument(lock), {
+    mode: 0o644,
+  })
   return lock
 }
 
@@ -980,6 +1023,103 @@ test('chains the immutable Standard 0.2.0 update and 0.2.1 v3 adoption', async (
   const adopted = await verifyProject(target)
   assert.equal(adopted.schemaVersion, 3)
   assert.equal(adopted.templateVersion, '0.3.0')
+})
+
+test('adopts the exact immutable Standard 0.3.0 predecessor to 0.4.0 lock-last', async () => {
+  const fixture = await mkdtemp(join(tmpdir(), 'cornerstone-v4-adoption-test-'))
+  const target = join(fixture, 'project')
+  await makeStandardV3Predecessor(target, 'v4-adoption-app')
+  assert.equal((await verifyProject(target)).templateVersion, '0.3.0')
+  const beforeLock = await readFile(join(target, '.cornerstone/manifest.lock.json'))
+  const plan = await planStandardV4Adoption(target)
+  assert.equal((await verifyProject(target)).templateVersion, '0.3.0')
+  assert.deepEqual(await readFile(join(target, '.cornerstone/manifest.lock.json')), beforeLock)
+  assert.equal(plan.changes.at(-1).path, '.cornerstone/manifest.lock.json')
+  assert.ok(plan.changes.some(({ path }) => path === 'apps/api/src/authorization/route-policy.ts'))
+  assert.deepEqual((await adoptStandardV4(target, { dryRun: true })).changes, plan.changes)
+  await updateProject(target)
+  const adopted = await verifyProject(target)
+  assert.equal(adopted.templateVersion, '0.4.0')
+  assert.equal(
+    adopted.outputs.find(({ path }) => path === 'apps/api/src/authorization/route-policy.ts')
+      ?.owner,
+    'api-route-policy',
+  )
+  assert.deepEqual((await updateProject(target)).changes, [])
+})
+
+test('rejects Standard 0.3.0 adoption source drift and rolls back injected failure', async () => {
+  const fixture = await mkdtemp(join(tmpdir(), 'cornerstone-v4-adoption-drift-test-'))
+  const driftTarget = join(fixture, 'drift')
+  await makeStandardV3Predecessor(driftTarget, 'v4-drift-app')
+  const policyPath = join(driftTarget, 'apps/api/src/authorization/route-policy.ts')
+  await writeFile(policyPath, `${await readFile(policyPath, 'utf8')}\n// changed\n`)
+  await assert.rejects(planStandardV4Adoption(driftTarget), /manual migration required/i)
+
+  const rollbackTarget = join(fixture, 'rollback')
+  await makeStandardV3Predecessor(rollbackTarget, 'v4-rollback-app')
+  const lockPath = join(rollbackTarget, '.cornerstone/manifest.lock.json')
+  const beforeLock = await readFile(lockPath)
+  injectUpdateFailureForTest('mutation-after-output')
+  await assert.rejects(updateProject(rollbackTarget), /injected update failure/i)
+  assert.deepEqual(await readFile(lockPath), beforeLock)
+  assert.equal((await verifyProject(rollbackTarget)).templateVersion, '0.3.0')
+})
+
+test('recovers a crashed Standard 0.3.0 to 0.4.0 adoption journal', async () => {
+  const fixture = await mkdtemp(join(tmpdir(), 'cornerstone-v4-adoption-recovery-test-'))
+  const target = join(fixture, 'project')
+  await makeStandardV3Predecessor(target, 'v4-recovery-app')
+  injectUpdateFailureForTest('mutation-crash-after-output')
+  await assert.rejects(updateProject(target), /injected mutation crash/i)
+  await updateProject(target)
+  assert.equal((await verifyProject(target)).templateVersion, '0.4.0')
+})
+
+test('adopts a Standard 0.3.0 feature registry without overwriting scaffold source', async () => {
+  const fixture = await mkdtemp(join(tmpdir(), 'cornerstone-v4-feature-adoption-test-'))
+  const target = join(fixture, 'project')
+  await makeStandardV3Predecessor(target, 'v4-feature-app', 'feature')
+  const servicePath = join(target, 'apps/api/src/billing/billing.service.ts')
+  await writeFile(servicePath, `${await readFile(servicePath, 'utf8')}\n// user change\n`)
+  await verifyProject(target)
+  const before = await readFile(servicePath)
+  const plan = await planStandardV4Adoption(target)
+  assert.equal(plan.changes.at(-1).path, '.cornerstone/manifest.lock.json')
+  await adoptStandardV4(target)
+  assert.deepEqual(await readFile(servicePath), before)
+  const lock = await verifyProject(target)
+  assert.equal(lock.templateVersion, '0.4.0')
+  assert.equal(lock.schemaVersion === 3 && lock.scaffolds[0]?.id, 'feature:billing')
+})
+
+test('preserves a Standard 0.3.0 contract-only API v2 registry during adoption', async () => {
+  const fixture = await mkdtemp(join(tmpdir(), 'cornerstone-v4-api-v2-adoption-test-'))
+  const target = join(fixture, 'project')
+  await makeStandardV3Predecessor(target, 'v4-api-v2-app', 'api')
+  const beforeContractModule = await readFile(
+    join(target, 'apps/api/src/contracts/api-contract.module.ts'),
+  )
+  await adoptStandardV4(target)
+  assert.deepEqual(
+    await readFile(join(target, 'apps/api/src/contracts/api-contract.module.ts')),
+    beforeContractModule,
+  )
+  const lock = await verifyProject(target)
+  assert.equal(lock.schemaVersion === 3 && lock.scaffolds[0]?.id, 'api:reports')
+  assert.equal(lock.schemaVersion === 3 && lock.scaffolds[0]?.version, 2)
+})
+
+test('chains immutable Standard 0.2.0 through 0.2.1, 0.3.0, and 0.4.0', async () => {
+  const fixture = await mkdtemp(join(tmpdir(), 'cornerstone-v4-full-chain-test-'))
+  const target = join(fixture, 'project')
+  await makePredecessorStandard(target, 'full-chain-app', '0.2.0')
+  await updateProject(target)
+  assert.equal((await verifyProject(target)).templateVersion, '0.2.1')
+  await adoptStandardV3(target)
+  assert.equal((await verifyProject(target)).templateVersion, '0.3.0')
+  await updateProject(target)
+  assert.equal((await verifyProject(target)).templateVersion, '0.4.0')
 })
 
 test('production generation remains fail-closed after provider resolution', async () => {
@@ -2199,4 +2339,169 @@ test('rejects non-canonical scaffold options and strict CLI generate arguments',
   assert.equal(dryRun.status, 0, `${dryRun.stdout}${dryRun.stderr}`)
   assert.match(dryRun.stdout, /feature:billing/)
   await assert.rejects(access(join(target, 'apps/api/src/billing/billing.module.ts')))
+})
+
+test('renders strict API v3 runtime, contract, policy, and mixed module contributions', async () => {
+  const fixture = await mkdtemp(join(tmpdir(), 'cornerstone-api-v3-test-'))
+  const target = join(fixture, 'project')
+  await createProjectFromManifest(target, {
+    schemaVersion: 1,
+    name: 'api-v3-app',
+    profile: 'standard',
+  })
+  const anonymous = {
+    method: 'post',
+    path: '/reports/{reportId}',
+    operationId: 'createReport',
+    authentication: 'anonymous',
+    csrf: true,
+    roles: [],
+    permission: null,
+    ownership: 'none',
+  }
+  const session = {
+    method: 'get',
+    path: '/reports',
+    operationId: 'getReports',
+    authentication: 'session',
+    csrf: false,
+    roles: ['user', 'admin'],
+    permission: 'profile:read',
+    ownership: 'none',
+  }
+  await generateScaffold(target, 'feature', 'billing')
+  await generateScaffold(target, 'api', 'report-create', anonymous)
+  await generateScaffold(target, 'api', 'reports', session)
+  const appModule = await readFile(join(target, 'apps/api/src/app.module.ts'), 'utf8')
+  const contracts = await readFile(
+    join(target, 'apps/api/src/contracts/api-contract.module.ts'),
+    'utf8',
+  )
+  const policy = await readFile(join(target, 'apps/api/src/authorization/route-policy.ts'), 'utf8')
+  const runtime = await readFile(join(target, 'apps/api/src/reports/reports.controller.ts'), 'utf8')
+  const contract = await readFile(
+    join(target, 'apps/api/src/contracts/reports-contract.controller.ts'),
+    'utf8',
+  )
+  assert.match(appModule, /BillingModule/)
+  assert.match(appModule, /ReportsModule/)
+  assert.match(contracts, /ReportsContractController/)
+  assert.match(runtime, /getReports\(\)/)
+  assert.match(runtime, /ReportsResponseDto/)
+  assert.match(contract, /getReports\(\)/)
+  assert.match(contract, /ApiStandardErrors\(401, 403\)/)
+  assert.match(
+    await readFile(
+      join(target, 'apps/api/src/contracts/report-create-contract.controller.ts'),
+      'utf8',
+    ),
+    /ApiParam\(\{ name: 'reportId', type: String \}\)/,
+  )
+  assert.match(policy, /operationId: 'getReports'/)
+  assert.match(policy, /path: '\/api\/v1\/reports'/)
+  const prettier = spawnSync(
+    process.platform === 'win32' ? 'pnpm.cmd' : 'pnpm',
+    [
+      'exec',
+      'prettier',
+      '--check',
+      join(target, 'apps/api/src/authorization/route-policy.ts'),
+      join(target, 'apps/api/src/report-create'),
+      join(target, 'apps/api/src/reports'),
+      join(target, 'apps/api/src/contracts/report-create-contract.controller.ts'),
+      join(target, 'apps/api/src/contracts/report-create.dto.ts'),
+      join(target, 'apps/api/src/contracts/reports-contract.controller.ts'),
+      join(target, 'apps/api/src/contracts/reports.dto.ts'),
+    ],
+    { cwd: new URL('../../..', import.meta.url), encoding: 'utf8' },
+  )
+  assert.equal(prettier.status, 0, `${prettier.stdout}${prettier.stderr}`)
+  assert.equal(
+    (await verifyProject(target)).scaffolds.filter(({ version }) => version === 3).length,
+    2,
+  )
+  await assert.rejects(
+    planScaffoldGeneration(target, 'api', 'report-shape', {
+      ...anonymous,
+      path: '/reports/{itemId}',
+      operationId: 'createOtherReport',
+    }),
+    /route already exists/i,
+  )
+  await assert.rejects(
+    planScaffoldGeneration(target, 'api', 'report-summary', {
+      ...anonymous,
+      path: '/reports/summary',
+      operationId: 'createReportSummary',
+    }),
+    /route already exists or overlaps/i,
+  )
+  await assert.rejects(
+    planScaffoldGeneration(target, 'api', 'operation-collision', {
+      ...anonymous,
+      path: '/other',
+      operationId: 'getReports',
+    }),
+    /operation ID already exists/i,
+  )
+  await assert.rejects(
+    planScaffoldGeneration(target, 'api', 'health-collision', {
+      ...session,
+      path: '/health/live',
+      operationId: 'getOtherHealth',
+    }),
+    /route already exists/i,
+  )
+})
+
+test('rejects non-canonical and unsafe API v3 option combinations', () => {
+  const valid = {
+    method: 'get',
+    path: '/reports',
+    operationId: 'getReports',
+    authentication: 'session',
+    csrf: false,
+    roles: ['user', 'admin'],
+    permission: 'profile:read',
+    ownership: 'none',
+  }
+  assert.doesNotThrow(() => renderScaffold('api', 'reports', valid))
+  for (const invalid of [
+    { ...valid, csrf: true },
+    { ...valid, roles: ['admin', 'user'] },
+    { ...valid, roles: ['user', 'user'] },
+    { ...valid, roles: ['user'], permission: 'user:list' },
+    { ...valid, authentication: 'anonymous', roles: ['user'], permission: null },
+    { ...valid, authentication: 'anonymous', roles: [], permission: 'profile:read' },
+    { ...valid, authentication: 'refresh' },
+    { ...valid, ownership: 'self' },
+    { ...valid, operationId: 'constructor' },
+    { ...valid, path: '/reports/{reportId}' },
+    { ...valid, extra: 'rejected' },
+  ])
+    assert.throws(() => renderScaffold('api', 'reports', invalid))
+})
+
+test('API v3 registry remains synchronized with the canonical identity role contract', async () => {
+  const identity = await readFile(
+    fileURLToPath(new URL('../../../apps/api/src/identity/identity.contract.ts', import.meta.url)),
+    'utf8',
+  )
+  const literalArray = (name) => {
+    const match = identity.match(new RegExp(`export const ${name} = \\[([\\s\\S]*?)\\] as const`))
+    assert.ok(match, `Missing canonical ${name}`)
+    return [...match[1].matchAll(/'([^']+)'/g)].map((entry) => entry[1])
+  }
+  const userPermissions = identity.match(/user: new Set\(\[([\s\S]*?)\]\)/)
+  assert.ok(userPermissions, 'Missing canonical user permission mapping')
+  assert.deepEqual(apiAuthorizationContract.roles, literalArray('roles'))
+  assert.deepEqual(apiAuthorizationContract.permissions, literalArray('permissions'))
+  assert.deepEqual(
+    apiAuthorizationContract.rolePermissions.user,
+    [...userPermissions[1].matchAll(/'([^']+)'/g)].map((entry) => entry[1]),
+  )
+  assert.deepEqual(
+    apiAuthorizationContract.rolePermissions.admin,
+    apiAuthorizationContract.permissions,
+  )
 })

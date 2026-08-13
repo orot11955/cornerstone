@@ -6,7 +6,12 @@ import { formatJsonDocument } from '../composition/composer.js'
 import { verifyProject } from '../generator.js'
 import { sha256, stableJson } from '../hash.js'
 import type { ProjectLockV3Data } from '../schema.js'
-import { computeScaffoldsDigest, validateScaffoldRegistry, type ScaffoldKind } from './registry.js'
+import {
+  assertApiV3RouteDoesNotCollide,
+  computeScaffoldsDigest,
+  validateScaffoldRegistry,
+  type ScaffoldKind,
+} from './registry.js'
 import { renderScaffold, type ScaffoldGenerateOptions } from './render.js'
 import {
   applyGeneratorMutation,
@@ -67,6 +72,9 @@ async function prepareScaffold(
   const rendered = renderScaffold(kind, name, options)
   if (current.scaffolds.some(({ id }) => id === rendered.entry.id)) {
     throw new Error(`Scaffold already exists: ${rendered.entry.id}`)
+  }
+  if (rendered.entry.kind === 'api' && rendered.entry.version === 3) {
+    assertApiV3RouteDoesNotCollide(current.scaffolds, rendered.entry.options)
   }
   const scaffolds = validateScaffoldRegistry(
     [...current.scaffolds, rendered.entry].sort((left, right) => left.id.localeCompare(right.id)),

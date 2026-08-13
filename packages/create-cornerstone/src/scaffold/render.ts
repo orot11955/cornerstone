@@ -11,6 +11,14 @@ import {
 
 export interface ScaffoldGenerateOptions {
   timestamp?: string | number
+  method?: string
+  path?: string
+  operationId?: string
+  authentication?: string
+  csrf?: boolean
+  roles?: string[]
+  permission?: string | null
+  ownership?: string
 }
 
 export interface RenderedScaffold {
@@ -30,7 +38,7 @@ export function renderScaffold(
   const entry = scaffoldRegistryEntrySchema.parse({
     id: canonicalScaffoldId(kind, name),
     kind,
-    version: 2,
+    version: kind === 'api' && normalizedOptions.method ? 3 : 2,
     name,
     options: registryOptions(kind, normalizedOptions),
     optionsDigest: sha256Options(kind, normalizedOptions),
@@ -39,14 +47,14 @@ export function renderScaffold(
   return { entry, files }
 }
 
-function registryOptions(kind: ScaffoldKind, options: Readonly<Record<string, string | number>>) {
+function registryOptions(kind: ScaffoldKind, options: Readonly<Record<string, unknown>>) {
   if (kind === 'package') return { visibility: 'private' as const }
-  if (kind === 'api') return { exposure: 'contract-only' as const }
+  if (kind === 'api') return options.method ? options : { exposure: 'contract-only' as const }
   if (kind === 'migration') return { timestamp: Number(options.timestamp) }
   return {}
 }
 
-function sha256Options(kind: ScaffoldKind, options: Readonly<Record<string, string | number>>) {
+function sha256Options(kind: ScaffoldKind, options: Readonly<Record<string, unknown>>) {
   const value = registryOptions(kind, options)
   return computeScaffoldOptionsDigest(kind, value)
 }
@@ -54,8 +62,13 @@ function sha256Options(kind: ScaffoldKind, options: Readonly<Record<string, stri
 function normalizeOptions(
   kind: ScaffoldKind,
   options: ScaffoldGenerateOptions,
-): Readonly<Record<string, string | number>> {
+): Readonly<Record<string, unknown>> {
   const supplied = Object.entries(options).filter(([, value]) => value !== undefined)
+  if (kind === 'api' && supplied.some(([key]) => key !== 'exposure')) {
+    const value = Object.fromEntries(supplied)
+    computeScaffoldOptionsDigest(kind, value)
+    return value
+  }
   if (kind !== 'migration') {
     if (supplied.length > 0) throw new Error(`${kind} scaffold does not accept options`)
     return {}
@@ -71,7 +84,7 @@ function normalizeOptions(
 function renderFiles(
   kind: ScaffoldKind,
   name: string,
-  options: Readonly<Record<string, string | number>>,
+  options: Readonly<Record<string, unknown>>,
 ): Map<string, Uint8Array> {
   const files = new Map<string, Uint8Array>()
   const kebab = kind === 'package' ? packageDirectory(name) : name
@@ -139,6 +152,48 @@ function renderFiles(
         files,
         `${root}/${kebab}.module.ts`,
         `import { Module } from '@nestjs/common';\nimport { ${className}Service } from './${kebab}.service.js';\n\n@Module({\n  providers: [${className}Service],\n  exports: [${className}Service],\n})\nexport class ${className}Module {}\n`,
+      )
+    } else if (options.method) {
+      const method = String(options.method)
+      const path = String(options.path)
+      const operationId = String(options.operationId)
+      const decorator = method[0]!.toUpperCase() + method.slice(1)
+      const runtimePath = path.slice(1).replace(/\{([a-z][A-Za-z0-9]*Id)\}/g, ':$1')
+      const pathParameters = [...path.matchAll(/\{([a-z][A-Za-z0-9]*Id)\}/g)].map(
+        (match) => match[1]!,
+      )
+      const apiParamDecorators = pathParameters
+        .map((name) => `  @ApiParam({ name: '${name}', type: String })`)
+        .join('\n')
+      const swaggerImports = [
+        'ApiOkResponse',
+        'ApiOperation',
+        ...(pathParameters.length > 0 ? ['ApiParam'] : []),
+        'ApiTags',
+      ].sort()
+      const swaggerImport =
+        swaggerImports.length > 3
+          ? `import {\n${swaggerImports.map((name) => `  ${name},`).join('\n')}\n} from '@nestjs/swagger';`
+          : `import { ${swaggerImports.join(', ')} } from '@nestjs/swagger';`
+      add(
+        files,
+        `${root}/${kebab}.controller.ts`,
+        `import { Controller, ${decorator} } from '@nestjs/common';\nimport { AuthorizeRoute } from '../authorization/route-policy.decorator.js';\nimport { ${className}ResponseDto } from '../contracts/${kebab}.dto.js';\nimport { ${className}Service } from './${kebab}.service.js';\n\n@Controller('${runtimePath}')\nexport class ${className}Controller {\n  constructor(private readonly service: ${className}Service) {}\n\n  @${decorator}()\n  @AuthorizeRoute('${operationId}')\n  ${operationId}(): ${className}ResponseDto {\n    return this.service.status();\n  }\n}\n`,
+      )
+      add(
+        files,
+        `${root}/${kebab}.module.ts`,
+        `import { Module } from '@nestjs/common';\nimport { ${className}Controller } from './${kebab}.controller.js';\nimport { ${className}Service } from './${kebab}.service.js';\n\n@Module({\n  controllers: [${className}Controller],\n  providers: [${className}Service],\n})\nexport class ${className}Module {}\n`,
+      )
+      add(
+        files,
+        `apps/api/src/contracts/${kebab}-contract.controller.ts`,
+        `import { Controller, ${decorator} } from '@nestjs/common';\n${swaggerImport}${options.authentication === 'session' ? "\nimport { ApiStandardErrors } from './contract-decorators.js';" : ''}\nimport { ${className}ResponseDto } from './${kebab}.dto.js';\n\n@ApiTags('${className}')\n@Controller('${runtimePath}')\nexport class ${className}ContractController {\n  @${decorator}()${apiParamDecorators ? `\n${apiParamDecorators}` : ''}\n  @ApiOperation({ operationId: '${operationId}' })\n  @ApiOkResponse({ type: ${className}ResponseDto })${options.authentication === 'session' ? '\n  @ApiStandardErrors(401, 403)' : ''}\n  ${operationId}(): never {\n    throw new Error('Contract route must not be invoked');\n  }\n}\n`,
+      )
+      add(
+        files,
+        `apps/api/src/contracts/${kebab}.dto.ts`,
+        `import { ApiProperty } from '@nestjs/swagger';\n\nexport class ${className}ResponseDto {\n  @ApiProperty({ example: '${kebab}' })\n  feature!: string;\n\n  @ApiProperty({ enum: ['ok'] })\n  status!: 'ok';\n}\n`,
       )
     } else {
       add(

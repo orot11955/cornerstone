@@ -17,7 +17,7 @@ export interface RoutePolicy {
   readonly reason: string;
 }
 
-const baseRoutePolicies = [
+export const routePolicies = [
   publicPolicy(
     'get',
     '/api/v1/health/live',
@@ -159,15 +159,6 @@ const baseRoutePolicies = [
     'target',
     true,
   ),
-] as const satisfies readonly RoutePolicy[];
-
-// This deterministic insertion point is owned by create-cornerstone's API v3 composer.
-// Keep it as a literal empty array in the canonical source; generated projects replace it.
-const scaffoldRoutePolicies: readonly RoutePolicy[] = [];
-
-export const routePolicies = [
-  ...baseRoutePolicies,
-  ...scaffoldRoutePolicies,
 ] as const satisfies readonly RoutePolicy[];
 
 validateRoutePolicies(routePolicies);

@@ -1,9 +1,12 @@
 import { lstat } from 'node:fs/promises'
 import { resolve } from 'node:path'
-import { composeStructuredOutputs, formatJsonDocument } from '../composition/composer.js'
+import { formatJsonDocument } from '../composition/composer.js'
 import { readPredecessorAdoptionSource, resolvePredecessor } from '../composition/predecessor.js'
-import { loadCanonicalTemplateMetadata } from '../composition/template.js'
-import { buildStandardV3Lock, readManifest, verifyProject } from '../generator.js'
+import {
+  buildStandardV3PredecessorLock,
+  resolveStandardV3Predecessor,
+} from '../composition/standard-v3-predecessor.js'
+import { readManifest, verifyProject } from '../generator.js'
 import { sha256 } from '../hash.js'
 import { projectLockV2Schema, resolveManifest } from '../schema.js'
 import {
@@ -70,15 +73,6 @@ async function prepareAdoption(
   }
   const userManifest = await readManifest(safeTargetPath(target, 'cornerstone.config.yml'))
   const manifest = resolveManifest(userManifest)
-  const metadata = loadCanonicalTemplateMetadata()
-  if (metadata.templateVersion !== currentTemplateVersion) {
-    throw new Error(`Standard v3 adoption metadata must be ${currentTemplateVersion}`)
-  }
-  const composed = await composeStructuredOutputs(
-    resolve(import.meta.dirname, '..', 'templates', 'canonical'),
-    metadata,
-    manifest,
-  )
   const predecessor = await resolvePredecessor(predecessorTemplateVersion, manifest)
   for (const source of predecessor.snapshot.adoptionSources) {
     const path = safeTargetPath(target, source.path)
@@ -95,10 +89,11 @@ async function prepareAdoption(
       throw new Error(`Manual migration required: Nest module predecessor changed: ${source.path}`)
     }
   }
-  const desiredLock = await buildStandardV3Lock(target, userManifest, manifest, composed)
+  const desired = await resolveStandardV3Predecessor(manifest, [])
+  const desiredLock = buildStandardV3PredecessorLock(desired, userManifest, manifest, [])
   const desiredBytes = Buffer.from(formatJsonDocument(desiredLock))
   const entries: GeneratorMutationRequest['entries'][number][] = []
-  for (const output of composed) {
+  for (const output of desired.outputs) {
     const previousOutput = predecessor.outputs.find(({ path }) => path === output.path)
     const adoptionSource = predecessor.snapshot.adoptionSources.find(
       ({ path }) => path === output.path,
@@ -109,12 +104,14 @@ async function prepareAdoption(
         `Manual migration required: current composer adds unknown output ${output.path}`,
       )
     }
-    const afterChecksum = sha256(output.content)
+    const content = desired.contents.get(output.path)
+    if (!content) throw new Error(`Immutable Standard 0.3.0 output is missing: ${output.path}`)
+    const afterChecksum = sha256(content)
     if (afterChecksum === before.checksum && !nestComposerIds.has(output.owner)) continue
     entries.push({
       action: 'modify',
       path: output.path,
-      content: output.content,
+      content,
       mode: generatedFileMode,
       beforeChecksum: before.checksum,
       beforeMode: before.mode,

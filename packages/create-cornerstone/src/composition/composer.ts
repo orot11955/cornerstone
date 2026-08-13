@@ -106,6 +106,10 @@ async function composeOne(
     return Buffer.from(composeNestModule(composer.nestModule))
   }
 
+  if (composer.format === 'typescript-source') {
+    return Buffer.from(await readComposerSource(templateRoot, composer))
+  }
+
   const source = await readComposerSource(templateRoot, composer)
   if (composer.format === 'package-json') {
     const value = parseJsonObject(source)

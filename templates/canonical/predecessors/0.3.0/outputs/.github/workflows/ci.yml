@@ -1,0 +1,82 @@
+concurrency:
+  cancel-in-progress: true
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+jobs:
+  e2e:
+    name: E2E
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+        with:
+          persist-credentials: false
+      - name: Setup pnpm
+        uses: pnpm/action-setup@008330803749db0355799c700092d9a85fd074e9
+        with:
+          run_install: false
+          version: 11.20.0
+      - name: Setup Node
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          cache: pnpm
+          node-version: 24.18.0
+          package-manager-cache: false
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm test:e2e
+    timeout-minutes: 15
+  quality:
+    name: Quality
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+        with:
+          persist-credentials: false
+      - name: Setup pnpm
+        uses: pnpm/action-setup@008330803749db0355799c700092d9a85fd074e9
+        with:
+          run_install: false
+          version: 11.20.0
+      - name: Setup Node
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          cache: pnpm
+          node-version: 24.18.0
+          package-manager-cache: false
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm format:check
+      - run: pnpm lint
+      - run: pnpm typecheck
+      - run: pnpm test
+      - run: pnpm build
+      - run: pnpm migration:check
+      - run: pnpm openapi:check
+      - run: pnpm openapi:compat
+      - run: pnpm client:check
+      - run: pnpm web:budget:check
+      - run: pnpm package:verify
+      - run: pnpm license:check
+    timeout-minutes: 20
+  secrets:
+    name: Security
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout full history
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Scan tracked files and history
+        run: |
+          node scripts/validate-governance.mjs
+          node scripts/scan-secrets.mjs --history --self-test
+    timeout-minutes: 10
+name: CI
+on:
+  merge_group: null
+  pull_request: null
+  push:
+    branches:
+      - main
+permissions:
+  contents: read

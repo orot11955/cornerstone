@@ -25,6 +25,7 @@ export type {
   ResolvedManifest,
 } from './schema.js'
 export {
+  apiAuthorizationContract,
   canonicalScaffoldId,
   computeScaffoldOptionsDigest,
   computeScaffoldsDigest,
@@ -67,3 +68,5 @@ export { planProjectUpdate, updateProject } from './update.js'
 export type { ProjectUpdatePlan } from './update.js'
 export { adoptStandardV3, planStandardV3Adoption } from './mutation/adoption.js'
 export type { StandardV3AdoptionPlan } from './mutation/adoption.js'
+export { adoptStandardV4, planStandardV4Adoption } from './mutation/standard-v4-adoption.js'
+export type { StandardV4AdoptionPlan } from './mutation/standard-v4-adoption.js'

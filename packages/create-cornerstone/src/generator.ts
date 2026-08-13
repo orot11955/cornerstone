@@ -32,7 +32,12 @@ import {
 } from './composition/template.js'
 import { sha256, stableJson } from './hash.js'
 import { composeScaffoldAwareOutputs } from './scaffold/composition.js'
-import { computeScaffoldsDigest } from './scaffold/registry.js'
+import { computeScaffoldsDigest, type ScaffoldRegistryEntry } from './scaffold/registry.js'
+import {
+  buildStandardV3PredecessorLock,
+  readStandardV3AdoptionSource,
+  resolveStandardV3Predecessor,
+} from './composition/standard-v3-predecessor.js'
 import {
   projectLockSchema,
   projectManifestSchema,
@@ -327,14 +332,15 @@ export async function buildStandardV3Lock(
   userManifest: ProjectManifest,
   manifest: ResolvedManifest,
   expectedOutputs?: readonly { owner: string; path: string; content: Uint8Array }[],
+  scaffolds: readonly ScaffoldRegistryEntry[] = [],
 ): Promise<ProjectLockV3Data> {
   const v2 = await buildStandardLock(target, userManifest, manifest, expectedOutputs)
   const { integrity: _integrity, schemaVersion: _schemaVersion, ...common } = v2
   const unsigned = {
     ...common,
     schemaVersion: 3 as const,
-    scaffolds: [],
-    scaffoldsDigest: computeScaffoldsDigest([]),
+    scaffolds: [...scaffolds],
+    scaffoldsDigest: computeScaffoldsDigest(scaffolds),
   }
   return { ...unsigned, integrity: sha256(stableJson(unsigned)) }
 }
@@ -350,6 +356,11 @@ async function verifyStandardProject(
 
   if (lock.schemaVersion === 2 && ['0.2.0', '0.2.1'].includes(lock.templateVersion)) {
     await verifyLegacyStandardV2(target, userManifest, manifest, lock, metadata)
+    return
+  }
+
+  if (lock.schemaVersion === 3 && lock.templateVersion === '0.3.0') {
+    await verifyStandardV3Predecessor(target, userManifest, manifest, lock, metadata)
     return
   }
 
@@ -429,7 +440,7 @@ async function verifyStandardProject(
   }
   const expectedLock =
     lock.schemaVersion === 3
-      ? await buildStandardV3Lock(target, userManifest, manifest, expectedComposed)
+      ? await buildStandardV3Lock(target, userManifest, manifest, expectedComposed, lock.scaffolds)
       : await buildStandardLock(target, userManifest, manifest)
   if (expectedLock.schemaVersion === 3 && lock.schemaVersion === 3) {
     expectedLock.scaffolds = lock.scaffolds
@@ -439,6 +450,59 @@ async function verifyStandardProject(
   }
   if (stableJson(lock) !== stableJson(expectedLock)) {
     throw new Error('Lock manifest differs from the generator-owned resolution')
+  }
+}
+
+async function verifyStandardV3Predecessor(
+  target: string,
+  userManifest: ProjectManifest,
+  manifest: ResolvedManifest,
+  lock: ProjectLockV3Data,
+  metadata: CanonicalTemplateMetadata,
+): Promise<void> {
+  const predecessor = await resolveStandardV3Predecessor(manifest, lock.scaffolds)
+  await assertCapabilityResidue(target, metadata, manifest)
+  for (const output of predecessor.outputs) {
+    const path = safeTargetPath(target, output.path)
+    const info = await lstat(path)
+    if (
+      !info.isFile() ||
+      info.isSymbolicLink() ||
+      (info.mode & 0o777) !== output.mode ||
+      sha256(await readFile(path)) !== output.checksum
+    ) {
+      throw new Error(`Generator-owned output drift: ${output.path}`)
+    }
+  }
+  for (const source of predecessor.snapshot.adoptionSources) {
+    const path = safeTargetPath(target, source.path)
+    const info = await lstat(path)
+    if (
+      !info.isFile() ||
+      info.isSymbolicLink() ||
+      (info.mode & 0o777) !== source.mode ||
+      sha256(await readFile(path)) !== source.checksum ||
+      sha256(await readStandardV3AdoptionSource(source.path)) !== source.checksum
+    ) {
+      throw new Error(`Standard 0.3.0 adoption source drift: ${source.path}`)
+    }
+  }
+  for (const scaffold of lock.scaffolds) {
+    for (const scaffoldPath of scaffold.paths) {
+      const info = await lstat(safeTargetPath(target, scaffoldPath))
+      if (!info.isFile() || info.isSymbolicLink()) {
+        throw new Error(`Scaffold registry path must be a regular file: ${scaffoldPath}`)
+      }
+    }
+  }
+  const expected = buildStandardV3PredecessorLock(
+    predecessor,
+    userManifest,
+    manifest,
+    lock.scaffolds,
+  )
+  if (stableJson(lock) !== stableJson(expected)) {
+    throw new Error('Lock manifest differs from immutable Standard 0.3.0 resolution')
   }
 }
 

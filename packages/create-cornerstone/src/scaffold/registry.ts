@@ -93,8 +93,138 @@ const scaffoldRegistryEntryV2Schema = z.discriminatedUnion('kind', [
     .strict(),
 ])
 
+const apiMethodSchema = z.enum(['get', 'post', 'patch', 'delete'])
+const apiAuthenticationSchema = z.enum(['anonymous', 'session'])
+const apiRoles = ['user', 'admin'] as const
+const apiPermissions = [
+  'profile:read',
+  'profile:update',
+  'session:list',
+  'session:revoke',
+  'user:list',
+  'user:read',
+  'user:update-role',
+  'user:update-status',
+] as const
+const apiRolePermissions = {
+  user: ['profile:read', 'profile:update', 'session:list', 'session:revoke'],
+  admin: apiPermissions,
+} as const
+export const apiAuthorizationContract = {
+  roles: apiRoles,
+  permissions: apiPermissions,
+  rolePermissions: apiRolePermissions,
+} as const
+const apiRoleSchema = z.enum(apiRoles)
+const apiPermissionSchema = z.enum(apiPermissions)
+const apiPathSchema = z
+  .string()
+  .regex(
+    /^\/(?:[a-z][a-z0-9-]*|\{[a-z][A-Za-z0-9]*Id\})(?:\/(?:[a-z][a-z0-9-]*|\{[a-z][A-Za-z0-9]*Id\}))*$/,
+  )
+const apiOperationIdSchema = z
+  .string()
+  .regex(/^[a-z][A-Za-z0-9]{1,79}$/)
+  .refine((value) => value !== 'constructor', 'API operation ID is reserved')
+const apiV3OptionsSchema = z
+  .object({
+    method: apiMethodSchema,
+    path: apiPathSchema,
+    operationId: apiOperationIdSchema,
+    authentication: apiAuthenticationSchema,
+    csrf: z.boolean(),
+    roles: z
+      .array(apiRoleSchema)
+      .min(0)
+      .max(2)
+      .superRefine((roles, context) => {
+        if (
+          new Set(roles).size !== roles.length ||
+          roles.some(
+            (role, index) =>
+              index > 0 && apiRoles.indexOf(roles[index - 1]!) > apiRoles.indexOf(role),
+          )
+        )
+          context.addIssue({
+            code: 'custom',
+            message: 'API roles must be unique and in canonical order',
+          })
+      }),
+    permission: apiPermissionSchema.nullable(),
+    ownership: z.literal('none'),
+  })
+  .strict()
+  .superRefine((value, context) => {
+    if (value.method === 'get' && value.csrf)
+      context.addIssue({
+        code: 'custom',
+        path: ['csrf'],
+        message: 'GET API routes must disable CSRF',
+      })
+    if (value.method !== 'get' && !value.csrf)
+      context.addIssue({
+        code: 'custom',
+        path: ['csrf'],
+        message: 'Unsafe API routes must require CSRF',
+      })
+    if (
+      value.authentication === 'anonymous' &&
+      (value.roles.length !== 0 || value.permission !== null)
+    )
+      context.addIssue({
+        code: 'custom',
+        message: 'Anonymous API routes cannot have roles or permissions',
+      })
+    if (value.authentication === 'session' && value.roles.length === 0)
+      context.addIssue({
+        code: 'custom',
+        path: ['roles'],
+        message: 'Session API routes require roles',
+      })
+    if (value.authentication === 'session' && value.permission === null)
+      context.addIssue({
+        code: 'custom',
+        path: ['permission'],
+        message: 'Session API routes require a permission',
+      })
+    if (
+      value.authentication === 'session' &&
+      value.path.includes('{') &&
+      (value.roles.length !== 1 || value.roles[0] !== 'admin')
+    )
+      context.addIssue({
+        code: 'custom',
+        path: ['roles'],
+        message:
+          'Parameterized session API routes require the admin role until ownership is enforced',
+      })
+    if (
+      value.permission &&
+      value.roles.some(
+        (role) => !(apiRolePermissions[role] as readonly string[]).includes(value.permission!),
+      )
+    )
+      context.addIssue({
+        code: 'custom',
+        path: ['permission'],
+        message: 'Permission is not granted to every selected role',
+      })
+  })
+
+const scaffoldRegistryEntryV3Schema = scaffoldRegistryEntryBaseSchema
+  .extend({
+    version: z.literal(3),
+    kind: z.literal('api'),
+    options: apiV3OptionsSchema,
+  })
+  .strict()
+
 export const scaffoldRegistryEntrySchema = z
-  .union([scaffoldRegistryEntryV1Schema, scaffoldRegistryEntryV2Schema])
+  .union([
+    scaffoldRegistryEntryV1Schema,
+    scaffoldRegistryEntryV2Schema,
+    scaffoldRegistryEntryV3Schema,
+  ])
   .superRefine((entry, context) => {
     if (entry.name !== entry.name.normalize('NFC')) {
       context.addIssue({
@@ -103,7 +233,7 @@ export const scaffoldRegistryEntrySchema = z
         message: 'Scaffold name must use NFC normalization',
       })
     }
-    const validName = isValidScaffoldName(entry.kind, entry.name, entry.version)
+    const validName = isValidScaffoldName(entry.kind, entry.name, entry.version === 1 ? 1 : 2)
     if (!validName) {
       context.addIssue({
         code: 'custom',
@@ -195,13 +325,103 @@ export function assertScaffoldName(kind: ScaffoldKind, name: string): void {
   }
 }
 
+export function assertApiV3RouteDoesNotCollide(
+  entries: readonly ScaffoldRegistryEntry[],
+  options: z.infer<typeof apiV3OptionsSchema>,
+): void {
+  const knownRoutes = [
+    'get /api/v1/health/live',
+    'get /api/v1/health/ready',
+    'get /api/v1/auth/csrf',
+    'post /api/v1/auth/register',
+    'post /api/v1/auth/verify-email',
+    'post /api/v1/auth/verification/resend',
+    'post /api/v1/auth/login',
+    'post /api/v1/auth/refresh',
+    'post /api/v1/auth/password/forgot',
+    'post /api/v1/auth/password/reset',
+    'get /api/v1/auth/me',
+    'post /api/v1/auth/logout',
+    'post /api/v1/auth/password/change',
+    'post /api/v1/auth/recent-auth',
+    'get /api/v1/auth/sessions',
+    'delete /api/v1/auth/sessions/{sessionId}',
+    'delete /api/v1/auth/sessions',
+    'delete /api/v1/users/me',
+    'get /api/v1/users',
+    'get /api/v1/users/{userId}',
+    'patch /api/v1/users/{userId}/role',
+    'patch /api/v1/users/{userId}/status',
+  ].map(parseRoute)
+  const operations = new Set([
+    'getLiveness',
+    'getReadiness',
+    'getCsrfToken',
+    'register',
+    'verifyEmail',
+    'resendVerification',
+    'login',
+    'refreshSession',
+    'requestPasswordReset',
+    'resetPassword',
+    'getCurrentUser',
+    'logout',
+    'changePassword',
+    'confirmRecentAuthentication',
+    'listSessions',
+    'revokeSession',
+    'revokeAllSessions',
+    'deleteCurrentUser',
+    'listUsers',
+    'getUser',
+    'updateUserRole',
+    'updateUserStatus',
+  ])
+  for (const entry of entries)
+    if (entry.version === 3 && entry.kind === 'api') {
+      knownRoutes.push({ method: entry.options.method, path: `/api/v1${entry.options.path}` })
+      operations.add(entry.options.operationId)
+    }
+  const candidate = { method: options.method, path: `/api/v1${options.path}` }
+  if (knownRoutes.some((route) => apiRoutesOverlap(route, candidate))) {
+    throw new Error(`API route already exists or overlaps: ${candidate.method} ${candidate.path}`)
+  }
+  if (operations.has(options.operationId))
+    throw new Error(`API operation ID already exists: ${options.operationId}`)
+}
+
+interface ApiRouteShape {
+  readonly method: string
+  readonly path: string
+}
+
+function parseRoute(value: string): ApiRouteShape {
+  const separator = value.indexOf(' ')
+  return { method: value.slice(0, separator), path: value.slice(separator + 1) }
+}
+
+function apiRoutesOverlap(left: ApiRouteShape, right: ApiRouteShape): boolean {
+  if (left.method !== right.method) return false
+  const leftSegments = left.path.split('/')
+  const rightSegments = right.path.split('/')
+  return (
+    leftSegments.length === rightSegments.length &&
+    leftSegments.every(
+      (segment, index) =>
+        segment === rightSegments[index] ||
+        /^\{[a-z][A-Za-z0-9]*Id\}$/.test(segment) ||
+        /^\{[a-z][A-Za-z0-9]*Id\}$/.test(rightSegments[index] ?? ''),
+    )
+  )
+}
+
 export function computeScaffoldsDigest(entries: readonly ScaffoldRegistryEntry[]): string {
   return sha256(stableJson(entries))
 }
 
 export function computeScaffoldOptionsDigest(
   kind: ScaffoldKind,
-  options: Readonly<Record<string, string | number>> = {},
+  options: Readonly<Record<string, unknown>> = {},
 ): string {
   return sha256(stableJson(canonicalScaffoldOptions(kind, options)))
 }
@@ -248,8 +468,8 @@ export function validateScaffoldRegistry(
 
 function canonicalScaffoldOptions(
   kind: ScaffoldKind,
-  options: Readonly<Record<string, string | number>>,
-): Readonly<Record<string, string | number>> {
+  options: Readonly<Record<string, unknown>>,
+): Readonly<Record<string, unknown>> {
   const keys = Object.keys(options)
   if (kind === 'feature') {
     if (keys.length !== 0) throw new Error('feature scaffold does not accept options')
@@ -261,9 +481,9 @@ function canonicalScaffoldOptions(
     return { visibility: 'private' }
   }
   if (kind === 'api') {
-    if (keys.length !== 1 || options.exposure !== 'contract-only')
-      throw new Error('API scaffold exposure must be contract-only')
-    return { exposure: 'contract-only' }
+    if (keys.length === 1 && options.exposure === 'contract-only')
+      return { exposure: 'contract-only' }
+    return apiV3OptionsSchema.parse(options)
   }
   if (keys.length !== 1 || keys[0] !== 'timestamp') {
     throw new Error('Migration scaffold requires only the timestamp option')

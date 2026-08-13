@@ -51,6 +51,7 @@ export const composerFormatSchema = z.enum([
   'notice',
   'license',
   'nest-module',
+  'typescript-source',
 ])
 
 const nestImportSchema = z
@@ -152,6 +153,13 @@ export const composerDefinitionSchema = z
         code: 'custom',
         path: ['nestModule'],
         message: 'nest-module composer requires exactly one structured module definition',
+      })
+    }
+    if (composer.format === 'typescript-source' && composer.source !== composer.output) {
+      context.addIssue({
+        code: 'custom',
+        path: ['source'],
+        message: 'typescript-source composer requires an exact source/output path match',
       })
     }
   })

@@ -56,11 +56,12 @@ try {
     if (!dryRun) console.error(`Updated ${target} to template ${plan.toTemplateVersion}`)
   } else if (command === 'generate') {
     const generated = parseGenerateArguments(args)
-    const { kindInput, name, target, dryRun, timestamp } = generated
+    const { kindInput, name, target, dryRun, timestamp, ...scaffoldOptions } = generated
     const kind = scaffoldKindSchema.parse(kindInput)
     const plan = await generateScaffold(target, kind, name, {
       dryRun,
       ...(timestamp === undefined ? {} : { timestamp }),
+      ...scaffoldOptions,
     })
     console.log(JSON.stringify(plan, null, 2))
     if (!dryRun) console.error(`Generated ${plan.scaffold.id} in ${target}`)
@@ -78,13 +79,36 @@ function parseGenerateArguments(args: string[]): {
   target: string
   dryRun: boolean
   timestamp?: string
+  method?: string
+  path?: string
+  operationId?: string
+  authentication?: string
+  csrf?: boolean
+  roles?: string[]
+  permission?: string | null
+  ownership?: string
 } {
   const [kindInput, name, ...rest] = args
   if (!kindInput || !name || kindInput.startsWith('--') || name.startsWith('--')) usage()
   const values = new Map<string, string | true>()
   for (let index = 0; index < rest.length; index += 1) {
     const argument = rest[index]!
-    if (!['--target', '--timestamp', '--dry-run'].includes(argument) || values.has(argument)) {
+    if (
+      ![
+        '--target',
+        '--timestamp',
+        '--dry-run',
+        '--method',
+        '--path',
+        '--operation-id',
+        '--authentication',
+        '--roles',
+        '--permission',
+        '--ownership',
+        '--csrf',
+      ].includes(argument) ||
+      values.has(argument)
+    ) {
       usage()
     }
     if (argument === '--dry-run') {
@@ -99,12 +123,51 @@ function parseGenerateArguments(args: string[]): {
   const target = values.get('--target')
   if (typeof target !== 'string') usage()
   const timestamp = values.get('--timestamp')
+  const apiKeys = [
+    '--method',
+    '--path',
+    '--operation-id',
+    '--authentication',
+    '--roles',
+    '--permission',
+    '--ownership',
+    '--csrf',
+  ]
+  const apiRequested = apiKeys.some((key) => values.has(key))
+  if (kindInput === 'api' && apiRequested && !apiKeys.every((key) => values.has(key))) usage()
+  if (kindInput !== 'api' && apiRequested) usage()
+  const csrf = values.get('--csrf')
+  if (csrf !== undefined && csrf !== 'true' && csrf !== 'false') usage()
+  const apiValue = (name: string): string => {
+    const value = values.get(name)
+    if (typeof value !== 'string') usage()
+    return value
+  }
   return {
     kindInput,
     name,
     target,
     dryRun: values.get('--dry-run') === true,
     ...(typeof timestamp === 'string' ? { timestamp } : {}),
+    ...(apiRequested
+      ? (() => {
+          const rolesValue = apiValue('--roles')
+          const parsedRoles = rolesValue === 'none' ? [] : rolesValue.split(',')
+          if (!['none', 'user', 'admin', 'user,admin'].includes(rolesValue)) usage()
+          const permission = apiValue('--permission')
+          if (permission === 'null') usage()
+          return {
+            method: apiValue('--method'),
+            path: apiValue('--path'),
+            operationId: apiValue('--operation-id'),
+            authentication: apiValue('--authentication'),
+            csrf: csrf === 'true',
+            roles: parsedRoles,
+            permission: permission === 'none' ? null : permission,
+            ownership: apiValue('--ownership'),
+          }
+        })()
+      : {}),
   }
 }
 
@@ -173,7 +236,7 @@ function promptAnswers(
 
 function usage(): never {
   console.error(
-    'Usage:\n  create-cornerstone plan --manifest <file>\n  create-cornerstone plan <target> --dry-run\n  create-cornerstone create <target> [--manifest <file>]\n  create-cornerstone update <target> [--dry-run]\n  create-cornerstone generate <package|feature|api|migration> <name> --target <project> [--timestamp <13-digit>] [--dry-run]\n  create-cornerstone verify <target>',
+    'Usage:\n  create-cornerstone generate api <name> --target <project> --method <get|post|patch|delete> --path </literal/{camelId}> --operation-id <camelCase> --authentication <anonymous|session> --roles <none|user|admin|user,admin> --permission <permission|none> --ownership none --csrf <true|false> [--dry-run]',
   )
   process.exit(2)
 }

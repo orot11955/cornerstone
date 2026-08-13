@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "templateVersion": "0.4.0",
+  "templateVersion": "0.3.0",
   "profiles": {
     "standard": {
       "capabilities": ["api", "auth", "database", "ui", "web"],
@@ -74,10 +74,7 @@
       "mappings": [
         { "source": "apps/api/release/auth-password-policy.json" },
         { "source": "apps/api/src/auth" },
-        {
-          "source": "apps/api/src/authorization",
-          "exclude": ["apps/api/src/authorization/route-policy.ts"]
-        },
+        { "source": "apps/api/src/authorization" },
         {
           "source": "apps/api/src/contracts",
           "exclude": ["apps/api/src/contracts/api-contract.module.ts"]
@@ -214,13 +211,6 @@
         "providers": [],
         "className": "ApiContractModule"
       }
-    },
-    {
-      "id": "api-route-policy",
-      "version": 1,
-      "format": "typescript-source",
-      "output": "apps/api/src/authorization/route-policy.ts",
-      "source": "apps/api/src/authorization/route-policy.ts"
     },
     {
       "id": "project-readme",

@@ -1,0 +1,200 @@
+{
+  "schemaVersion": 2,
+  "templateVersion": "0.3.0",
+  "fixtureName": "snapshot-app",
+  "generatorVersion": "0.1.0",
+  "compatibility": {
+    "node": ">=22.20.0 <25",
+    "pnpm": "11.20.0",
+    "typescript": "5.9.3"
+  },
+  "baselines": {
+    "manifest": 1,
+    "database": "1786579300000-GrantAdminBootstrap",
+    "openapi": "1.0.0"
+  },
+  "certification": {
+    "profile": "standard",
+    "matrix": "standard-preview-node24-pg17",
+    "status": "supported"
+  },
+  "fragments": [
+    {
+      "id": "api",
+      "version": 1,
+      "checksum": "sha256:571b35ebb80702b1ac21dfd4b94000b7eeaeaf139854fa49de6e6b6a849c5c15"
+    },
+    {
+      "id": "auth",
+      "version": 1,
+      "checksum": "sha256:18fce58be4eeaeea0d8d6315325c7d18ac7a4bc599cc942febe08fa123280d3d"
+    },
+    {
+      "id": "base",
+      "version": 1,
+      "checksum": "sha256:884c14ec938e32cb9111f49785571d74c028591edeb97952846f69b5850bf28f"
+    },
+    {
+      "id": "database",
+      "version": 1,
+      "checksum": "sha256:bc106ca0ee81764cb113180e17e33b08a966ef767fdf348b33dc82869eacd96a"
+    },
+    {
+      "id": "ui",
+      "version": 1,
+      "checksum": "sha256:af52eb1c744994911127fd5e262d3a60a479fe45c8904e13dcedd3747005803e"
+    },
+    {
+      "id": "web",
+      "version": 1,
+      "checksum": "sha256:ef7668c9c2e1ba9801de708bce4c1fdfd02d1f5093d5777bcdaaf9aec9a45bd4"
+    }
+  ],
+  "composers": [
+    {
+      "id": "api-app-module",
+      "version": 1,
+      "checksum": "sha256:db8f7146bdd7df0acfa7d02c98f8917d38006dff7d441bace56578fb182e7ccf"
+    },
+    {
+      "id": "api-contract-module",
+      "version": 1,
+      "checksum": "sha256:70cb5af12244e076872851555960f5a188ea697f0ca59eb6e3a83f3206294824"
+    },
+    {
+      "id": "ci-workflow",
+      "version": 1,
+      "checksum": "sha256:71252c301eb584407ed9390f9c2a672664ffbb779b2618fdc738a90a2e5815c0"
+    },
+    {
+      "id": "notice",
+      "version": 1,
+      "checksum": "sha256:56be2f38cbeadb31683e175365c0e157640ef3a8cf24649f2191a5af3ea8bb03"
+    },
+    {
+      "id": "pnpm-workspace",
+      "version": 1,
+      "checksum": "sha256:6cb57f1b14633a5fe1ae98f1f90435206639a7f8dcb882cb030fadd0b39dbcf6"
+    },
+    {
+      "id": "project-readme",
+      "version": 2,
+      "checksum": "sha256:2c2ba58c82eb65285a2ef8769d76b6fab1b24aef465031003ea41720ab3dc0da"
+    },
+    {
+      "id": "root-package-json",
+      "version": 1,
+      "checksum": "sha256:7076b107157c2a35a54edefc8259e30617d41df6a5f1486d55675bea29ea05c7"
+    },
+    {
+      "id": "test-scope-json",
+      "version": 1,
+      "checksum": "sha256:ad517d59da9109f8e6f8b1666c4627a2a9294c1464d4f0cee15feeed81ae809d"
+    },
+    {
+      "id": "turbo-json",
+      "version": 1,
+      "checksum": "sha256:4533229aae6de776c357666cec05eaea4b02f5c2186b78395b4f7d1fd32bca81"
+    }
+  ],
+  "outputs": [
+    {
+      "path": ".github/workflows/ci.yml",
+      "owner": "ci-workflow",
+      "checksum": "sha256:dbfe40c080e5d3843ec1d7973a1ebb812525df96ff27a38f1be809b4ce9a4c8c",
+      "mode": 420
+    },
+    {
+      "path": "apps/api/src/app.module.ts",
+      "owner": "api-app-module",
+      "checksum": "sha256:e721a391f2b2c966a94579a169699980dc2669a9067eb54387197340442636c3",
+      "mode": 420
+    },
+    {
+      "path": "apps/api/src/contracts/api-contract.module.ts",
+      "owner": "api-contract-module",
+      "checksum": "sha256:7b1cb446ed0ebc4d401c9256ccfbf8b945d8a735e540744f03f6a001101a75df",
+      "mode": 420
+    },
+    {
+      "path": "NOTICE",
+      "owner": "notice",
+      "checksum": "sha256:c74f6b6e3cb1bd802b925c280672798bec6822cf7d043e6ecdbe9f3591f3eefb",
+      "mode": 420
+    },
+    {
+      "path": "package.json",
+      "owner": "root-package-json",
+      "checksum": "sha256:83f2cbe23a60700bc74add96b504c6085448408605b24ebfe671f895df62dea4",
+      "mode": 420
+    },
+    {
+      "path": "pnpm-workspace.yaml",
+      "owner": "pnpm-workspace",
+      "checksum": "sha256:2e01029091f581f70c6c54935fd8243d04ddb6feabde23a770632f39f5893b4e",
+      "mode": 420
+    },
+    {
+      "path": "README.md",
+      "owner": "project-readme",
+      "checksum": "sha256:b82d56b26672bccee280db568a11d0f612de57bbc7abaf9d7e9fba9882767446",
+      "mode": 420
+    },
+    {
+      "path": "test-scope.json",
+      "owner": "test-scope-json",
+      "checksum": "sha256:ae4468cdbc43141c576b0bae0f3fe3ee6e8b3887d53078e9aeeb96577932f7c9",
+      "mode": 420
+    },
+    {
+      "path": "turbo.json",
+      "owner": "turbo-json",
+      "checksum": "sha256:804f98a774f0fa3dce828d8a88dc7488fbe950fe827001793a778272f3db9c66",
+      "mode": 420
+    }
+  ],
+  "adoptionSources": [
+    {
+      "path": "apps/api/src/authorization/route-policy.ts",
+      "checksum": "sha256:813b6dfac4ed04b9cfa11281833ae7bcc46dbacd78d550b948565b550f0cbbed",
+      "mode": 420
+    }
+  ],
+  "scaffoldContract": {
+    "entryVersions": [
+      1,
+      2
+    ],
+    "composedEntries": [
+      "feature:2"
+    ]
+  },
+  "licenses": {
+    "ISC": {
+      "composer": {
+        "id": "license",
+        "version": 1,
+        "checksum": "sha256:09d62ef83697ee34208c06931ada1af9734b7d6cc27266dbe4f25d6879e1cd79"
+      },
+      "output": {
+        "path": "LICENSE",
+        "owner": "license",
+        "checksum": "sha256:9b124063be094b36bb9c5ed609a1dcc99b684e57367529d7fa38dd35264e027e",
+        "mode": 420
+      }
+    },
+    "MIT": {
+      "composer": {
+        "id": "license",
+        "version": 1,
+        "checksum": "sha256:09d62ef83697ee34208c06931ada1af9734b7d6cc27266dbe4f25d6879e1cd79"
+      },
+      "output": {
+        "path": "LICENSE",
+        "owner": "license",
+        "checksum": "sha256:d11f47c929898fc21422ba497bdee527de6acfa16983373f9bd0251527d1d07e",
+        "mode": 420
+      }
+    }
+  }
+}

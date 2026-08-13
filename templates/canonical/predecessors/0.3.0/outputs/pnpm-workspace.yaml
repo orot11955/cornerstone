@@ -1,0 +1,9 @@
+allowBuilds:
+  '@scarf/scarf': false
+  argon2: true
+  unrs-resolver: true
+enableGlobalVirtualStore: false
+packages:
+  - apps/*
+  - packages/*
+verifyDepsBeforeRun: error
