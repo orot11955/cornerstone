@@ -35,6 +35,7 @@ import {
   applyAppearance,
   Portal,
   Tabs,
+  Tooltip,
   Toast,
   computeFloatingPosition,
   readStoredAppearance,
@@ -169,6 +170,26 @@ test('browser compound components expose keyboard-oriented native roles during S
   assert.match(tabs, /role="tablist"/)
   assert.match(tabs, /aria-selected="true"/)
   assert.match(tabs, /role="tabpanel"/)
+  assert.throws(
+    () =>
+      renderToString(
+        createElement(
+          Tabs.Root,
+          null,
+          createElement(Tabs.List, null, createElement(Tabs.Trigger, { value: 'one' }, 'One')),
+        ),
+      ),
+    /requires value or defaultValue/,
+  )
+  const tooltip = renderToString(
+    createElement(
+      Tooltip.Root,
+      { defaultOpen: true },
+      createElement(Tooltip.Trigger, { 'aria-describedby': 'existing-help' }, 'Help'),
+      createElement(Tooltip.Content, null, 'Tooltip help'),
+    ),
+  )
+  assert.match(tooltip, /aria-describedby="existing-help [^"]+-content"/)
   assert.match(
     renderToString(createElement(Toast.Root, { tone: 'danger', title: 'Failed' })),
     /role="alert"/,

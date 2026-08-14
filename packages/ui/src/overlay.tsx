@@ -24,6 +24,11 @@ function classes(...values: (string | undefined | false)[]): string {
   return values.filter(Boolean).join(' ')
 }
 
+function mergeIdReferences(...values: (string | undefined)[]): string | undefined {
+  const ids = [...new Set(values.flatMap((value) => value?.split(/\s+/).filter(Boolean) ?? []))]
+  return ids.length > 0 ? ids.join(' ') : undefined
+}
+
 export type FloatingPlacement = 'top' | 'right' | 'bottom' | 'left'
 export type FloatingAlign = 'start' | 'center' | 'end'
 
@@ -230,12 +235,13 @@ function useTabs() {
   return context
 }
 
-export interface TabsRootProps extends HTMLAttributes<HTMLDivElement> {
-  readonly value?: string
-  readonly defaultValue?: string
+export type TabsRootProps = HTMLAttributes<HTMLDivElement> & {
   readonly onValueChange?: (value: string) => void
   readonly orientation?: Orientation
-}
+} & (
+    | { readonly value: string; readonly defaultValue?: never }
+    | { readonly value?: never; readonly defaultValue: string }
+  )
 
 function TabsRoot({
   value: controlled,
@@ -246,6 +252,9 @@ function TabsRoot({
   children,
   ...props
 }: TabsRootProps) {
+  if (controlled === undefined && defaultValue === undefined) {
+    throw new Error('Tabs.Root requires value or defaultValue.')
+  }
   const [value, setValue] = useControllableState(controlled, defaultValue ?? '', onValueChange)
   const id = useId()
   return (
@@ -709,7 +718,10 @@ function TooltipTrigger({
       {...props}
       ref={tooltip.trigger}
       type={props.type ?? 'button'}
-      aria-describedby={tooltip.open ? tooltip.descriptionId : props['aria-describedby']}
+      aria-describedby={mergeIdReferences(
+        props['aria-describedby'],
+        tooltip.open ? tooltip.descriptionId : undefined,
+      )}
       onFocus={(event) => {
         onFocus?.(event)
         if (!event.defaultPrevented && lastPointerType.current !== 'touch')
