@@ -112,6 +112,20 @@ export function recordUnexpectedError(routePattern: string, correlationId?: stri
   activeTelemetry.recordUnexpectedError(routePattern, correlationId)
 }
 
+/** Maps browser locations to the only route patterns telemetry may emit. */
+export function resolveTelemetryRoutePattern(pathname: string): string {
+  const normalizedPathname = pathname.split(/[?#]/, 1)[0]
+  if (normalizedPathname === '/') return '/'
+  if (normalizedPathname === '/ui-foundation') return '/ui-foundation'
+  if (normalizedPathname === '/login') return '/login'
+  if (normalizedPathname === '/register') return '/register'
+  if (normalizedPathname === '/verify-email') return '/verify-email'
+  if (normalizedPathname === '/password/forgot') return '/password/forgot'
+  if (normalizedPathname === '/password/reset') return '/password/reset'
+  if (normalizedPathname === '/settings/security') return '/settings/security'
+  return '/not-found'
+}
+
 function isWebVitalName(value: string): value is WebVitalName {
   return (metricNames as readonly string[]).includes(value)
 }

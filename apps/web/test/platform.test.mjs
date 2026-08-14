@@ -14,7 +14,7 @@ import {
   buildContentSecurityPolicy,
   createNonce,
 } from '../src/security/headers.ts'
-import { BrowserTelemetry } from '../src/telemetry/browser.ts'
+import { BrowserTelemetry, resolveTelemetryRoutePattern } from '../src/telemetry/browser.ts'
 import { createRootMetadata } from '../src/metadata/root.ts'
 import { safeReturnPath } from '../src/auth/redirect.ts'
 import { isAuthQuery } from '../src/query/client.ts'
@@ -236,6 +236,15 @@ test('browser telemetry는 기본적으로 no-op이며 민감한 오류 값을 p
   telemetry.recordUnexpectedError('/', '<token>')
   telemetry.recordWebVital('/', { name: 'LCP', value: Number.NaN })
   assert.deepEqual(events, [])
+})
+
+test('browser telemetry route는 pathname allowlist로만 정규화하고 query, hash와 PII를 버린다', () => {
+  assert.equal(
+    resolveTelemetryRoutePattern('/settings/security?email=user@example.com#token=secret'),
+    '/settings/security',
+  )
+  assert.equal(resolveTelemetryRoutePattern('/users/user@example.com?token=secret'), '/not-found')
+  assert.equal(resolveTelemetryRoutePattern('/ui-foundation#dialog'), '/ui-foundation')
 })
 
 test('telemetry provider 실패는 사용자 흐름으로 전파하지 않는다', () => {

@@ -1,10 +1,13 @@
-import { recordUnexpectedError } from './telemetry/browser'
+import { recordUnexpectedError, resolveTelemetryRoutePattern } from './telemetry/browser'
 
 performance.mark('cornerstone:app-init')
 
 window.addEventListener('cornerstone:unexpected-error', (event) => {
   if (!(event instanceof CustomEvent) || !isErrorEventDetail(event.detail)) return
-  recordUnexpectedError('/', event.detail.correlationId)
+  recordUnexpectedError(
+    resolveTelemetryRoutePattern(window.location.pathname),
+    event.detail.correlationId,
+  )
 })
 
 function isErrorEventDetail(value: unknown): value is { readonly correlationId?: string } {

@@ -25,7 +25,15 @@ export function UiFoundationFixture() {
 
   return (
     <main>
-      <Container size="xl" gutter={{ base: '3', md: '6' }}>
+      <Container
+        data-testid="safe-area-layout"
+        size="xl"
+        gutter={{ base: '3', md: '6' }}
+        style={{
+          minBlockSize: '100svh',
+          paddingBlockEnd: 'max(0.75rem, env(safe-area-inset-bottom))',
+        }}
+      >
         <Stack gap="6">
           <header>
             <Heading as="h1" size="xl">
@@ -75,7 +83,11 @@ export function UiFoundationFixture() {
 
           <Dialog.Root onOpenChange={() => setDialogChanges((value) => value + 1)}>
             <Dialog.Trigger data-testid="dialog-trigger">환경 설정 열기</Dialog.Trigger>
-            <Dialog.Content id="settings-dialog" initialFocusRef={initialFocusRef}>
+            <Dialog.Content
+              id="settings-dialog"
+              initialFocusRef={initialFocusRef}
+              data-testid="settings-dialog"
+            >
               <Dialog.Title id="settings-dialog-title">환경 설정</Dialog.Title>
               <Dialog.Description id="settings-dialog-description">
                 사용자 인터페이스 환경을 확인합니다.

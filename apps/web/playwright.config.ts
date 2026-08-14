@@ -1,5 +1,17 @@
 import { defineConfig, devices } from '@playwright/test'
 
+const gate = process.env.PLAYWRIGHT_GATE === 'release' ? 'release' : 'smoke'
+const requestedBrowsers = (
+  process.env.PLAYWRIGHT_BROWSERS ?? (gate === 'release' ? 'all' : 'chromium')
+)
+  .split(',')
+  .map((browser) => browser.trim())
+const browserProjects = {
+  chromium: { name: 'chromium', use: { ...devices['Desktop Chrome'] } },
+  firefox: { name: 'firefox', use: { ...devices['Desktop Firefox'] } },
+  webkit: { name: 'webkit', use: { ...devices['Desktop Safari'] } },
+} as const
+
 export default defineConfig({
   testDir: './e2e',
   fullyParallel: false,
@@ -12,7 +24,14 @@ export default defineConfig({
     trace: 'retain-on-failure',
     screenshot: 'only-on-failure',
   },
-  projects: [{ name: 'chromium', use: { ...devices['Desktop Chrome'] } }],
+  grep: gate === 'release' ? /@release/ : /@smoke/,
+  projects: (requestedBrowsers.includes('all')
+    ? Object.values(browserProjects)
+    : requestedBrowsers.flatMap((browser) =>
+        browser in browserProjects
+          ? [browserProjects[browser as keyof typeof browserProjects]]
+          : [],
+      )) as (typeof browserProjects)[keyof typeof browserProjects][],
   webServer: {
     command: 'pnpm dev --hostname 127.0.0.1 --port 3107',
     env: { NEXT_DIST_DIR: '.next-playwright' },
