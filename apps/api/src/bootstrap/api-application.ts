@@ -13,6 +13,7 @@ import express, {
 } from 'express';
 import helmet from 'helmet';
 import { MetricsService } from '../observability/metrics.service.js';
+import { GracefulShutdownCoordinator } from '../health/graceful-shutdown.coordinator.js';
 import {
   requestContextMiddleware,
   requestLifecycleMiddleware,
@@ -36,6 +37,7 @@ export function configureApiApplication(app: INestApplication): void {
   const trustProxyHops = config.getOrThrow<number>('app.trustProxyHops');
   const metrics = app.get(MetricsService);
   const logger = app.get(StructuredLogger);
+  const shutdown = app.get(GracefulShutdownCoordinator);
   const expressApplication = app.getHttpAdapter().getInstance() as Application;
 
   expressApplication.disable('x-powered-by');
@@ -46,6 +48,7 @@ export function configureApiApplication(app: INestApplication): void {
   );
 
   app.use(requestContextMiddleware);
+  app.use(shutdown.trackRequest);
   app.use(requestLifecycleMiddleware(metrics, logger));
   app.use(
     helmet({
@@ -89,7 +92,6 @@ export function configureApiApplication(app: INestApplication): void {
       forbidUnknownValues: true,
     }),
   );
-  app.enableShutdownHooks();
 }
 
 function enforceOrigin(allowedOrigin: string) {

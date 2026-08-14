@@ -7,6 +7,7 @@ import { validateEnvironment } from './config/env.schema.js';
 import { DatabaseModule } from './database/database.module.js';
 import { ApiExceptionFilter } from './http/api-exception.filter.js';
 import { HealthModule } from './health/health.module.js';
+import { GracefulShutdownModule } from './health/graceful-shutdown.module.js';
 import { ObservabilityModule } from './observability/observability.module.js';
 import { RequestLoggingInterceptor } from './observability/request-logging.interceptor.js';
 import { UsersModule } from './users/users.module.js';
@@ -22,6 +23,7 @@ import { UsersModule } from './users/users.module.js';
     ObservabilityModule,
     DatabaseModule,
     HealthModule,
+    GracefulShutdownModule,
     AuthModule,
     UsersModule,
   ],

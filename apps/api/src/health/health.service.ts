@@ -47,7 +47,11 @@ export class HealthService implements BeforeApplicationShutdown {
     return { status: 'ok' };
   }
 
-  beforeApplicationShutdown(): void {
+  markNotReady(): void {
     this.ready = false;
+  }
+
+  beforeApplicationShutdown(): void {
+    this.markNotReady();
   }
 }
