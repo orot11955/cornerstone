@@ -11,7 +11,7 @@ if (!task || !config[task]) {
   process.exit(1)
 }
 
-const manifests = ['apps', 'packages'].flatMap((directory) =>
+const manifests = ['apps', 'examples', 'packages'].flatMap((directory) =>
   readdirSync(join(root, directory), { withFileTypes: true })
     .filter((entry) => entry.isDirectory())
     .map((entry) => {

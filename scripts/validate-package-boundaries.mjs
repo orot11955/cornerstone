@@ -57,15 +57,17 @@ for (const { root, manifest } of publishable) {
   }
 }
 
-for (const application of readdirSync('apps', { withFileTypes: true }).filter((entry) =>
-  entry.isDirectory(),
-)) {
-  const appName = JSON.parse(
-    readFileSync(join('apps', application.name, 'package.json'), 'utf8'),
-  ).name
-  for (const { manifest } of publishable) {
-    if (Object.hasOwn(manifest.dependencies ?? {}, appName)) {
-      errors.push(`${manifest.name}: reverse dependency on app ${appName}`)
+for (const applicationRoot of ['apps', 'examples']) {
+  for (const application of readdirSync(applicationRoot, { withFileTypes: true }).filter((entry) =>
+    entry.isDirectory(),
+  )) {
+    const appName = JSON.parse(
+      readFileSync(join(applicationRoot, application.name, 'package.json'), 'utf8'),
+    ).name
+    for (const { manifest } of publishable) {
+      if (Object.hasOwn(manifest.dependencies ?? {}, appName)) {
+        errors.push(`${manifest.name}: reverse dependency on app ${appName}`)
+      }
     }
   }
 }

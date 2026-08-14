@@ -1,5 +1,6 @@
 packages:
   - 'apps/*'
+  - 'examples/*'
   - 'packages/*'
 verifyDepsBeforeRun: error
 enableGlobalVirtualStore: false

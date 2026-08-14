@@ -4,6 +4,7 @@
       "api",
       "create-cornerstone",
       "web",
+      "@cornerstone/reference-app",
       "@cornerstone/api-client",
       "@cornerstone/config",
       "@cornerstone/eslint-config",
@@ -21,6 +22,7 @@
     "excluded": {
       "api": "The API has no component-test boundary.",
       "create-cornerstone": "The generator has no component-test boundary.",
+      "@cornerstone/reference-app": "Reference UI behavior is covered by its browser E2E boundary.",
       "web": "Web component tests are introduced with UIF/WPF.",
       "@cornerstone/api-client": "The package has no component-test boundary.",
       "@cornerstone/config": "The package has no component-test boundary.",
@@ -35,6 +37,7 @@
     "participants": ["api"],
     "excluded": {
       "create-cornerstone": "Generated-project integration is executed once by generator:standard:candidate; database integration is executed by the separate Ubuntu standard database candidate job.",
+      "@cornerstone/reference-app": "The fixture-only reference app has no database integration boundary.",
       "web": "Web integration tests are introduced with M6.",
       "@cornerstone/api-client": "Contract integration tests are introduced with M4.",
       "@cornerstone/config": "The package currently requires unit tests only.",
@@ -47,7 +50,7 @@
     }
   },
   "test:e2e": {
-    "participants": ["api", "web"],
+    "participants": ["api", "web", "@cornerstone/reference-app"],
     "excluded": {
       "create-cornerstone": "Generator lifecycle evidence is covered by package unit and Standard candidate gates; browser Standard Core E2E remains an M8 certification prerequisite.",
       "@cornerstone/api-client": "The package is covered through app E2E after M4.",

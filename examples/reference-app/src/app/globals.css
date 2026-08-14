@@ -1,0 +1,15 @@
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  min-block-size: 100%;
+  margin: 0;
+}
+
+body {
+  background: var(--cs-bg-canvas);
+  color: var(--cs-text);
+  font-family: var(--cs-font-sans);
+}
