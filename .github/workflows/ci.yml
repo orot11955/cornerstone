@@ -5,6 +5,9 @@ on:
   push:
     branches: [main]
   merge_group:
+  schedule:
+    - cron: '23 3 * * 1'
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -118,6 +121,51 @@ jobs:
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: ui-browser-evidence
+          path: |
+            apps/web/test-results
+            apps/web/playwright-report
+          if-no-files-found: warn
+
+  ui-browser-release:
+    name: UI browser release (${{ matrix.browser }})
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        browser: [chromium, firefox, webkit]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@008330803749db0355799c700092d9a85fd074e9 # v6.0.9
+        with:
+          version: 11.20.0
+          run_install: false
+
+      - name: Setup Node
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
+        with:
+          node-version: 24.18.0
+          cache: pnpm
+          package-manager-cache: false
+
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter web exec playwright install --with-deps ${{ matrix.browser }}
+      - run: pnpm --filter web test:e2e
+        env:
+          PLAYWRIGHT_GATE: release
+          PLAYWRIGHT_BROWSERS: ${{ matrix.browser }}
+
+      - name: Upload UI release evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: ui-browser-release-${{ matrix.browser }}
           path: |
             apps/web/test-results
             apps/web/playwright-report
