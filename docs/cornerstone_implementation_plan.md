@@ -59,19 +59,19 @@
 
 아래는 파일과 최근 검증을 기준으로 한 상태다. 전체 구현 완료를 의미하지 않는다.
 
-| 영역               | 현재 상태                                                                             | 먼저 해결할 항목                                                |
-| ------------------ | ------------------------------------------------------------------------------------- | --------------------------------------------------------------- |
-| Workspace/Lockfile | Root 단일 workspace/lockfile, clean frozen install과 Node/pnpm/TS 고정                | Profile·DB 의존성 추가 때 동일 기준 유지                        |
-| Turbo/Quality      | read-only format/lint, 명시적 test scope와 CI quality/security Gate 적용              | Milestone별 integration/Playwright 참여 승격                    |
-| Repository hygiene | 추적 build/cache output 제거, Root artifact 경로와 package boundary 검사              | 이후 image/SBOM artifact 정책 연결                              |
-| Shared packages    | M1 export/build/test/license 및 9개 tarball 외부 소비 검증 완료                       | API/UI 공개 계약 추가 때 generated/export drift 검사            |
-| Composition        | secret-free manifest/lock과 `minimal` Certified Profile 생성·검증                     | dry-run/update journal과 standard/production/regulated fragment |
-| UI Foundation      | token/Appearance/responsive Core, native Dialog, Web Chromium hydration/axe Gate 구현 | Firefox/WebKit visual과 수동 NVDA/VoiceOver matrix              |
-| Web Platform       | i18n/metadata/error/offline/CSP/telemetry/performance Gate 구현                       | locale route 전략과 실제 browser/404/500/a11y E2E               |
-| API Foundation     | prefix/CORS/validation/error/관측/health/outbound와 M4 OpenAPI Gate 구현              | M5 Runtime route·Guard와 shutdown drain integration             |
-| DB/Auth            | IDC·M3 Migration/Seed/Outbox/retention과 M4 공개 계약 완료                            | M5 인증·권한 Runtime vertical slice                             |
-| Distribution       | package/generator tarball·license consumer 검증 완료                                  | registry namespace/OIDC, signing/provenance와 immutable publish |
-| Docs Portal        | 저장소 내부 ADR/계획과 HTML reference만 존재                                          | ADR-012, `apps/docs`, version/search/download 배포              |
+| 영역               | 현재 상태                                                                                            | 먼저 해결할 항목                                                |
+| ------------------ | ---------------------------------------------------------------------------------------------------- | --------------------------------------------------------------- |
+| Workspace/Lockfile | Root 단일 workspace/lockfile, clean frozen install과 Node/pnpm/TS 고정                               | Profile·DB 의존성 추가 때 동일 기준 유지                        |
+| Turbo/Quality      | read-only format/lint, 명시적 test scope와 CI quality/security Gate 적용                             | Milestone별 integration/Playwright 참여 승격                    |
+| Repository hygiene | 추적 build/cache output 제거, Root artifact 경로와 package boundary 검사                             | 이후 image/SBOM artifact 정책 연결                              |
+| Shared packages    | M1 export/build/test/license 및 9개 tarball 외부 소비 검증 완료                                      | API/UI 공개 계약 추가 때 generated/export drift 검사            |
+| Composition        | manifest v2/lock v4, Standard 0.7 supported 생성·verify·journal update와 선택형 Reference App 구현   | 양쪽 조합 외부 frozen install/E2E와 Production/Regulated 확장   |
+| UI Foundation      | token/Appearance/responsive Core, native Dialog, Chromium hydration/axe와 3-browser release job 구현 | Firefox/WebKit 실제 실행 증거와 수동 NVDA/VoiceOver matrix      |
+| Web Platform       | i18n/metadata/error/offline/CSP/telemetry/performance 및 Chromium browser Gate 구현                  | locale route 전략과 실제 Firefox/WebKit·수동 AT 증거            |
+| API Foundation     | API 경계, 실제 signal drain coordinator, 관측 outbound adapter와 OpenAPI Gate 구현                   | PostgreSQL E2E 재실행과 배포 orchestrator 종료 예산 증거        |
+| DB/Auth            | IDC·M3/M4와 M5 인증·Session·User 권한 Runtime, admin bootstrap·감사 경계 구현                        | 실제 PostgreSQL·multi-replica release evidence                  |
+| Distribution       | package/generator tarball·license consumer 검증 완료                                                 | registry namespace/OIDC, signing/provenance와 immutable publish |
+| Docs Portal        | 저장소 내부 ADR/계획과 HTML reference만 존재                                                         | ADR-012, `apps/docs`, version/search/download 배포              |
 
 현재 표의 “구현”은 해당 자동 검증이 존재한다는 뜻이며 release 완료를 뜻하지 않는다. UIF/WPF의 Firefox/WebKit·보조기술 수동 검증, DXF의 상위 Profile, 외부 registry/hosting/protected branch와 Production provider는 아직 Gate가 열려 있다.
 
@@ -332,7 +332,8 @@ M1 이후 Backend M2~M5와 병렬 진행할 수 있다. M6의 인증 화면보�
 - viewport `Responsive<T>`와 container `ContainerResponsive<T>`를 분리하고 `Grid`의 `columns`, `minItemWidth`, `containerColumns`는 상호 배타적으로 고정한다.
 - DOM이 필요한 `Portal`과 native `Dialog` compound는 `@cornerstone/ui/browser`에서만 공개하고 root entry의 SSR import를 유지한다.
 - Web reference fixture가 Chromium에서 hydration, 320/768/1440px reflow, 280/480/720/960px container, RTL, reduced motion, Dialog keyboard/focus와 axe를 검증한다.
-- Firefox/WebKit visual matrix와 NVDA/VoiceOver 수동 검증은 release evidence 전까지 남아 있으므로 현재 결과만으로 WCAG 2.2 AA 완료를 선언하지 않는다.
+- nightly/수동 실행용 Chromium/Firefox/WebKit release matrix와 browser별 artifact 수집을 구성했다.
+- Firefox/WebKit job의 실제 성공 evidence와 NVDA/VoiceOver 수동 검증은 release evidence 전까지 남아 있으므로 현재 결과만으로 WCAG 2.2 AA 완료를 선언하지 않는다.
 
 검증:
 
@@ -382,12 +383,14 @@ M1 이후 Backend M2~M5와 병렬 진행할 수 있다. M6의 인증 화면보�
 - PostgreSQL transaction 안의 idempotency reserve/in-progress/replay/conflict/TTL takeover와 민감 response payload 차단
 - Nest runtime TypeORM 연결, DB ping·pending Migration 기반 readiness와 E2E의 자동 test DB lifecycle
 - idempotency/outbox operation의 bounded success/failure latency metric과 request/trace 연계 구조화 log
+- 실제 child process의 SIGTERM/SIGINT에서 readiness 선행 하강, 신규 연결 중단, bounded in-flight drain, 강제 종료와 exit code를 검증하는 HTTP process test
+- `OUTBOUND_HTTP_CLIENT` DI 경계와 fixed base URL, request/trace 전파, bounded metric/log를 제공하는 관측 adapter 및 loopback redirect/timeout/cancel/body/circuit test
 
 남은 완료 조건:
 
-- M4 DTO와 함께 versioned OpenAPI snapshot/client 생성 경로 연결
-- SIGTERM 실제 process E2E에서 readiness 하강, in-flight drain와 timeout 검증
-- outbound provider adapter의 승인 base URL fixture와 metric/trace 연결
+- PostgreSQL을 사용할 수 있는 환경에서 전체 API E2E를 다시 실행해 Foundation 변경과 DB/Auth runtime의 결합을 확인한다.
+- M9 배포 rehearsal에서 orchestrator 종료 유예 시간과 coordinator deadline이 일치하는지 검증한다.
+- 실제 Production provider가 선택되면 동일 outbound port를 소비하는 provider별 smoke evidence를 별도 Gate로 추가한다.
 
 목표:
 
@@ -630,6 +633,18 @@ Migration마다 기록:
 완료: 실행 컨텍스트별 인증과 cache 동작이 명시적이며 사용자 데이터가 요청 간 공유되지 않는다.
 
 ### M7. Core Product UI
+
+현재 구현 경계:
+
+- 공통 option taxonomy와 58개 항목·4개 reference route를 가진 versioned Core v1 inventory를 package artifact로 공개한다.
+- root entry에는 `AppShell`, `PageShell`, `Sidebar`, `PageHeader`, `Toolbar`, Card/Navigation/Feedback/Table/DataTable을 SSR-safe하게 제공한다.
+- browser entry에는 Tabs, Menu, Drawer, Popover, Tooltip, Toast를 제공하되 실제 3-browser release evidence 전까지 inventory 상태를 `preview`로 유지한다.
+- `examples/reference-app`은 `/login`, `/settings/profile`, `/examples/resources`, `/dashboard`와 deterministic `state` fixture를 제공하며 API/Auth/Domain CSS를 포함하지 않는다.
+- Chromium E2E는 320px reflow, landmark/skip link, axe, Tabs/Menu/Popover/Tooltip/Drawer/Toast keyboard·focus·placement를 검증한다.
+- Manifest v2의 `examples`와 Lock v4가 Reference App 선택을 재현하며, 기본값과 manifest v1은 source·workspace·script·lock importer 잔존 없이 제외한다.
+- Standard 0.6 immutable predecessor와 0.6→0.7 lock-last Journal adoption은 source drift·점유 경로를 fail-closed하고 중간 crash에서 이전 lock으로 복구한다.
+- 양쪽 생성물의 lock resolution은 통과했지만 현재 로컬 offline store에 `prettier@3.9.6` tarball이 없어 frozen offline install 이후 전체 품질 Gate는 M8S evidence로 남아 있다.
+- Firefox/WebKit 실행 결과와 수동 보조기술 evidence는 아직 확보하지 않았으므로 Core UI 전체 접근성 완료를 선언하지 않는다.
 
 목표:
 
@@ -887,12 +902,10 @@ EXT는 ADR-014와 필요한 Core 계약 뒤 독립 release
 
 ## 8. 다음 실행 범위
 
-1. ADR-010 Identity/Authorization과 ADR-007 Migration/Release 계약을 확정하고 IDC를 완료한다.
-2. M3 PostgreSQL/TypeORM, Migration/Seed/Outbox와 test DB isolation을 구현해 M2의 DB idempotency·readiness를 닫는다.
-3. M4 OpenAPI snapshot/client codegen과 User 계약, M5 Auth/권한 backend를 순서대로 구현한다.
-4. DXF structured composer와 `standard` Profile을 실제 M3~M5 capability로 확장한다.
-5. UIF/WPF를 Playwright hydration/axe/viewport/RTL/404/500/security-header E2E 참여자로 승격한다.
-6. M6 SSR/Data/Auth와 M7 Core Product UI/reference app 뒤 M8S Standard Gate를 실행한다.
-7. ADR-012와 `apps/docs` Preview를 구현하고, Production 착수 전 Operations/Data Governance/Extension 계약과 외부 provider를 확정한다.
+1. 빈 디렉터리에서 Standard 양쪽 조합을 생성해 frozen install, package/API/Web build, Migration/Seed, Auth/Web/Reference browser E2E를 실행하고 M8S evidence를 고정한다.
+2. Firefox/WebKit 자동 matrix의 실제 성공 artifact와 NVDA/VoiceOver, 200% text zoom, 400% reflow, touch·virtual keyboard·safe-area 수동 evidence를 기록한다.
+3. ADR-012에 따라 `apps/docs` Preview를 구현하고 package/API/UI version, syntax, example, interactive preview, download manifest를 동일 artifact digest에 연결한다.
+4. M7A는 Core v1과 분리된 Extension Gate로 진행하고, Production 착수 전 Operations/Data Governance 계약과 실제 provider를 확정한다.
+5. M9에서 image/SBOM/provenance/registry/hosting/rollback·restore rehearsal을 완료한 뒤 검증된 digest만 승격한다.
 
 Production provider가 미정이어도 M0~M8의 provider-independent 작업과 local artifact rehearsal은 진행할 수 있다. M9는 TLS, registry, secret, trust와 지원 환경을 ADR-008/009로 확정한 뒤 시작한다.

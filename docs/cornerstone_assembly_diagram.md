@@ -62,8 +62,9 @@ Template 원천은 하나만 유지하고 프로젝트 초기 설정에서 capab
 Profile은 별도 Template이 아니라 자주 쓰는 capability 선택 preset이다. Capability는 선택 가능한 기능 단위, Adapter는 기술 구현, Provider는 Adapter가 연결하는 외부 서비스나 실행 환경, Extension은 Core와 독립 배포되는 optional capability를 뜻한다. 고급 사용자는 지원되는 capability를 조합할 수 있지만 Certified, Supported와 Experimental 수준을 명시한다.
 
 ```yaml
-schemaVersion: 1
+schemaVersion: 2
 profile: standard
+examples: false
 
 capabilities:
   web: next
@@ -88,8 +89,9 @@ appearance:
 
 - Generator는 dependency/conflict, runtime/package/schema compatibility, Production 필수 provider 누락과 fake adapter 사용을 파일 생성 전에 거절한다.
 - 선택하지 않은 capability의 코드, dependency, 환경 변수, 인프라와 문서는 생성 프로젝트에 포함하지 않는다.
+- `examples`는 runtime capability가 아닌 versioned 생성 intent다. 기본값은 `false`이며 명시적으로 선택한 프로젝트에만 `examples/reference-app`과 그 workspace·test script·lock importer를 포함한다.
 - 사용자 소유 `cornerstone.config.yml`에는 Profile, capability, Appearance와 provider reference 같은 생성 의도만 기록한다.
-- Generator 소유 `.cornerstone/manifest.lock.json`에는 normalized user manifest digest, resolved capability, generator/template/package version, schema baseline, compatibility와 적용한 template/fragment checksum을 기록하고 생성 프로젝트와 함께 버전 관리한다.
+- Generator 소유 `.cornerstone/manifest.lock.json`에는 normalized user manifest digest, resolved capability와 examples 선택, generator/template/package version, schema baseline, compatibility와 적용한 template/fragment checksum을 기록하고 생성 프로젝트와 함께 버전 관리한다.
 - `verify`와 update는 사용자 manifest digest가 lock과 다르면 중단한다. 성공한 apply가 끝난 뒤에만 lock을 atomic write해 실패한 생성 plan이 완료 이력으로 남지 않게 한다.
 - 두 manifest에는 secret·credential·개인정보 값을 저장하지 않고 환경 변수 이름이나 외부 secret reference만 허용한다.
 - `production`은 운영 요구를 활성화하는 overlay다. Mail, hosting, registry, secret store와 backup 등 필수 slot은 생성 시 구체적인 provider/version으로 해소하고 그 exact matrix를 검증해야 Certified가 된다.
