@@ -1,0 +1,535 @@
+{
+  "schemaVersion": 1,
+  "release": "core-v1",
+  "components": [
+    {
+      "id": "box",
+      "export": "Box",
+      "milestone": "UIF",
+      "entrypoint": ".",
+      "status": "core",
+      "acceptance": ["layout.ssr"]
+    },
+    {
+      "id": "container",
+      "export": "Container",
+      "milestone": "UIF",
+      "entrypoint": ".",
+      "status": "core",
+      "acceptance": ["layout.container"]
+    },
+    {
+      "id": "stack",
+      "export": "Stack",
+      "milestone": "UIF",
+      "entrypoint": ".",
+      "status": "core",
+      "acceptance": ["layout.responsive"]
+    },
+    {
+      "id": "inline",
+      "export": "Inline",
+      "milestone": "UIF",
+      "entrypoint": ".",
+      "status": "core",
+      "acceptance": ["layout.responsive"]
+    },
+    {
+      "id": "grid",
+      "export": "Grid",
+      "milestone": "UIF",
+      "entrypoint": ".",
+      "status": "core",
+      "acceptance": ["layout.container"]
+    },
+    {
+      "id": "text",
+      "export": "Text",
+      "milestone": "UIF",
+      "entrypoint": ".",
+      "status": "core",
+      "acceptance": ["typography.ssr"]
+    },
+    {
+      "id": "heading",
+      "export": "Heading",
+      "milestone": "UIF",
+      "entrypoint": ".",
+      "status": "core",
+      "acceptance": ["typography.ssr"]
+    },
+    {
+      "id": "button",
+      "export": "Button",
+      "milestone": "UIF",
+      "entrypoint": ".",
+      "status": "core",
+      "acceptance": ["control.keyboard"]
+    },
+    {
+      "id": "input",
+      "export": "Input",
+      "milestone": "UIF",
+      "entrypoint": ".",
+      "status": "core",
+      "acceptance": ["form.label"]
+    },
+    {
+      "id": "textarea",
+      "export": "Textarea",
+      "milestone": "UIF",
+      "entrypoint": ".",
+      "status": "core",
+      "acceptance": ["form.label"]
+    },
+    {
+      "id": "select",
+      "export": "Select",
+      "milestone": "UIF",
+      "entrypoint": ".",
+      "status": "core",
+      "acceptance": ["form.label"]
+    },
+    {
+      "id": "checkbox",
+      "export": "Checkbox",
+      "milestone": "UIF",
+      "entrypoint": ".",
+      "status": "core",
+      "acceptance": ["form.selection"]
+    },
+    {
+      "id": "radio",
+      "export": "Radio",
+      "milestone": "UIF",
+      "entrypoint": ".",
+      "status": "core",
+      "acceptance": ["form.selection"]
+    },
+    {
+      "id": "switch",
+      "export": "Switch",
+      "milestone": "UIF",
+      "entrypoint": ".",
+      "status": "core",
+      "acceptance": ["form.selection"]
+    },
+    {
+      "id": "form-field",
+      "export": "FormField",
+      "milestone": "UIF",
+      "entrypoint": ".",
+      "status": "core",
+      "acceptance": ["form.label", "form.error"]
+    },
+    {
+      "id": "badge",
+      "export": "Badge",
+      "milestone": "UIF",
+      "entrypoint": ".",
+      "status": "core",
+      "acceptance": ["feedback.status"]
+    },
+    {
+      "id": "alert",
+      "export": "Alert",
+      "milestone": "UIF",
+      "entrypoint": ".",
+      "status": "core",
+      "acceptance": ["feedback.announcement"]
+    },
+    {
+      "id": "panel",
+      "export": "Panel",
+      "milestone": "UIF",
+      "entrypoint": ".",
+      "status": "core",
+      "acceptance": ["surface.ssr"]
+    },
+    {
+      "id": "dialog-surface",
+      "export": "DialogSurface",
+      "milestone": "UIF",
+      "entrypoint": ".",
+      "status": "deprecated",
+      "acceptance": ["dialog.compatibility"]
+    },
+    {
+      "id": "separator",
+      "export": "Separator",
+      "milestone": "UIF",
+      "entrypoint": ".",
+      "status": "core",
+      "acceptance": ["content.separator"]
+    },
+    {
+      "id": "progress",
+      "export": "Progress",
+      "milestone": "UIF",
+      "entrypoint": ".",
+      "status": "core",
+      "acceptance": ["feedback.progress"]
+    },
+    {
+      "id": "spinner",
+      "export": "Spinner",
+      "milestone": "UIF",
+      "entrypoint": ".",
+      "status": "core",
+      "acceptance": ["feedback.loading"]
+    },
+    {
+      "id": "visually-hidden",
+      "export": "VisuallyHidden",
+      "milestone": "UIF",
+      "entrypoint": ".",
+      "status": "core",
+      "acceptance": ["content.a11y"]
+    },
+    {
+      "id": "aspect-ratio",
+      "export": "AspectRatio",
+      "milestone": "UIF",
+      "entrypoint": ".",
+      "status": "core",
+      "acceptance": ["layout.media"]
+    },
+    {
+      "id": "scroll-area",
+      "export": "ScrollArea",
+      "milestone": "UIF",
+      "entrypoint": ".",
+      "status": "core",
+      "acceptance": ["layout.overflow"]
+    },
+    {
+      "id": "portal",
+      "export": "Portal",
+      "milestone": "UIF",
+      "entrypoint": "./browser",
+      "status": "core",
+      "acceptance": ["overlay.hydration"]
+    },
+    {
+      "id": "dialog",
+      "export": "Dialog",
+      "milestone": "UIF",
+      "entrypoint": "./browser",
+      "status": "core",
+      "acceptance": ["dialog.focus", "dialog.escape"]
+    },
+
+    {
+      "id": "app-shell",
+      "export": "AppShell",
+      "milestone": "M7",
+      "entrypoint": ".",
+      "status": "core",
+      "acceptance": ["shell.landmarks", "shell.safe-area"]
+    },
+    {
+      "id": "page-shell",
+      "export": "PageShell",
+      "milestone": "M7",
+      "entrypoint": ".",
+      "status": "core",
+      "acceptance": ["shell.reflow"]
+    },
+    {
+      "id": "sidebar",
+      "export": "Sidebar",
+      "milestone": "M7",
+      "entrypoint": ".",
+      "status": "core",
+      "acceptance": ["navigation.landmark"]
+    },
+    {
+      "id": "page-header",
+      "export": "PageHeader",
+      "milestone": "M7",
+      "entrypoint": ".",
+      "status": "core",
+      "acceptance": ["shell.heading"]
+    },
+    {
+      "id": "toolbar",
+      "export": "Toolbar",
+      "milestone": "M7",
+      "entrypoint": ".",
+      "status": "core",
+      "acceptance": ["toolbar.wrap"]
+    },
+    {
+      "id": "card",
+      "export": "Card",
+      "milestone": "M7",
+      "entrypoint": ".",
+      "status": "core",
+      "acceptance": ["surface.ssr"]
+    },
+    {
+      "id": "link",
+      "export": "Link",
+      "milestone": "M7",
+      "entrypoint": ".",
+      "status": "core",
+      "acceptance": ["navigation.current"]
+    },
+    {
+      "id": "breadcrumb",
+      "export": "Breadcrumb",
+      "milestone": "M7",
+      "entrypoint": ".",
+      "status": "core",
+      "acceptance": ["navigation.breadcrumb"]
+    },
+    {
+      "id": "pagination",
+      "export": "Pagination",
+      "milestone": "M7",
+      "entrypoint": ".",
+      "status": "core",
+      "acceptance": ["navigation.pagination"]
+    },
+    {
+      "id": "tabs",
+      "export": "Tabs",
+      "milestone": "M7",
+      "entrypoint": "./browser",
+      "status": "preview",
+      "acceptance": ["tabs.keyboard"]
+    },
+    {
+      "id": "menu",
+      "export": "Menu",
+      "milestone": "M7",
+      "entrypoint": "./browser",
+      "status": "preview",
+      "acceptance": ["menu.keyboard"]
+    },
+    {
+      "id": "drawer",
+      "export": "Drawer",
+      "milestone": "M7",
+      "entrypoint": "./browser",
+      "status": "preview",
+      "acceptance": ["drawer.focus"]
+    },
+    {
+      "id": "popover",
+      "export": "Popover",
+      "milestone": "M7",
+      "entrypoint": "./browser",
+      "status": "preview",
+      "acceptance": ["popover.dismiss"]
+    },
+    {
+      "id": "tooltip",
+      "export": "Tooltip",
+      "milestone": "M7",
+      "entrypoint": "./browser",
+      "status": "preview",
+      "acceptance": ["tooltip.keyboard"]
+    },
+    {
+      "id": "toast",
+      "export": "Toast",
+      "milestone": "M7",
+      "entrypoint": "./browser",
+      "status": "preview",
+      "acceptance": ["toast.announcement"]
+    },
+    {
+      "id": "status",
+      "export": "Status",
+      "milestone": "M7",
+      "entrypoint": ".",
+      "status": "core",
+      "acceptance": ["feedback.status"]
+    },
+    {
+      "id": "skeleton",
+      "export": "Skeleton",
+      "milestone": "M7",
+      "entrypoint": ".",
+      "status": "core",
+      "acceptance": ["feedback.loading"]
+    },
+    {
+      "id": "empty-state",
+      "export": "EmptyState",
+      "milestone": "M7",
+      "entrypoint": ".",
+      "status": "core",
+      "acceptance": ["state.empty"]
+    },
+    {
+      "id": "error-state",
+      "export": "ErrorState",
+      "milestone": "M7",
+      "entrypoint": ".",
+      "status": "core",
+      "acceptance": ["state.error"]
+    },
+    {
+      "id": "table",
+      "export": "Table",
+      "milestone": "M7",
+      "entrypoint": ".",
+      "status": "core",
+      "acceptance": ["table.semantic", "table.overflow"]
+    },
+    {
+      "id": "data-table",
+      "export": "DataTable",
+      "milestone": "M7",
+      "entrypoint": ".",
+      "status": "core",
+      "acceptance": ["data-table.states", "data-table.adaptive"]
+    },
+
+    {
+      "id": "chart",
+      "export": "Chart",
+      "milestone": "M7A",
+      "entrypoint": ".",
+      "status": "planned",
+      "acceptance": []
+    },
+    {
+      "id": "sparkline",
+      "export": "Sparkline",
+      "milestone": "M7A",
+      "entrypoint": ".",
+      "status": "planned",
+      "acceptance": []
+    },
+    {
+      "id": "tree",
+      "export": "Tree",
+      "milestone": "M7A",
+      "entrypoint": "./browser",
+      "status": "planned",
+      "acceptance": []
+    },
+    {
+      "id": "timeline",
+      "export": "Timeline",
+      "milestone": "M7A",
+      "entrypoint": ".",
+      "status": "planned",
+      "acceptance": []
+    },
+    {
+      "id": "date-range",
+      "export": "DateRange",
+      "milestone": "M7A",
+      "entrypoint": "./browser",
+      "status": "planned",
+      "acceptance": []
+    },
+    {
+      "id": "file-upload",
+      "export": "FileUpload",
+      "milestone": "M7A",
+      "entrypoint": "./browser",
+      "status": "planned",
+      "acceptance": []
+    },
+    {
+      "id": "combobox",
+      "export": "Combobox",
+      "milestone": "M7A",
+      "entrypoint": "./browser",
+      "status": "planned",
+      "acceptance": []
+    },
+    {
+      "id": "command-palette",
+      "export": "CommandPalette",
+      "milestone": "M7A",
+      "entrypoint": "./browser",
+      "status": "planned",
+      "acceptance": []
+    },
+    {
+      "id": "split-pane",
+      "export": "SplitPane",
+      "milestone": "M7A",
+      "entrypoint": "./browser",
+      "status": "planned",
+      "acceptance": []
+    },
+    {
+      "id": "rich-text-editor",
+      "export": null,
+      "milestone": "excluded",
+      "entrypoint": null,
+      "status": "excluded",
+      "acceptance": []
+    }
+  ],
+  "referenceRoutes": [
+    {
+      "path": "/login",
+      "components": ["page-shell", "form-field", "input", "button", "alert"],
+      "states": ["ready", "invalid", "loading", "error"],
+      "automatic": ["login.chromium", "login.axe"],
+      "manual": ["login.nvda", "login.voiceover"]
+    },
+    {
+      "path": "/settings/profile",
+      "components": [
+        "app-shell",
+        "sidebar",
+        "page-shell",
+        "page-header",
+        "form-field",
+        "input",
+        "select",
+        "button"
+      ],
+      "states": ["ready", "dirty", "saving", "saved", "error"],
+      "automatic": ["profile.chromium", "profile.axe"],
+      "manual": ["profile.nvda", "profile.voiceover"]
+    },
+    {
+      "path": "/examples/resources",
+      "components": [
+        "app-shell",
+        "page-shell",
+        "page-header",
+        "toolbar",
+        "data-table",
+        "pagination",
+        "empty-state",
+        "error-state"
+      ],
+      "states": ["loading", "ready", "empty", "error"],
+      "automatic": ["resources.chromium", "resources.axe"],
+      "manual": ["resources.nvda", "resources.voiceover"]
+    },
+    {
+      "path": "/dashboard",
+      "components": [
+        "app-shell",
+        "sidebar",
+        "page-shell",
+        "page-header",
+        "card",
+        "status",
+        "progress",
+        "data-table",
+        "tabs",
+        "menu",
+        "drawer",
+        "popover",
+        "tooltip",
+        "toast"
+      ],
+      "states": ["loading", "ready", "empty", "error"],
+      "automatic": ["dashboard.chromium", "dashboard.axe"],
+      "manual": ["dashboard.nvda", "dashboard.voiceover"]
+    }
+  ]
+}

@@ -1,0 +1,59 @@
+{
+  "test:component": {
+    "participants": ["@cornerstone/ui"],
+    "excluded": {
+      "api": "The API has no component-test boundary.",
+      "web": "Web component tests are introduced with UIF/WPF.",
+      "@cornerstone/api-client": "The package has no component-test boundary.",
+      "@cornerstone/config": "The package has no component-test boundary.",
+      "@cornerstone/eslint-config": "The package has no component-test boundary.",
+      "@cornerstone/schemas": "The package has no component-test boundary.",
+      "@cornerstone/tsconfig": "The package has no component-test boundary.",
+      "@cornerstone/types": "The package has no component-test boundary.",
+      "@cornerstone/utils": "The package has no component-test boundary."
+    }
+  },
+  "test:e2e": {
+    "participants": ["api", "web"],
+    "excluded": {
+      "@cornerstone/api-client": "The package is covered through app E2E after M4.",
+      "@cornerstone/config": "The package has no standalone E2E boundary.",
+      "@cornerstone/eslint-config": "The package has no standalone E2E boundary.",
+      "@cornerstone/schemas": "The package has no standalone E2E boundary.",
+      "@cornerstone/tsconfig": "The package has no standalone E2E boundary.",
+      "@cornerstone/types": "The package has no standalone E2E boundary.",
+      "@cornerstone/ui": "Browser E2E runs through the Web UIF reference consumer.",
+      "@cornerstone/utils": "The package has no standalone E2E boundary."
+    }
+  },
+  "test:integration": {
+    "participants": ["api"],
+    "excluded": {
+      "web": "Web integration tests are introduced with M6.",
+      "@cornerstone/api-client": "Contract integration tests are introduced with M4.",
+      "@cornerstone/config": "The package currently requires unit tests only.",
+      "@cornerstone/eslint-config": "The package currently requires config fixtures only.",
+      "@cornerstone/schemas": "The package currently requires unit tests only.",
+      "@cornerstone/tsconfig": "The package currently requires config fixtures only.",
+      "@cornerstone/types": "The package currently requires type tests only.",
+      "@cornerstone/ui": "Consumer integration tests are introduced with UIF.",
+      "@cornerstone/utils": "The package currently requires unit tests only."
+    }
+  },
+  "test:unit": {
+    "participants": [
+      "api",
+      "web",
+      "@cornerstone/api-client",
+      "@cornerstone/config",
+      "@cornerstone/eslint-config",
+      "@cornerstone/schemas",
+      "@cornerstone/tsconfig",
+      "@cornerstone/types",
+      "@cornerstone/utils"
+    ],
+    "excluded": {
+      "@cornerstone/ui": "UI behavior is covered by its component-test boundary."
+    }
+  }
+}

@@ -120,6 +120,12 @@ async function composeOne(
     delete scripts['generator:standard:candidate']
     delete scripts['generator:standard:database']
     delete scripts['generator:portability:compare']
+    if (!examplesEnabled(manifest)) {
+      delete scripts['test:e2e:reference']
+      if (typeof scripts['test:e2e'] === 'string') {
+        scripts['test:e2e'] = scripts['test:e2e'].replace(/\s*&&\s*pnpm test:e2e:reference\s*$/, '')
+      }
+    }
     const composed = mergeJsonContributions([
       { owner: 'workspace-snapshot', value },
       {
@@ -140,17 +146,24 @@ async function composeOne(
     return Buffer.from(formatJsonDocument(composed))
   }
 
+  if (composer.format === 'pnpm-lock') {
+    return Buffer.from(examplesEnabled(manifest) ? source : removeReferenceAppImporter(source))
+  }
+
   if (composer.format === 'test-scope') {
     const value = parseJsonObject(source)
     for (const task of Object.values(value)) {
       const scope = objectValue(task, 'test scope')
       if (Array.isArray(scope.participants)) {
         scope.participants = scope.participants.filter(
-          (participant) => participant !== 'create-cornerstone',
+          (participant) =>
+            participant !== 'create-cornerstone' &&
+            (examplesEnabled(manifest) || participant !== '@cornerstone/reference-app'),
         )
       }
       const exclusions = objectValue(scope.excluded, 'test scope exclusions')
       delete exclusions['create-cornerstone']
+      if (!examplesEnabled(manifest)) delete exclusions['@cornerstone/reference-app']
     }
     const composed = mergeJsonContributions([{ owner: 'workspace-snapshot', value }])
     return Buffer.from(formatJsonDocument(composed))
@@ -161,9 +174,60 @@ async function composeOne(
     throw new Error(`${composer.id} source must contain a YAML object`)
   }
   const value = yaml as { [key: string]: JsonValue }
+  if (composer.id === 'pnpm-workspace' && !examplesEnabled(manifest)) {
+    const packages = value.packages
+    if (!Array.isArray(packages)) throw new Error('pnpm workspace packages must be an array')
+    value.packages = packages.filter((entry) => entry !== 'examples/*')
+  }
   if (composer.format === 'ci-workflow') removeUnsupportedCiSteps(value)
+  if (composer.format === 'ci-workflow' && !examplesEnabled(manifest)) {
+    removeReferenceAppCiEvidence(value)
+  }
   const composed = mergeJsonContributions([{ owner: 'workspace-snapshot', value }])
   return Buffer.from(stringify(composed, { sortMapEntries: true, singleQuote: true }))
+}
+
+function examplesEnabled(manifest: ResolvedManifest): boolean {
+  return manifest.schemaVersion === 2 && manifest.examples
+}
+
+function removeReferenceAppImporter(source: string): string {
+  const lines = source.split('\n')
+  const start = lines.findIndex((line) => line === '  examples/reference-app:')
+  if (start < 0) throw new Error('Reference app importer is missing from the canonical lock')
+  let end = start + 1
+  while (end < lines.length && !/^  [^ ]/.test(lines[end] ?? '')) end += 1
+  lines.splice(start, end - start)
+  return lines.join('\n')
+}
+
+function removeReferenceAppCiEvidence(workflow: { [key: string]: JsonValue }): void {
+  const jobs = objectValue(workflow.jobs, 'CI jobs')
+  for (const job of Object.values(jobs)) {
+    const jobObject = objectValue(job, 'CI job')
+    if (!Array.isArray(jobObject.steps)) continue
+    jobObject.steps = jobObject.steps
+      .filter((step) => {
+        if (!step || typeof step !== 'object' || Array.isArray(step)) return true
+        return !(typeof step.run === 'string' && step.run.includes('@cornerstone/reference-app'))
+      })
+      .map((step) => {
+        if (!step || typeof step !== 'object' || Array.isArray(step)) return step
+        const withValue = step.with
+        if (!withValue || typeof withValue !== 'object' || Array.isArray(withValue)) return step
+        if (typeof withValue.path !== 'string') return step
+        return {
+          ...step,
+          with: {
+            ...withValue,
+            path: withValue.path
+              .split('\n')
+              .filter((line) => !line.includes('examples/reference-app'))
+              .join('\n'),
+          },
+        }
+      })
+  }
 }
 
 export function composeNestModule(module: NonNullable<ComposerDefinition['nestModule']>): string {

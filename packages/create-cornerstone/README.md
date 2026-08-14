@@ -6,6 +6,7 @@ Cornerstone capability manifest를 검증하고 재현 가능한 프로젝트를
 pnpm exec create-cornerstone plan --manifest cornerstone.config.yml
 pnpm exec create-cornerstone plan ./my-app --dry-run
 pnpm exec create-cornerstone create ./my-app --manifest cornerstone.config.yml
+pnpm exec create-cornerstone create ./my-app --examples
 pnpm exec create-cornerstone update ./my-app --dry-run
 pnpm exec create-cornerstone update ./my-app
 pnpm exec create-cornerstone generate feature billing --target ./my-app --dry-run
@@ -14,11 +15,11 @@ pnpm exec create-cornerstone generate migration AddReports --target ./my-app --t
 pnpm exec create-cornerstone verify ./my-app
 ```
 
-`generate`는 검증된 Standard Lock v3 프로젝트에 `package`, `feature`, `api`, `migration` scaffold를 추가한다. `--target`은 필수이며 `--dry-run`은 파일과 operation lock을 쓰지 않는다. Version 2 계약에서 package는 private-only이고, feature/api identifier는 name에서 고정 파생한다. Feature만 AppModule에 등록한다. API는 authorization policy를 추측하지 않으므로 runtime AppModule과 OpenAPI용 ApiContractModule 어디에도 자동 등록하지 않는 fail-closed draft다. 운영 route와 OpenAPI로 활성화하려면 명시적 route-policy 계약과 structured composer 지원이 필요하다. Migration timestamp는 plan 재현성을 위해 명시적 13자리 값만 허용하며 생성된 `up`/`down`은 구현·검토 전 실행을 명시적으로 거절한다. Scaffold 옵션은 canonical non-secret 값으로 제한하며 lock에는 strict options와 digest를 함께 저장한다. 기존 파일, portable path 충돌, generator control namespace와 composer-owned output 충돌은 적용 전에 거절한다. Journaled apply는 add/modify 전체를 rollback할 수 있도록 기록하고 manifest lock을 마지막에 교체한다.
+`generate`는 검증된 최신 Standard Lock v4 프로젝트에 `package`, `feature`, `api`, `migration` scaffold를 추가한다. `--target`은 필수이며 `--dry-run`은 파일과 operation lock을 쓰지 않는다. Version 2 계약에서 package는 private-only이고, feature/api identifier는 name에서 고정 파생한다. Feature만 AppModule에 등록한다. API는 authorization policy를 추측하지 않으므로 runtime AppModule과 OpenAPI용 ApiContractModule 어디에도 자동 등록하지 않는 fail-closed draft다. 운영 route와 OpenAPI로 활성화하려면 명시적 route-policy 계약과 structured composer 지원이 필요하다. Migration timestamp는 plan 재현성을 위해 명시적 13자리 값만 허용하며 생성된 `up`/`down`은 구현·검토 전 실행을 명시적으로 거절한다. Scaffold 옵션은 canonical non-secret 값으로 제한하며 lock에는 strict options와 digest를 함께 저장한다. 기존 파일, portable path 충돌, generator control namespace와 composer-owned output 충돌은 적용 전에 거절한다. Journaled apply는 add/modify 전체를 rollback할 수 있도록 기록하고 manifest lock을 마지막에 교체한다.
 
-`--manifest`를 생략하면 프로젝트명, Profile과 제품 license를 대화형으로 선택한다. 대화형 입력과 manifest 입력은 동일한 resolver와 생성 plan을 사용한다.
+`--manifest`를 생략하면 프로젝트명, Profile과 제품 license를 대화형으로 선택한다. `--examples`를 명시하면 manifest v2의 `examples: true`와 동일하게 Reference App을 포함한다. manifest v2의 기본값과 기존 manifest v1은 `examples: false`이며 Reference App source, workspace, script와 lock importer를 남기지 않는다. `--manifest`와 `--examples`는 함께 사용할 수 없다.
 
-`minimal`은 기존 lock v1과 생성 결과를 유지한다. `standard`는 `web`, `api`, `ui`, `database`, `auth`의 exact 조합을 lock v2로 생성할 수 있지만 `standard-preview-node24-pg17`의 Supported Composition일 뿐 Certified Profile은 아니다. 운영 인증 Gate가 완료되기 전까지 `production`과 `regulated`는 fail-closed로 거절한다.
+`minimal`은 기존 lock v1과 생성 결과를 유지한다. `standard`는 `web`, `api`, `ui`, `database`, `auth`의 exact 조합을 최신 lock v4로 생성하지만 `standard-preview-node24-pg17`의 Supported Composition일 뿐 Certified Profile은 아니다. 운영 인증 Gate가 완료되기 전까지 `production`과 `regulated`는 fail-closed로 거절한다.
 
 Standard 생성 결과는 workspace에서 git-tracked source만 allowlist로 snapshot한 canonical fragment와 versioned structured composer로 만든다. Composer가 소유하는 공유 파일은 임의 text patch나 hook을 실행하지 않으며, 충돌하는 JSON/YAML key는 생성 전에 거절한다. `NOTICE`는 항상 생성하고 `LICENSE`는 manifest가 `ISC` 또는 `MIT`를 선택한 경우에만 생성한다.
 

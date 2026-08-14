@@ -36,7 +36,12 @@ const metadata = canonicalTemplateMetadataSchema.parse(
 )
 const fragmentFiles = {}
 
-for (const fragment of metadata.fragments) {
+const templateFragments = [
+  ...metadata.fragments,
+  ...(metadata.examples ? [metadata.examples.referenceApp] : []),
+]
+
+for (const fragment of templateFragments) {
   const files = new Set()
   for (const mapping of fragment.mappings) {
     for (const sourcePath of trackedFiles(mapping.source)) {

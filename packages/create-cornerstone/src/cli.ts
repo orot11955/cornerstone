@@ -32,9 +32,11 @@ try {
   } else if (command === 'create') {
     const target = positional(args)
     const manifestPath = optionalOption(args, '--manifest')
+    const includeExamples = args.includes('--examples')
+    if (manifestPath && includeExamples) usage()
     const lock = manifestPath
       ? await createProject(target, manifestPath)
-      : await createProjectFromManifest(target, await promptManifest(target))
+      : await createProjectFromManifest(target, await promptManifest(target, includeExamples))
     console.log(
       lock.schemaVersion === 2
         ? `Created ${lock.resolved.name} (${lock.resolved.profile} supported preview; not certified)`
@@ -192,7 +194,7 @@ function optionalOption(args: string[], name: string): string | undefined {
   return value
 }
 
-async function promptManifest(target: string) {
+async function promptManifest(target: string, includeExamples: boolean) {
   const suggestedName = basename(resolve(target))
     .toLowerCase()
     .replace(/[^a-z0-9-]+/g, '-')
@@ -202,7 +204,7 @@ async function promptManifest(target: string) {
     let content = ''
     for await (const chunk of process.stdin) content += chunk
     const [name = '', profile = '', license = ''] = content.split(/\r?\n/)
-    return promptAnswers(suggestedName, name, profile, license)
+    return promptAnswers(suggestedName, name, profile, license, includeExamples)
   }
 
   const prompt = createInterface({ input: process.stdin, output: process.stdout })
@@ -210,8 +212,9 @@ async function promptManifest(target: string) {
     return promptAnswers(
       suggestedName,
       await prompt.question(`Project name [${suggestedName}]: `),
-      await prompt.question('Profile [minimal]: '),
+      await prompt.question(`Profile [${includeExamples ? 'standard' : 'minimal'}]: `),
       await prompt.question('License (ISC/MIT/UNLICENSED) [UNLICENSED]: '),
+      includeExamples,
     )
   } finally {
     prompt.close()
@@ -223,20 +226,22 @@ function promptAnswers(
   nameInput: string,
   profileInput: string,
   licenseInput: string,
+  includeExamples: boolean,
 ) {
   return {
-    schemaVersion: 1,
+    schemaVersion: includeExamples ? (2 as const) : (1 as const),
     name: nameInput.trim() || suggestedName,
-    profile: profileInput.trim() || 'minimal',
+    profile: profileInput.trim() || (includeExamples ? 'standard' : 'minimal'),
     capabilities: [],
     license: licenseInput.trim().toUpperCase() || 'UNLICENSED',
     providers: {},
+    ...(includeExamples ? { examples: true } : {}),
   }
 }
 
 function usage(): never {
   console.error(
-    'Usage:\n  create-cornerstone generate api <name> --target <project> --method <get|post|patch|delete> --path </literal/{camelId}> --operation-id <camelCase> --authentication <anonymous|session> --roles <none|user|admin|user,admin> --permission <permission|none> --ownership none --csrf <true|false> [--dry-run]',
+    'Usage:\n  create-cornerstone create <target> [--manifest <path> | --examples]\n  create-cornerstone generate api <name> --target <project> --method <get|post|patch|delete> --path </literal/{camelId}> --operation-id <camelCase> --authentication <anonymous|session> --roles <none|user|admin|user,admin> --permission <permission|none> --ownership none --csrf <true|false> [--dry-run]',
   )
   process.exit(2)
 }

@@ -1,6 +1,6 @@
 {
-  "schemaVersion": 2,
-  "templateVersion": "0.7.0",
+  "schemaVersion": 1,
+  "templateVersion": "0.6.0",
   "profiles": {
     "standard": {
       "capabilities": ["api", "auth", "database", "ui", "web"],
@@ -21,6 +21,7 @@
         { "source": ".nvmrc" },
         { "source": ".prettierignore" },
         { "source": ".prettierrc" },
+        { "source": "pnpm-lock.yaml" },
         { "source": "scripts/check-openapi-compatibility.mjs" },
         { "source": "scripts/check-package-licenses.mjs" },
         { "source": "scripts/check-web-budget.mjs" },
@@ -109,13 +110,6 @@
     { "id": "observability", "version": 1, "mappings": [] },
     { "id": "privacy", "version": 1, "mappings": [] }
   ],
-  "examples": {
-    "referenceApp": {
-      "id": "example-reference-app",
-      "version": 1,
-      "mappings": [{ "source": "examples/reference-app" }]
-    }
-  },
   "composers": [
     {
       "id": "root-package-json",
@@ -123,13 +117,6 @@
       "format": "package-json",
       "output": "package.json",
       "source": "package.json"
-    },
-    {
-      "id": "pnpm-lock",
-      "version": 1,
-      "format": "pnpm-lock",
-      "output": "pnpm-lock.yaml",
-      "source": "pnpm-lock.yaml"
     },
     {
       "id": "pnpm-workspace",

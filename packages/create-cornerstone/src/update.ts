@@ -15,6 +15,11 @@ import {
   planStandardV6Adoption,
   type StandardV6AdoptionPlan,
 } from './mutation/standard-v6-adoption.js'
+import {
+  adoptStandardV7,
+  planStandardV7Adoption,
+  type StandardV7AdoptionPlan,
+} from './mutation/standard-v7-adoption.js'
 import { parseMutationJournalV2 } from './mutation/generator-engine.js'
 import {
   planProjectUpdate as planLegacyProjectUpdate,
@@ -29,15 +34,21 @@ import {
 } from './mutation/update-engine.js'
 
 export type ProjectUpdatePlan =
-  LegacyProjectUpdatePlan | StandardV4AdoptionPlan | StandardV5AdoptionPlan | StandardV6AdoptionPlan
+  | LegacyProjectUpdatePlan
+  | StandardV4AdoptionPlan
+  | StandardV5AdoptionPlan
+  | StandardV6AdoptionPlan
+  | StandardV7AdoptionPlan
 
 export async function planProjectUpdate(targetPath: string): Promise<ProjectUpdatePlan> {
   const target = await canonicalTarget(targetPath)
   const lock = await readLock(target)
+  if (lock.schemaVersion === 4) return planStandardV7Adoption(target)
   if (lock.schemaVersion !== 3) return planLegacyProjectUpdate(target)
   if (lock.templateVersion === '0.3.0') return planStandardV4Adoption(target)
   if (lock.templateVersion === '0.4.0') return planStandardV5Adoption(target)
-  return planStandardV6Adoption(target)
+  if (lock.templateVersion === '0.5.0') return planStandardV6Adoption(target)
+  return planStandardV7Adoption(target)
 }
 
 export async function updateProject(
@@ -47,10 +58,12 @@ export async function updateProject(
   if (options.dryRun) return planProjectUpdate(targetPath)
   const target = await canonicalTarget(targetPath)
   const lock = await readLock(target)
+  if (lock.schemaVersion === 4) return adoptStandardV7(target)
   if (lock.schemaVersion !== 3) return updateLegacyProject(target)
   if (lock.templateVersion === '0.3.0') return adoptStandardV4(target)
   if (lock.templateVersion === '0.4.0') return adoptStandardV5(target)
-  return adoptStandardV6(target)
+  if (lock.templateVersion === '0.5.0') return adoptStandardV6(target)
+  return adoptStandardV7(target)
 }
 
 async function canonicalTarget(targetPath: string): Promise<string> {

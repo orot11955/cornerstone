@@ -47,6 +47,10 @@ import {
   resolveStandardV5Predecessor,
 } from './composition/standard-v5-predecessor.js'
 import {
+  buildStandardV6PredecessorLock,
+  resolveStandardV6Predecessor,
+} from './composition/standard-v6-predecessor.js'
+import {
   projectLockSchema,
   projectManifestSchema,
   resolveManifest,
@@ -54,6 +58,7 @@ import {
   type ProjectLockV1Data,
   type ProjectLockV2Data,
   type ProjectLockV3Data,
+  type ProjectLockV4Data,
   type ProjectManifest,
   type ResolvedManifest,
 } from './schema.js'
@@ -93,10 +98,14 @@ export function planProject(manifest: ResolvedManifest) {
   assertSupportedComposition(manifest)
   const metadata = loadCanonicalTemplateMetadata()
   const selected = new Set(['base', ...manifest.capabilities])
+  if (examplesEnabled(manifest)) selected.add('example-reference-app')
   const files = new Set<string>(['cornerstone.config.yml', '.cornerstone/manifest.lock.json'])
   for (const fragment of metadata.fragments) {
     if (!selected.has(fragment.id)) continue
     for (const path of listPackagedFragmentFiles(fragment.id)) files.add(path)
+  }
+  if (examplesEnabled(manifest) && metadata.examples) {
+    for (const path of listPackagedFragmentFiles(metadata.examples.referenceApp.id)) files.add(path)
   }
   for (const composer of applicableComposers(metadata, manifest)) files.add(composer.output)
   return { manifest, files: [...files].sort() }
@@ -201,11 +210,15 @@ async function writeStandardProject(
   target: string,
   userManifest: ProjectManifest,
   manifest: ResolvedManifest,
-): Promise<ProjectLockV3Data> {
+): Promise<ProjectLockV4Data> {
   const metadata = loadCanonicalTemplateMetadata()
   const selected = new Set(['base', ...manifest.capabilities])
+  if (examplesEnabled(manifest)) selected.add('example-reference-app')
   for (const id of ['base', ...getCapabilityApplicationOrder(manifest.capabilities)]) {
     if (selected.has(id)) await copyDirectory(join(templateRoot, 'fragments', id), target)
+  }
+  if (selected.has('example-reference-app')) {
+    await copyDirectory(join(templateRoot, 'fragments', 'example-reference-app'), target)
   }
 
   for (const output of await composeStructuredOutputs(templateRoot, metadata, manifest)) {
@@ -221,7 +234,7 @@ async function writeStandardProject(
     stringify(userManifest, { sortMapEntries: true }),
     { mode: generatedFileMode },
   )
-  const lock = await buildStandardV3Lock(target, userManifest, manifest)
+  const lock = await buildStandardV4Lock(target, userManifest, manifest)
   await writeLockAtomically(target, lock)
   return lock
 }
@@ -353,11 +366,28 @@ export async function buildStandardV3Lock(
   return { ...unsigned, integrity: sha256(stableJson(unsigned)) }
 }
 
+export async function buildStandardV4Lock(
+  target: string,
+  userManifest: ProjectManifest,
+  manifest: ResolvedManifest,
+  expectedOutputs?: readonly { owner: string; path: string; content: Uint8Array }[],
+  scaffolds: readonly ScaffoldRegistryEntry[] = [],
+): Promise<ProjectLockV4Data> {
+  const v3 = await buildStandardV3Lock(target, userManifest, manifest, expectedOutputs, scaffolds)
+  const { integrity: _integrity, schemaVersion: _schemaVersion, ...common } = v3
+  const unsigned = {
+    ...common,
+    schemaVersion: 4 as const,
+    selections: { examples: examplesEnabled(manifest) },
+  }
+  return { ...unsigned, integrity: sha256(stableJson(unsigned)) }
+}
+
 async function verifyStandardProject(
   target: string,
   userManifest: ProjectManifest,
   manifest: ResolvedManifest,
-  lock: ProjectLockV2Data | ProjectLockV3Data,
+  lock: ProjectLockV2Data | ProjectLockV3Data | ProjectLockV4Data,
 ): Promise<void> {
   const metadata = loadCanonicalTemplateMetadata()
   assertCatalogCompatibility(metadata, manifest)
@@ -382,6 +412,11 @@ async function verifyStandardProject(
     return
   }
 
+  if (lock.schemaVersion === 3 && lock.templateVersion === '0.6.0') {
+    await verifyStandardV6Predecessor(target, userManifest, manifest, lock, metadata)
+    return
+  }
+
   const expectedFragments = selectedFragmentDefinitions(metadata, manifest)
   for (const fragment of expectedFragments) {
     const locked = lock.fragments.find(({ id }) => id === fragment.id)
@@ -400,7 +435,7 @@ async function verifyStandardProject(
 
   await assertCapabilityResidue(target, metadata, manifest)
   const expectedComposed =
-    lock.schemaVersion === 3
+    lock.schemaVersion === 3 || lock.schemaVersion === 4
       ? await composeScaffoldAwareOutputs(templateRoot, metadata, manifest, lock.scaffolds)
       : await composeStructuredOutputs(templateRoot, metadata, manifest)
   const expectedDefinitions = applicableComposers(metadata, manifest)
@@ -438,7 +473,7 @@ async function verifyStandardProject(
     }
   }
 
-  const scaffolds = lock.schemaVersion === 3 ? lock.scaffolds : []
+  const scaffolds = lock.schemaVersion === 3 || lock.schemaVersion === 4 ? lock.scaffolds : []
   for (const scaffold of scaffolds) {
     for (const scaffoldPath of scaffold.paths) {
       const path = safeTargetPath(target, scaffoldPath)
@@ -457,15 +492,17 @@ async function verifyStandardProject(
     }
   }
   const expectedLock =
-    lock.schemaVersion === 3
-      ? await buildStandardV3Lock(target, userManifest, manifest, expectedComposed, lock.scaffolds)
-      : await buildStandardLock(target, userManifest, manifest)
-  if (expectedLock.schemaVersion === 3 && lock.schemaVersion === 3) {
-    expectedLock.scaffolds = lock.scaffolds
-    expectedLock.scaffoldsDigest = lock.scaffoldsDigest
-    const { integrity: _integrity, ...expectedUnsigned } = expectedLock
-    expectedLock.integrity = sha256(stableJson(expectedUnsigned))
-  }
+    lock.schemaVersion === 4
+      ? await buildStandardV4Lock(target, userManifest, manifest, expectedComposed, lock.scaffolds)
+      : lock.schemaVersion === 3
+        ? await buildStandardV3Lock(
+            target,
+            userManifest,
+            manifest,
+            expectedComposed,
+            lock.scaffolds,
+          )
+        : await buildStandardLock(target, userManifest, manifest)
   if (stableJson(lock) !== stableJson(expectedLock)) {
     throw new Error('Lock manifest differs from the generator-owned resolution')
   }
@@ -604,6 +641,46 @@ async function verifyStandardV5Predecessor(
   }
 }
 
+async function verifyStandardV6Predecessor(
+  target: string,
+  userManifest: ProjectManifest,
+  manifest: ResolvedManifest,
+  lock: ProjectLockV3Data,
+  metadata: CanonicalTemplateMetadata,
+): Promise<void> {
+  const predecessor = await resolveStandardV6Predecessor(manifest, lock.scaffolds)
+  assertCatalogCompatibility(metadata, manifest)
+  for (const output of predecessor.outputs) {
+    const path = safeTargetPath(target, output.path)
+    const info = await lstat(path)
+    if (
+      !info.isFile() ||
+      info.isSymbolicLink() ||
+      (info.mode & 0o777) !== output.mode ||
+      sha256(await readFile(path)) !== output.checksum
+    ) {
+      throw new Error(`Generator-owned output drift: ${output.path}`)
+    }
+  }
+  for (const scaffold of lock.scaffolds) {
+    for (const scaffoldPath of scaffold.paths) {
+      const info = await lstat(safeTargetPath(target, scaffoldPath))
+      if (!info.isFile() || info.isSymbolicLink()) {
+        throw new Error(`Scaffold registry path must be a regular file: ${scaffoldPath}`)
+      }
+    }
+  }
+  const expected = buildStandardV6PredecessorLock(
+    predecessor,
+    userManifest,
+    manifest,
+    lock.scaffolds,
+  )
+  if (stableJson(lock) !== stableJson(expected)) {
+    throw new Error('Lock manifest differs from immutable Standard 0.6.0 resolution')
+  }
+}
+
 async function verifyLegacyStandardV2(
   target: string,
   userManifest: ProjectManifest,
@@ -676,6 +753,7 @@ async function assertCapabilityResidue(
   manifest: ResolvedManifest,
 ): Promise<void> {
   const selected = new Set(['base', ...manifest.capabilities])
+  if (examplesEnabled(manifest)) selected.add('example-reference-app')
   for (const fragment of metadata.fragments) {
     for (const path of listPackagedFragmentFiles(fragment.id)) {
       const output = safeTargetPath(target, path)
@@ -686,6 +764,15 @@ async function assertCapabilityResidue(
       }
     }
   }
+  if (metadata.examples) {
+    for (const path of listPackagedFragmentFiles(metadata.examples.referenceApp.id)) {
+      const output = safeTargetPath(target, path)
+      if (examplesEnabled(manifest)) await access(output)
+      else if (await exists(output)) {
+        throw new Error(`Unselected example residue: ${metadata.examples.referenceApp.id}:${path}`)
+      }
+    }
+  }
 }
 
 function selectedFragmentDefinitions(
@@ -693,7 +780,11 @@ function selectedFragmentDefinitions(
   manifest: ResolvedManifest,
 ) {
   const selected = new Set(['base', ...manifest.capabilities])
-  return metadata.fragments
+  if (examplesEnabled(manifest)) selected.add('example-reference-app')
+  return [
+    ...metadata.fragments,
+    ...(examplesEnabled(manifest) && metadata.examples ? [metadata.examples.referenceApp] : []),
+  ]
     .filter(({ id }) => selected.has(id))
     .map(({ id, version }) => ({ id, version }))
     .sort((left, right) => left.id.localeCompare(right.id))
@@ -793,7 +884,15 @@ function composeLegacyPackageJson(manifest: ResolvedManifest) {
 }
 
 function isLegacyMinimal(manifest: ResolvedManifest): boolean {
-  return manifest.profile === 'minimal' && manifest.capabilities.length === 0
+  return (
+    manifest.profile === 'minimal' &&
+    manifest.capabilities.length === 0 &&
+    !examplesEnabled(manifest)
+  )
+}
+
+function examplesEnabled(manifest: ResolvedManifest): boolean {
+  return manifest.schemaVersion === 2 && manifest.examples
 }
 
 async function assertTargetAvailable(target: string): Promise<boolean> {

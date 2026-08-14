@@ -5,7 +5,7 @@ import { loadCanonicalTemplateMetadata } from '../composition/template.js'
 import { formatJsonDocument } from '../composition/composer.js'
 import { verifyProject } from '../generator.js'
 import { sha256, stableJson } from '../hash.js'
-import type { ProjectLockV3Data } from '../schema.js'
+import type { ProjectLockV4Data } from '../schema.js'
 import {
   assertApiV3RouteDoesNotCollide,
   computeScaffoldsDigest,
@@ -32,7 +32,7 @@ const templateRoot = resolve(import.meta.dirname, '..', 'templates', 'canonical'
 export interface ScaffoldPlan {
   schemaVersion: 1
   target: string
-  scaffold: ProjectLockV3Data['scaffolds'][number]
+  scaffold: ProjectLockV4Data['scaffolds'][number]
   changes: GeneratorMutationPlan['changes']
 }
 
@@ -66,8 +66,8 @@ async function prepareScaffold(
 ) {
   const target = resolve(targetPath)
   const current = await verifyProject(target)
-  if (current.schemaVersion !== 3 || current.resolved.profile !== 'standard') {
-    throw new Error('Scaffold generation requires a verified Standard Lock v3 project')
+  if (current.schemaVersion !== 4 || current.resolved.profile !== 'standard') {
+    throw new Error('Scaffold generation requires a verified current Standard Lock v4 project')
   }
   const rendered = renderScaffold(kind, name, options)
   if (current.scaffolds.some(({ id }) => id === rendered.entry.id)) {
@@ -160,7 +160,7 @@ async function missingDirectories(target: string, paths: readonly string[]): Pro
 }
 
 function toPlan(
-  scaffold: ProjectLockV3Data['scaffolds'][number],
+  scaffold: ProjectLockV4Data['scaffolds'][number],
   plan: GeneratorMutationPlan,
 ): ScaffoldPlan {
   return { schemaVersion: 1, target: plan.target, scaffold, changes: plan.changes }

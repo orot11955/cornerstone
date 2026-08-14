@@ -23,7 +23,7 @@ const uniqueCapabilityArraySchema = z
     message: 'Duplicate capability selection',
   })
 
-export const projectManifestSchema = z
+const projectManifestV1Schema = z
   .object({
     schemaVersion: z.literal(1),
     name: z.string().regex(/^[a-z][a-z0-9-]{1,62}$/),
@@ -43,20 +43,56 @@ export const projectManifestSchema = z
   })
   .strict()
 
+const projectManifestV2Schema = z
+  .object({
+    schemaVersion: z.literal(2),
+    name: z.string().regex(/^[a-z][a-z0-9-]{1,62}$/),
+    profile: profileSchema.default('standard'),
+    capabilities: uniqueCapabilityArraySchema.default([]),
+    examples: z.boolean().default(false),
+    license: z.enum(['ISC', 'MIT', 'UNLICENSED']).optional(),
+    providers: z
+      .object({
+        hosting: providerNameSchema.optional(),
+        registry: providerNameSchema.optional(),
+        secretStore: providerNameSchema.optional(),
+        backup: providerNameSchema.optional(),
+        mail: providerNameSchema.optional(),
+      })
+      .strict()
+      .default({}),
+  })
+  .strict()
+
+export const projectManifestSchema = z.discriminatedUnion('schemaVersion', [
+  projectManifestV1Schema,
+  projectManifestV2Schema,
+])
+
 export type ProjectManifest = z.infer<typeof projectManifestSchema>
-export type ResolvedManifest = Omit<ProjectManifest, 'capabilities'> & {
+const resolvedManifestV1Schema = projectManifestV1Schema.extend({
+  capabilities: uniqueCapabilityArraySchema,
+})
+const resolvedManifestV2Schema = projectManifestV2Schema.extend({
+  capabilities: uniqueCapabilityArraySchema,
+})
+export const resolvedManifestSchema = z.discriminatedUnion('schemaVersion', [
+  resolvedManifestV1Schema,
+  resolvedManifestV2Schema,
+])
+export type ResolvedManifest = z.infer<typeof resolvedManifestSchema> & {
   capabilities: Capability[]
 }
 
-export const resolvedManifestSchema = projectManifestSchema.extend({
-  capabilities: uniqueCapabilityArraySchema,
-})
-
-const lockedResolvedManifestSchema = resolvedManifestSchema.required({
-  profile: true,
-  capabilities: true,
-  providers: true,
-})
+const lockedResolvedManifestSchema = z.discriminatedUnion('schemaVersion', [
+  resolvedManifestV1Schema.required({ profile: true, capabilities: true, providers: true }),
+  resolvedManifestV2Schema.required({
+    profile: true,
+    capabilities: true,
+    examples: true,
+    providers: true,
+  }),
+])
 
 const digestSchema = z.string().regex(/^sha256:[a-f0-9]{64}$/)
 
@@ -287,15 +323,42 @@ export const projectLockV3Schema = z
     }
   })
 
+export const projectLockV4Schema = z
+  .object({
+    ...projectLockV3Schema.shape,
+    schemaVersion: z.literal(4),
+    selections: z.object({ examples: z.boolean() }).strict(),
+  })
+  .strict()
+  .superRefine((lock, context) => {
+    const { selections: _selections, ...common } = lock
+    const v3Result = projectLockV3Schema.safeParse({ ...common, schemaVersion: 3 })
+    if (!v3Result.success) {
+      for (const issue of v3Result.error.issues) {
+        context.addIssue({ code: 'custom', path: issue.path, message: issue.message })
+      }
+    }
+    const resolvedExamples = lock.resolved.schemaVersion === 2 && lock.resolved.examples
+    if (lock.selections.examples !== resolvedExamples) {
+      context.addIssue({
+        code: 'custom',
+        path: ['selections', 'examples'],
+        message: 'Example selection must match the resolved manifest',
+      })
+    }
+  })
+
 export const projectLockSchema = z.discriminatedUnion('schemaVersion', [
   projectLockV1Schema,
   projectLockV2Schema,
   projectLockV3Schema,
+  projectLockV4Schema,
 ])
 
 export type ProjectLockV1Data = z.infer<typeof projectLockV1Schema>
 export type ProjectLockV2Data = z.infer<typeof projectLockV2Schema>
 export type ProjectLockV3Data = z.infer<typeof projectLockV3Schema>
+export type ProjectLockV4Data = z.infer<typeof projectLockV4Schema>
 export type ProjectLockData = z.infer<typeof projectLockSchema>
 
 export type { ScaffoldRegistryEntry }

@@ -43,6 +43,7 @@ const fragmentSchema = z
 
 export const composerFormatSchema = z.enum([
   'package-json',
+  'pnpm-lock',
   'json',
   'yaml',
   'test-scope',
@@ -166,7 +167,7 @@ export const composerDefinitionSchema = z
 
 export const canonicalTemplateMetadataSchema = z
   .object({
-    schemaVersion: z.literal(1),
+    schemaVersion: z.union([z.literal(1), z.literal(2)]),
     templateVersion: z.string().regex(/^\d+\.\d+\.\d+$/),
     profiles: z
       .object({
@@ -184,10 +185,23 @@ export const canonicalTemplateMetadataSchema = z
       })
       .strict(),
     fragments: z.array(fragmentSchema),
+    examples: z
+      .object({
+        referenceApp: fragmentSchema.extend({ id: z.literal('example-reference-app') }),
+      })
+      .strict()
+      .optional(),
     composers: z.array(composerDefinitionSchema),
   })
   .strict()
   .superRefine((metadata, context) => {
+    if ((metadata.schemaVersion === 2) !== Boolean(metadata.examples)) {
+      context.addIssue({
+        code: 'custom',
+        path: ['examples'],
+        message: 'Template schemaVersion 2 requires the reference app example contract',
+      })
+    }
     assertUnique(
       metadata.fragments.map(({ id }) => id),
       'fragment',

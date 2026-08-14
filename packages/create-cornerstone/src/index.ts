@@ -12,6 +12,7 @@ export {
   projectLockV1Schema,
   projectLockV2Schema,
   projectLockV3Schema,
+  projectLockV4Schema,
   projectManifestSchema,
   resolveManifest,
   resolvedManifestSchema,
@@ -21,6 +22,7 @@ export type {
   ProjectLockV1Data,
   ProjectLockV2Data,
   ProjectLockV3Data,
+  ProjectLockV4Data,
   ProjectManifest,
   ResolvedManifest,
 } from './schema.js'
@@ -74,3 +76,5 @@ export { adoptStandardV5, planStandardV5Adoption } from './mutation/standard-v5-
 export type { StandardV5AdoptionPlan } from './mutation/standard-v5-adoption.js'
 export { adoptStandardV6, planStandardV6Adoption } from './mutation/standard-v6-adoption.js'
 export type { StandardV6AdoptionPlan } from './mutation/standard-v6-adoption.js'
+export { adoptStandardV7, planStandardV7Adoption } from './mutation/standard-v7-adoption.js'
+export type { StandardV7AdoptionPlan } from './mutation/standard-v7-adoption.js'
