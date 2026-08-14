@@ -124,6 +124,8 @@ jobs:
           path: |
             apps/web/test-results
             apps/web/playwright-report
+            examples/reference-app/test-results
+            examples/reference-app/playwright-report
           if-no-files-found: warn
 
   ui-browser-release:
