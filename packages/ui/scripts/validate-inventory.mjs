@@ -17,7 +17,7 @@ for (const component of inventory.components) {
   assert.ok(!ids.has(component.id), `duplicate component id: ${component.id}`)
   ids.add(component.id)
   assert.ok(['UIF', 'M7', 'M7A', 'excluded'].includes(component.milestone))
-  assert.ok(['core', 'planned', 'deprecated', 'excluded'].includes(component.status))
+  assert.ok(['core', 'preview', 'planned', 'deprecated', 'excluded'].includes(component.status))
   assert.ok(Array.isArray(component.acceptance))
   if (component.status === 'excluded') {
     assert.equal(component.export, null)
@@ -30,6 +30,11 @@ for (const component of inventory.components) {
     exportsByEntrypoint.add(exportKey)
   }
   if (component.status === 'core') assert.ok(component.acceptance.length > 0)
+  if (component.status === 'preview') {
+    assert.equal(component.milestone, 'M7')
+    assert.equal(component.entrypoint, './browser')
+    assert.ok(component.acceptance.length > 0)
+  }
 }
 
 const routePaths = new Set()

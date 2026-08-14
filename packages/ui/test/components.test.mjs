@@ -4,14 +4,24 @@ import { createElement } from 'react'
 import { renderToString } from 'react-dom/server'
 import { readFile } from 'node:fs/promises'
 import {
+  AppShell,
+  Breadcrumb,
   Button,
+  Card,
+  DataTable,
+  EmptyState,
   Checkbox,
   DialogSurface,
   FormField,
   Grid,
   Input,
+  PageHeader,
+  PageShell,
+  Pagination,
   Progress,
   Switch,
+  Table,
+  Toolbar,
   appearanceDataAttributes,
   appearancePresentation,
   createAppearanceRegistry,
@@ -21,7 +31,14 @@ import {
   tokenDeclarations,
   tokenSourceId,
 } from '../dist/index.js'
-import { applyAppearance, Portal, readStoredAppearance } from '../dist/browser.js'
+import {
+  applyAppearance,
+  Portal,
+  Tabs,
+  Toast,
+  computeFloatingPosition,
+  readStoredAppearance,
+} from '../dist/browser.js'
 import { createSingleDialogLabelRegistry } from '../dist/dialog.js'
 
 test('root entry renders on the server without browser globals', () => {
@@ -31,6 +48,133 @@ test('root entry renders on the server without browser globals', () => {
   assert.match(html, />Save</)
 })
 
+test('application layout keeps one responsive landmark tree and a skip target', () => {
+  const html = renderToString(
+    createElement(
+      AppShell,
+      { header: 'Header', sidebar: 'Sidebar', mainId: 'workspace' },
+      createElement(PageShell, null, createElement(PageHeader, { title: 'Resources' })),
+    ),
+  )
+  assert.match(html, /href="#workspace"/)
+  assert.match(html, /<header/)
+  assert.match(html, /<main id="workspace"/)
+  assert.match(html, />Sidebar</)
+  assert.equal((html.match(/id="workspace"/g) ?? []).length, 1)
+  assert.match(renderToString(createElement(Toolbar, { label: 'Actions' })), /role="group"/)
+  assert.match(renderToString(createElement(Card, null, 'Card')), /data-variant="outline"/)
+})
+
+test('navigation emits current-page semantics without owning a router', () => {
+  const html = renderToString(
+    createElement(
+      'div',
+      null,
+      createElement(Breadcrumb, {
+        items: [{ label: 'Home', href: '/' }, { label: 'Resources' }],
+      }),
+      createElement(Pagination, { page: 2, pageCount: 5, getPageHref: (page) => `?page=${page}` }),
+    ),
+  )
+  assert.match(html, /aria-label="Breadcrumb"/)
+  assert.match(html, /aria-current="page"/)
+  assert.match(html, /href="\?page=3"/)
+})
+
+test('semantic table and controlled data table render accessible state', () => {
+  const columns = [
+    {
+      id: 'name',
+      label: 'Name',
+      header: 'Name',
+      cell: (row) => row.name,
+      sortable: true,
+      priority: 'primary',
+    },
+    {
+      id: 'status',
+      label: 'Status',
+      header: 'Status',
+      cell: (row) => row.status,
+      priority: 'secondary',
+    },
+  ]
+  const html = renderToString(
+    createElement(DataTable, {
+      caption: 'Deployments',
+      columns,
+      rows: [{ id: 'one', name: 'Production', status: 'Ready' }],
+      getRowId: (row) => row.id,
+      responsiveMode: 'cards',
+      sort: { columnId: 'name', direction: 'ascending' },
+    }),
+  )
+  assert.ok(Table.Root)
+  assert.match(html, /<caption[^>]*>Deployments</)
+  assert.match(html, /aria-sort="ascending"/)
+  assert.match(html, /data-responsive-mode="cards"/)
+  assert.match(html, /cs-data-table-card-label[^>]*>Status</)
+  assert.match(renderToString(createElement(EmptyState, { title: 'No resources' })), /No resources/)
+  const loading = renderToString(
+    createElement(DataTable, {
+      caption: 'Deployments',
+      columns,
+      rows: [],
+      getRowId: (row) => row.id,
+      responsiveMode: 'scroll',
+      loading: true,
+      loadingLabel: 'Loading deployments',
+    }),
+  )
+  assert.match(loading, /aria-labelledby=/)
+  assert.match(loading, />Deployments</)
+  assert.match(loading, /aria-label="Loading deployments"/)
+})
+
+test('floating position flips and clamps to the viewport without DOM globals', () => {
+  const result = computeFloatingPosition(
+    { top: 2, right: 110, bottom: 22, left: 90, width: 20, height: 20 },
+    { width: 80, height: 40 },
+    { width: 140, height: 100 },
+    { placement: 'top', align: 'end', collisionPadding: 8 },
+  )
+  assert.equal(result.placement, 'bottom')
+  assert.ok(result.left >= 8)
+  assert.ok(result.left <= 52)
+  assert.ok(result.top >= 8)
+  const rtl = computeFloatingPosition(
+    { top: 20, right: 50, bottom: 40, left: 20, width: 30, height: 20 },
+    { width: 10, height: 10 },
+    { width: 100, height: 100 },
+    { placement: 'bottom', align: 'start', direction: 'rtl' },
+  )
+  assert.equal(rtl.left, 40)
+})
+
+test('browser compound components expose keyboard-oriented native roles during SSR', () => {
+  const tabs = renderToString(
+    createElement(
+      Tabs.Root,
+      { defaultValue: 'overview' },
+      createElement(
+        Tabs.List,
+        null,
+        createElement(Tabs.Trigger, { value: 'overview' }, 'Overview'),
+        createElement(Tabs.Trigger, { value: 'activity' }, 'Activity'),
+      ),
+      createElement(Tabs.Content, { value: 'overview' }, 'Overview panel'),
+      createElement(Tabs.Content, { value: 'activity' }, 'Activity panel'),
+    ),
+  )
+  assert.match(tabs, /role="tablist"/)
+  assert.match(tabs, /aria-selected="true"/)
+  assert.match(tabs, /role="tabpanel"/)
+  assert.match(
+    renderToString(createElement(Toast.Root, { tone: 'danger', title: 'Failed' })),
+    /role="alert"/,
+  )
+})
+
 test('Core v1 manifest is publishable and keeps planned exports out of the runtime entry', async () => {
   const inventory = JSON.parse(
     await readFile(new URL('../release/component-inventory.v1.json', import.meta.url), 'utf8'),
@@ -38,7 +182,11 @@ test('Core v1 manifest is publishable and keeps planned exports out of the runti
   const root = await import('../dist/index.js')
   const browser = await import('../dist/browser.js')
   for (const component of inventory.components) {
-    if (component.status === 'core' || component.status === 'deprecated') {
+    if (
+      component.status === 'core' ||
+      component.status === 'preview' ||
+      component.status === 'deprecated'
+    ) {
       const entry = component.entrypoint === '.' ? root : browser
       assert.ok(component.export in entry, `missing implemented export: ${component.export}`)
     }

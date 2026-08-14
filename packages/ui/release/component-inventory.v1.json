@@ -224,7 +224,7 @@
       "export": "AppShell",
       "milestone": "M7",
       "entrypoint": ".",
-      "status": "planned",
+      "status": "core",
       "acceptance": ["shell.landmarks", "shell.safe-area"]
     },
     {
@@ -232,7 +232,7 @@
       "export": "PageShell",
       "milestone": "M7",
       "entrypoint": ".",
-      "status": "planned",
+      "status": "core",
       "acceptance": ["shell.reflow"]
     },
     {
@@ -240,7 +240,7 @@
       "export": "Sidebar",
       "milestone": "M7",
       "entrypoint": ".",
-      "status": "planned",
+      "status": "core",
       "acceptance": ["navigation.landmark"]
     },
     {
@@ -248,7 +248,7 @@
       "export": "PageHeader",
       "milestone": "M7",
       "entrypoint": ".",
-      "status": "planned",
+      "status": "core",
       "acceptance": ["shell.heading"]
     },
     {
@@ -256,7 +256,7 @@
       "export": "Toolbar",
       "milestone": "M7",
       "entrypoint": ".",
-      "status": "planned",
+      "status": "core",
       "acceptance": ["toolbar.wrap"]
     },
     {
@@ -264,7 +264,7 @@
       "export": "Card",
       "milestone": "M7",
       "entrypoint": ".",
-      "status": "planned",
+      "status": "core",
       "acceptance": ["surface.ssr"]
     },
     {
@@ -272,7 +272,7 @@
       "export": "Link",
       "milestone": "M7",
       "entrypoint": ".",
-      "status": "planned",
+      "status": "core",
       "acceptance": ["navigation.current"]
     },
     {
@@ -280,7 +280,7 @@
       "export": "Breadcrumb",
       "milestone": "M7",
       "entrypoint": ".",
-      "status": "planned",
+      "status": "core",
       "acceptance": ["navigation.breadcrumb"]
     },
     {
@@ -288,7 +288,7 @@
       "export": "Pagination",
       "milestone": "M7",
       "entrypoint": ".",
-      "status": "planned",
+      "status": "core",
       "acceptance": ["navigation.pagination"]
     },
     {
@@ -296,7 +296,7 @@
       "export": "Tabs",
       "milestone": "M7",
       "entrypoint": "./browser",
-      "status": "planned",
+      "status": "preview",
       "acceptance": ["tabs.keyboard"]
     },
     {
@@ -304,7 +304,7 @@
       "export": "Menu",
       "milestone": "M7",
       "entrypoint": "./browser",
-      "status": "planned",
+      "status": "preview",
       "acceptance": ["menu.keyboard"]
     },
     {
@@ -312,7 +312,7 @@
       "export": "Drawer",
       "milestone": "M7",
       "entrypoint": "./browser",
-      "status": "planned",
+      "status": "preview",
       "acceptance": ["drawer.focus"]
     },
     {
@@ -320,7 +320,7 @@
       "export": "Popover",
       "milestone": "M7",
       "entrypoint": "./browser",
-      "status": "planned",
+      "status": "preview",
       "acceptance": ["popover.dismiss"]
     },
     {
@@ -328,7 +328,7 @@
       "export": "Tooltip",
       "milestone": "M7",
       "entrypoint": "./browser",
-      "status": "planned",
+      "status": "preview",
       "acceptance": ["tooltip.keyboard"]
     },
     {
@@ -336,7 +336,7 @@
       "export": "Toast",
       "milestone": "M7",
       "entrypoint": "./browser",
-      "status": "planned",
+      "status": "preview",
       "acceptance": ["toast.announcement"]
     },
     {
@@ -344,7 +344,7 @@
       "export": "Status",
       "milestone": "M7",
       "entrypoint": ".",
-      "status": "planned",
+      "status": "core",
       "acceptance": ["feedback.status"]
     },
     {
@@ -352,7 +352,7 @@
       "export": "Skeleton",
       "milestone": "M7",
       "entrypoint": ".",
-      "status": "planned",
+      "status": "core",
       "acceptance": ["feedback.loading"]
     },
     {
@@ -360,7 +360,7 @@
       "export": "EmptyState",
       "milestone": "M7",
       "entrypoint": ".",
-      "status": "planned",
+      "status": "core",
       "acceptance": ["state.empty"]
     },
     {
@@ -368,7 +368,7 @@
       "export": "ErrorState",
       "milestone": "M7",
       "entrypoint": ".",
-      "status": "planned",
+      "status": "core",
       "acceptance": ["state.error"]
     },
     {
@@ -376,7 +376,7 @@
       "export": "Table",
       "milestone": "M7",
       "entrypoint": ".",
-      "status": "planned",
+      "status": "core",
       "acceptance": ["table.semantic", "table.overflow"]
     },
     {
@@ -384,7 +384,7 @@
       "export": "DataTable",
       "milestone": "M7",
       "entrypoint": ".",
-      "status": "planned",
+      "status": "core",
       "acceptance": ["data-table.states", "data-table.adaptive"]
     },
 
@@ -519,7 +519,13 @@
         "card",
         "status",
         "progress",
-        "data-table"
+        "data-table",
+        "tabs",
+        "menu",
+        "drawer",
+        "popover",
+        "tooltip",
+        "toast"
       ],
       "states": ["loading", "ready", "empty", "error"],
       "automatic": ["dashboard.chromium", "dashboard.axe"],

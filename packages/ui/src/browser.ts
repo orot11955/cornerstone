@@ -40,3 +40,22 @@ export { Portal } from './portal.js'
 export type { PortalProps } from './portal.js'
 export { Dialog } from './dialog.js'
 export type { DialogContentProps, DialogRootProps } from './dialog.js'
+export { Drawer, Menu, Popover, Tabs, Toast, Tooltip, computeFloatingPosition } from './overlay.js'
+export type {
+  DrawerContentProps,
+  FloatingAlign,
+  FloatingContentOptions,
+  FloatingPlacement,
+  FloatingPosition,
+  FloatingPositionOptions,
+  FloatingRect,
+  FloatingViewport,
+  MenuContentProps,
+  MenuRootProps,
+  PopoverContentProps,
+  PopoverRootProps,
+  TabsRootProps,
+  TooltipContentProps,
+  ToastRootProps,
+  TooltipRootProps,
+} from './overlay.js'
