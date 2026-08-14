@@ -55,9 +55,6 @@ export type {
   BadgeProps,
   BoxProps,
   ButtonProps,
-  ComponentRadius,
-  ComponentSize,
-  ComponentTone,
   ContainerProps,
   DialogSurfaceProps,
   FormFieldControlProps,
@@ -78,6 +75,17 @@ export type {
   TextareaProps,
   TextProps,
 } from './components.js'
+export type {
+  Align,
+  ComponentRadius,
+  ComponentSize,
+  ComponentTone,
+  ComponentVariant,
+  ControllableStateProps,
+  Justify,
+  OpenStateProps,
+  Orientation,
+} from './options.js'
 export {
   breakpoints,
   containerBreakpoints,

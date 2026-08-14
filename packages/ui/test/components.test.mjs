@@ -31,6 +31,27 @@ test('root entry renders on the server without browser globals', () => {
   assert.match(html, />Save</)
 })
 
+test('Core v1 manifest is publishable and keeps planned exports out of the runtime entry', async () => {
+  const inventory = JSON.parse(
+    await readFile(new URL('../release/component-inventory.v1.json', import.meta.url), 'utf8'),
+  )
+  const root = await import('../dist/index.js')
+  const browser = await import('../dist/browser.js')
+  for (const component of inventory.components) {
+    if (component.status === 'core' || component.status === 'deprecated') {
+      const entry = component.entrypoint === '.' ? root : browser
+      assert.ok(component.export in entry, `missing implemented export: ${component.export}`)
+    }
+    if (component.status === 'planned') {
+      const entry = component.entrypoint === '.' ? root : browser
+      assert.ok(
+        !(component.export in entry),
+        `planned export must not ship early: ${component.export}`,
+      )
+    }
+  }
+})
+
 test('FormField connects label, description and error semantics', () => {
   const html = renderToString(
     createElement(

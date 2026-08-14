@@ -9,7 +9,8 @@
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
     "typecheck": "tsc -p tsconfig.build.json --noEmit",
-    "test:component": "pnpm build && node --test test/*.test.mjs"
+    "test:component": "pnpm inventory:check && pnpm build && node --test test/*.test.mjs",
+    "inventory:check": "node scripts/validate-inventory.mjs"
   },
   "exports": {
     ".": {
@@ -20,10 +21,12 @@
       "types": "./dist/browser.d.ts",
       "import": "./dist/browser.js"
     },
-    "./styles.css": "./styles.css"
+    "./styles.css": "./styles.css",
+    "./manifest/core-v1.json": "./release/component-inventory.v1.json"
   },
   "files": [
     "dist",
+    "release",
     "styles.css",
     "NOTICE"
   ],

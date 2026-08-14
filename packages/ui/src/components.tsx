@@ -18,10 +18,15 @@ import {
   type ContainerResponsive,
   type Responsive,
 } from './responsive.js'
+import type {
+  Align,
+  ComponentRadius,
+  ComponentSize,
+  ComponentTone,
+  ComponentVariant,
+  Justify,
+} from './options.js'
 
-export type ComponentSize = 'xs' | 'sm' | 'md' | 'lg' | 'xl'
-export type ComponentTone = 'neutral' | 'brand' | 'success' | 'warning' | 'danger' | 'info'
-export type ComponentRadius = 'none' | 'sm' | 'md' | 'lg' | 'full'
 export type Space = '0' | '1' | '2' | '3' | '4' | '5' | '6' | '8' | '10' | '12'
 
 function classes(...values: (string | undefined | false)[]): string {
@@ -78,8 +83,8 @@ export function Container({
 export interface StackProps extends HTMLAttributes<HTMLDivElement> {
   readonly gap?: Responsive<Space>
   readonly direction?: Responsive<'vertical' | 'horizontal'>
-  readonly align?: Responsive<'stretch' | 'start' | 'center' | 'end'>
-  readonly justify?: Responsive<'start' | 'center' | 'end' | 'between'>
+  readonly align?: Responsive<Exclude<Align, 'baseline'>>
+  readonly justify?: Responsive<Exclude<Justify, 'around'>>
 }
 
 export function Stack({
@@ -109,8 +114,8 @@ export function Stack({
 
 export interface InlineProps extends HTMLAttributes<HTMLDivElement> {
   readonly gap?: Responsive<Space>
-  readonly align?: 'start' | 'center' | 'end' | 'baseline' | 'stretch'
-  readonly justify?: 'start' | 'center' | 'end' | 'between'
+  readonly align?: Align
+  readonly justify?: Exclude<Justify, 'around'>
   readonly wrap?: boolean
 }
 
@@ -230,7 +235,8 @@ export function Heading({ as = 'h2', size = 'lg', className, ...props }: Heading
 }
 
 export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
-  readonly variant?: 'solid' | 'outline' | 'ghost' | 'soft' | 'link'
+  /** `link` is a compatibility alias. Prefer `plain` for unboxed actions. */
+  readonly variant?: ComponentVariant | 'link'
   readonly tone?: ComponentTone
   readonly size?: ComponentSize
   readonly radius?: ComponentRadius
