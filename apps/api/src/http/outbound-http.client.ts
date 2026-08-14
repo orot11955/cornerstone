@@ -104,12 +104,19 @@ export class OutboundHttpClient {
     }
 
     if (response.status >= 300 && response.status < 400) {
+      await cancelBody(response);
       this.recordFailure();
       throw new OutboundRequestError('REDIRECT_REJECTED');
     }
     let body: Uint8Array;
     try {
-      body = await readBoundedBody(response, this.maxResponseBytes);
+      body = await readBoundedBody(
+        response,
+        this.maxResponseBytes,
+        signal,
+        timeoutSignal,
+        init.signal,
+      );
     } catch (error) {
       this.recordFailure();
       throw error;
@@ -179,7 +186,7 @@ function resolvePath(baseUrl: URL, path: string): URL {
   for (const segment of path.split('/')) {
     let decoded: string;
     try {
-      decoded = decodeURIComponent(segment);
+      decoded = decodeRecursively(segment);
     } catch {
       throw new OutboundRequestError('INVALID_PATH');
     }
@@ -205,9 +212,13 @@ function resolvePath(baseUrl: URL, path: string): URL {
 async function readBoundedBody(
   response: Response,
   limit: number,
+  signal: AbortSignal,
+  timeoutSignal: AbortSignal,
+  callerSignal: AbortSignal | undefined,
 ): Promise<Uint8Array> {
   const contentLength = Number(response.headers.get('content-length') ?? 0);
   if (Number.isFinite(contentLength) && contentLength > limit) {
+    await cancelBody(response);
     throw new OutboundRequestError('RESPONSE_TOO_LARGE');
   }
   if (!response.body) return new Uint8Array();
@@ -228,6 +239,17 @@ async function readBoundedBody(
       }
       chunks.push(value);
     }
+  } catch (error) {
+    if (signal.aborted) {
+      throw new OutboundRequestError(
+        callerSignal?.aborted
+          ? 'CANCELLED'
+          : timeoutSignal.aborted
+            ? 'TIMEOUT'
+            : 'CANCELLED',
+      );
+    }
+    throw error;
   } finally {
     reader.releaseLock();
   }
@@ -238,6 +260,25 @@ async function readBoundedBody(
     offset += chunk.byteLength;
   }
   return body;
+}
+
+function decodeRecursively(segment: string): string {
+  let decoded = segment;
+  for (let attempt = 0; attempt < 4; attempt += 1) {
+    const next = decodeURIComponent(decoded);
+    if (next === decoded) return next;
+    decoded = next;
+  }
+  if (decoded.includes('%')) throw new Error('Nested encoding');
+  return decoded;
+}
+
+async function cancelBody(response: Response): Promise<void> {
+  try {
+    await response.body?.cancel();
+  } catch {
+    // Cancellation only releases the response stream; the request error remains authoritative.
+  }
 }
 
 function boundedInteger(

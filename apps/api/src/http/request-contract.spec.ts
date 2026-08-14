@@ -58,12 +58,58 @@ describe('OutboundHttpClient', () => {
       'https://evil.example',
       '../admin',
       '%2e%2e/admin',
+      '%252e%252e/admin',
+      '%252fadmin',
+      '%255cadmin',
       '/absolute',
     ]) {
       await expect(client.request(path)).rejects.toMatchObject({
         code: 'INVALID_PATH',
       });
     }
+  });
+
+  it('cancels redirect and declared oversized response streams', async () => {
+    let redirectCancelled = false;
+    const redirect = new OutboundHttpClient({
+      baseUrl: 'https://provider.example',
+      fetch: () =>
+        Promise.resolve(
+          new Response(
+            new ReadableStream({
+              cancel: () => {
+                redirectCancelled = true;
+              },
+            }),
+            { status: 302 },
+          ),
+        ),
+    });
+    await expect(redirect.request('resource')).rejects.toMatchObject({
+      code: 'REDIRECT_REJECTED',
+    });
+    expect(redirectCancelled).toBe(true);
+
+    let oversizedCancelled = false;
+    const oversized = new OutboundHttpClient({
+      baseUrl: 'https://provider.example',
+      maxResponseBytes: 4,
+      fetch: () =>
+        Promise.resolve(
+          new Response(
+            new ReadableStream({
+              cancel: () => {
+                oversizedCancelled = true;
+              },
+            }),
+            { headers: { 'content-length': '5' } },
+          ),
+        ),
+    });
+    await expect(oversized.request('resource')).rejects.toMatchObject({
+      code: 'RESPONSE_TOO_LARGE',
+    });
+    expect(oversizedCancelled).toBe(true);
   });
 
   it('limits declared and streamed response bodies', async () => {
@@ -148,6 +194,44 @@ describe('OutboundHttpClient', () => {
     });
     const pending = client.request('slow', { signal: controller.signal });
     controller.abort();
+    await expect(pending).rejects.toMatchObject({ code: 'CANCELLED' });
+  });
+
+  it('normalizes timeout and cancellation while reading a response body', async () => {
+    const bodyThatAbortsWith =
+      (code: 'TIMEOUT' | 'CANCELLED') =>
+      (
+        _input: Parameters<typeof globalThis.fetch>[0],
+        init?: Parameters<typeof globalThis.fetch>[1],
+      ): Promise<Response> =>
+        Promise.resolve(
+          new Response(
+            new ReadableStream({
+              start(controller) {
+                init?.signal?.addEventListener('abort', () =>
+                  controller.error(new Error(code)),
+                );
+              },
+            }),
+          ),
+        );
+
+    const timeout = new OutboundHttpClient({
+      baseUrl: 'https://provider.example',
+      timeoutMs: 1,
+      fetch: bodyThatAbortsWith('TIMEOUT'),
+    });
+    await expect(timeout.request('resource')).rejects.toMatchObject({
+      code: 'TIMEOUT',
+    });
+
+    const abort = new AbortController();
+    const cancelled = new OutboundHttpClient({
+      baseUrl: 'https://provider.example',
+      fetch: bodyThatAbortsWith('CANCELLED'),
+    });
+    const pending = cancelled.request('resource', { signal: abort.signal });
+    abort.abort();
     await expect(pending).rejects.toMatchObject({ code: 'CANCELLED' });
   });
 });
