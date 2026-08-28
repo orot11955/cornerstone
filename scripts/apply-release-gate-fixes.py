@@ -1,0 +1,175 @@
+from pathlib import Path
+import json
+
+
+def replace_once(path: str, old: str, new: str) -> None:
+    file = Path(path)
+    source = file.read_text()
+    if old not in source:
+        raise SystemExit(f"expected source was not found in {path}: {old[:120]!r}")
+    file.write_text(source.replace(old, new, 1))
+
+
+def replace_all(path: str, old: str, new: str, minimum: int = 1) -> None:
+    file = Path(path)
+    source = file.read_text()
+    count = source.count(old)
+    if count < minimum:
+        raise SystemExit(
+            f"expected at least {minimum} replacements in {path}, found {count}: {old!r}"
+        )
+    file.write_text(source.replace(old, new))
+
+
+api_package = Path("apps/api/package.json")
+api_manifest = json.loads(api_package.read_text())
+api_manifest["scripts"]["benchmark:password"] = (
+    "pnpm --filter api... build && node ./scripts/password-benchmark.mjs"
+)
+api_manifest["scripts"]["benchmark:password:fast"] = (
+    "pnpm --filter api... build && node ./scripts/password-benchmark.mjs "
+    "--mode fast --warmup 0 --samples 1"
+)
+api_package.write_text(json.dumps(api_manifest, indent=2) + "\n")
+
+replace_once(
+    "apps/api/src/auth/password-benchmark.spec.ts",
+    "beforeAll(async () => {\n  await execFileAsync('pnpm', ['build'], {\n    cwd: path.resolve(path.dirname(script.pathname), '..'),\n  });\n});",
+    "beforeAll(async () => {\n  await execFileAsync('pnpm', ['build'], {\n    cwd: path.resolve(path.dirname(script.pathname), '..'),\n  });\n}, 30_000);",
+)
+
+replace_once(
+    "apps/api/src/health/graceful-shutdown.coordinator.spec.ts",
+    "for (let attempt = 0; attempt < 100; attempt += 1) {",
+    "for (let attempt = 0; attempt < 1_000; attempt += 1) {",
+)
+
+replace_once(
+    "scripts/test-scope.mjs",
+    "import { readFileSync, readdirSync } from 'node:fs'",
+    "import { existsSync, readFileSync, readdirSync } from 'node:fs'",
+)
+replace_once(
+    "scripts/test-scope.mjs",
+    "const manifests = ['apps', 'examples', 'packages'].flatMap((directory) =>\n  readdirSync(join(root, directory), { withFileTypes: true })",
+    "const manifests = ['apps', 'examples', 'packages']\n  .filter((directory) => existsSync(join(root, directory)))\n  .flatMap((directory) =>\n    readdirSync(join(root, directory), { withFileTypes: true })",
+)
+replace_once(
+    "scripts/test-scope.mjs",
+    "    }),\n)",
+    "      }),\n  )",
+)
+
+replace_once(
+    "packages/create-cornerstone/src/composition/composer.ts",
+    "  const lines = source.split('\\n')\n  const start = lines.findIndex((line) => line === '  examples/reference-app:')",
+    "  const lines = source.split(/\\r?\\n/)\n  const start = lines.findIndex((line) => line === '  examples/reference-app:')",
+)
+
+update_engine = "packages/create-cornerstone/src/mutation/update-engine.ts"
+replace_once(
+    update_engine,
+    "import { basename, dirname, join, relative, resolve, sep } from 'node:path'",
+    "import { basename, dirname, isAbsolute, join, relative, resolve, sep } from 'node:path'",
+)
+replace_once(
+    update_engine,
+    "throw new Error('Update operation lock owner metadata changed; lock was preserved')",
+    "throw new Error(\n      'Update operation lock ownership changed because owner metadata differs; lock was preserved',\n    )",
+)
+replace_once(
+    update_engine,
+    "  const output = resolve(target, path)\n  if (\n    !output.startsWith(`${target}${sep}`) ||\n    relative(target, output).split(sep).join('/') !== path\n  ) {\n    throw new Error(`Update path escapes target: ${path}`)\n  }\n  return output",
+    "  const root = resolve(target)\n  const output = resolve(root, path)\n  const relativePath = relative(root, output)\n  if (\n    isAbsolute(relativePath) ||\n    relativePath === '..' ||\n    relativePath.startsWith(`..${sep}`) ||\n    relativePath.split(sep).join('/') !== path\n  ) {\n    throw new Error(`Update path escapes target: ${path}`)\n  }\n  return output",
+)
+
+generator = "packages/create-cornerstone/src/generator.ts"
+replace_once(
+    generator,
+    "import { basename, dirname, join, relative, resolve, sep } from 'node:path'",
+    "import { basename, dirname, isAbsolute, join, relative, resolve, sep } from 'node:path'",
+)
+replace_once(generator, "mode: info.mode & 0o777,", "mode: portableFileMode(info.mode),")
+replace_all(
+    generator,
+    "(info.mode & 0o777) !== output.mode",
+    "!fileModeMatches(info.mode, output.mode)",
+    minimum=5,
+)
+replace_once(
+    generator,
+    "(info.mode & 0o777) !== source.mode",
+    "!fileModeMatches(info.mode, source.mode)",
+)
+replace_once(
+    generator,
+    "(info.mode & 0o777) !== locked.mode",
+    "!fileModeMatches(info.mode, locked.mode)",
+)
+replace_once(
+    generator,
+    "function safeTargetPath(target: string, path: string): string {\n  const output = resolve(target, path)\n  const normalizedRelative = relative(target, output).split(sep).join('/')\n  if (!output.startsWith(`${target}${sep}`) || normalizedRelative !== path) {\n    throw new Error(`Output path escapes target: ${path}`)\n  }\n  return output\n}",
+    "function portableFileMode(mode: number): number {\n  return process.platform === 'win32' ? generatedFileMode : mode & 0o777\n}\n\nfunction fileModeMatches(mode: number, expected: number): boolean {\n  return process.platform === 'win32' || (mode & 0o777) === expected\n}\n\nfunction safeTargetPath(target: string, path: string): string {\n  const root = resolve(target)\n  const output = resolve(root, path)\n  const relativePath = relative(root, output)\n  const normalizedRelative = relativePath.split(sep).join('/')\n  if (\n    isAbsolute(relativePath) ||\n    relativePath === '..' ||\n    relativePath.startsWith(`..${sep}`) ||\n    normalizedRelative !== path\n  ) {\n    throw new Error(`Output path escapes target: ${path}`)\n  }\n  return output\n}",
+)
+
+Path(".github/workflows/mirror-to-gitea.yml").write_text(
+    """name: Mirror to Gitea
+
+on:
+  push:
+    branches:
+      - main
+      - develop
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: gitea-mirror-${{ github.ref_name }}
+  cancel-in-progress: false
+
+jobs:
+  mirror:
+    name: Push ${{ github.ref_name }} to Gitea
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout full history
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Check mirror configuration
+        id: mirror-config
+        env:
+          GITEA_MIRROR_TOKEN: ${{ secrets.GITEA_MIRROR_TOKEN }}
+        run: |
+          if [[ -z "$GITEA_MIRROR_TOKEN" ]]; then
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+            echo "::notice title=Gitea mirror skipped::GITEA_MIRROR_TOKEN is not configured"
+            exit 0
+          fi
+          echo "enabled=true" >> "$GITHUB_OUTPUT"
+
+      - name: Push exact branch to Gitea
+        if: steps.mirror-config.outputs.enabled == 'true'
+        env:
+          GITEA_MIRROR_TOKEN: ${{ secrets.GITEA_MIRROR_TOKEN }}
+          GITEA_URL: https://git.2juho.com/orot/cornerstone.git
+          GITHUB_REF_NAME: ${{ github.ref_name }}
+        run: |
+          set -Eeuo pipefail
+          case "$GITHUB_REF_NAME" in
+            main|develop) ;;
+            *) echo "unexpected branch: $GITHUB_REF_NAME" >&2; exit 1 ;;
+          esac
+          git -c credential.helper='!f() { printf "username=orot\\npassword=%s\\n" "$GITEA_MIRROR_TOKEN"; }; f' \\
+            -c core.askPass= \\
+            push "$GITEA_URL" \\
+            "refs/heads/$GITHUB_REF_NAME:refs/heads/$GITHUB_REF_NAME"
+"""
+)
+
+Path(__file__).unlink()
