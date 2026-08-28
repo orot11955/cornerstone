@@ -1,0 +1,86 @@
+name: Apply PR merge fixes
+
+on:
+  push:
+    branches:
+      - fix/standard-release-gates
+
+permissions:
+  contents: write
+
+concurrency:
+  group: apply-pr-merge-fixes
+  cancel-in-progress: false
+
+jobs:
+  apply:
+    name: Apply and verify source fixes
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout working branch
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 0
+          ref: ${{ github.ref_name }}
+
+      - name: Check pending patch
+        id: patch
+        run: |
+          if [[ -f scripts/apply-pr-merge-fixes.py ]]; then
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Setup pnpm
+        if: steps.patch.outputs.enabled == 'true'
+        uses: pnpm/action-setup@008330803749db0355799c700092d9a85fd074e9 # v6.0.9
+        with:
+          version: 11.20.0
+          run_install: false
+
+      - name: Setup Node
+        if: steps.patch.outputs.enabled == 'true'
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
+        with:
+          node-version: 24.18.0
+          package-manager-cache: false
+
+      - name: Apply source patch
+        if: steps.patch.outputs.enabled == 'true'
+        run: python3 scripts/apply-pr-merge-fixes.py
+
+      - name: Install dependencies
+        if: steps.patch.outputs.enabled == 'true'
+        run: pnpm install --frozen-lockfile
+
+      - name: Format changed sources
+        if: steps.patch.outputs.enabled == 'true'
+        run: |
+          pnpm exec prettier --write \
+            apps/web/package.json \
+            templates/canonical/standard.json \
+            packages/create-cornerstone/src/mutation/update-engine.ts \
+            packages/create-cornerstone/src/mutation/generator-engine.ts \
+            packages/create-cornerstone/test/schema.test.mjs
+
+      - name: Verify source patch
+        if: steps.patch.outputs.enabled == 'true'
+        run: |
+          pnpm format:check
+          pnpm typecheck
+          pnpm --filter create-cornerstone test:unit
+
+      - name: Commit verified source patch
+        if: steps.patch.outputs.enabled == 'true'
+        env:
+          TARGET_BRANCH: ${{ github.ref_name }}
+        run: |
+          set -Eeuo pipefail
+          git diff --check
+          git config user.name "orot"
+          git config user.email "orot1195@gmail.com"
+          git add -A
+          git commit -m "fix: cross-platform release gate 보완"
+          git push origin "HEAD:refs/heads/$TARGET_BRANCH"
