@@ -13,8 +13,8 @@
     "lint": "eslint",
     "typecheck": "tsc --noEmit",
     "test:unit": "node --test test/*.test.mjs",
-    "test:e2e": "playwright test",
-    "test:e2e:auth": "playwright test --config playwright.auth.config.ts",
+    "test:e2e": "pnpm --filter \"web^...\" build && playwright test",
+    "test:e2e:auth": "pnpm --filter \"web^...\" build && playwright test --config playwright.auth.config.ts",
     "budget:check": "node ../../scripts/check-web-budget.mjs"
   },
   "dependencies": {
