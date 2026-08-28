@@ -93,6 +93,7 @@ try {
   runGenerated(['exec', 'node', 'scripts/test-scope.mjs', 'test:integration', '--run'], {
     bootstrap: true,
   })
+  runGenerated(['--filter', 'web', 'exec', 'playwright', 'install', '--with-deps', 'chromium'])
   runGenerated(['exec', 'node', 'scripts/test-scope.mjs', 'test:e2e', '--run'], {
     database: true,
   })

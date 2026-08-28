@@ -24,6 +24,7 @@ import {
   assertProjectBoundary,
   assertSafeAncestors,
   ensureBackupParents,
+  fileModeMatches,
   generatedFileMode,
   hasExactKeys,
   lockRelativePath,
@@ -536,7 +537,7 @@ async function matchesFile(path: string, checksum: string, mode: number): Promis
   return (
     info.isFile() &&
     !info.isSymbolicLink() &&
-    (info.mode & 0o777) === mode &&
+    fileModeMatches(info.mode, mode) &&
     sha256(await readGeneratedFile(path, path)) === checksum
   )
 }

@@ -97,6 +97,7 @@ import {
 import { createHash } from 'node:crypto'
 
 const digest = `sha256:${'a'.repeat(64)}`
+const pnpmExecutable = process.platform === 'win32' ? 'pnpm.cmd' : 'pnpm'
 
 function stable(value) {
   if (Array.isArray(value)) return value.map(stable)
@@ -940,10 +941,13 @@ test('creates the exact standard preview deterministically with real v2 ownershi
   assert.equal(generatedWebPackage.scripts.build, 'next build --webpack')
   assert.equal(generatedWebPackage.scripts.typecheck, 'tsc --noEmit')
   assert.equal(generatedWebPackage.scripts['test:unit'], 'node --test test/*.test.mjs')
-  assert.equal(generatedWebPackage.scripts['test:e2e'], 'playwright test')
+  assert.equal(
+    generatedWebPackage.scripts['test:e2e'],
+    'pnpm --filter \"web^...\" build && playwright test',
+  )
   assert.equal(
     generatedWebPackage.scripts['test:e2e:auth'],
-    'playwright test --config playwright.auth.config.ts',
+    'pnpm --filter \"web^...\" build && playwright test --config playwright.auth.config.ts',
   )
   const generatedCi = await readFile(join(first, '.github/workflows/ci.yml'), 'utf8')
   assert.doesNotMatch(generatedCi, /generator-portability(?:-compare)?/)
@@ -957,7 +961,7 @@ test('creates the exact standard preview deterministically with real v2 ownershi
   }
 
   const prettierCheck = spawnSync(
-    'pnpm',
+    pnpmExecutable,
     [
       'exec',
       'prettier',
@@ -1058,6 +1062,7 @@ test('rejects a modified exact v2 Nest predecessor before adoption writes', asyn
 })
 
 test('rejects chmod drift in an exact v2 predecessor before v3 adoption', async () => {
+  if (process.platform === 'win32') return
   const fixture = await mkdtemp(join(tmpdir(), 'cornerstone-v3-mode-predecessor-test-'))
   const target = join(fixture, 'project')
   const lockPath = join(target, '.cornerstone/manifest.lock.json')
@@ -1167,14 +1172,16 @@ test('standard verification rejects generator-owned content and mode drift', asy
   await writeFile(join(target, 'package.json'), '{}\n')
   await assert.rejects(verifyProject(target), /output drift.*package\.json/i)
 
-  const modeTarget = join(fixture, 'mode-project')
-  await createProjectFromManifest(modeTarget, {
-    schemaVersion: 1,
-    name: 'mode-app',
-    profile: 'standard',
-  })
-  await chmod(join(modeTarget, 'README.md'), 0o600)
-  await assert.rejects(verifyProject(modeTarget), /mode drift.*README\.md/i)
+  if (process.platform !== 'win32') {
+    const modeTarget = join(fixture, 'mode-project')
+    await createProjectFromManifest(modeTarget, {
+      schemaVersion: 1,
+      name: 'mode-app',
+      profile: 'standard',
+    })
+    await chmod(join(modeTarget, 'README.md'), 0o600)
+    await assert.rejects(verifyProject(modeTarget), /mode drift.*README\.md/i)
+  }
 })
 
 test('verifies immutable Standard v2 snapshots and rejects predecessor mode drift', async () => {
@@ -1182,8 +1189,10 @@ test('verifies immutable Standard v2 snapshots and rejects predecessor mode drif
   const target = join(fixture, 'project')
   const lock = await makePredecessorStandard(target, 'legacy-app', '0.2.1')
   assert.equal((await verifyProject(target)).integrity, lock.integrity)
-  await chmod(join(target, 'README.md'), 0o600)
-  await assert.rejects(verifyProject(target), /generator-owned output drift.*README\.md/i)
+  if (process.platform !== 'win32') {
+    await chmod(join(target, 'README.md'), 0o600)
+    await assert.rejects(verifyProject(target), /generator-owned output drift.*README\.md/i)
+  }
 })
 
 test('rejects malformed immutable predecessor adoption source contracts', () => {
@@ -2409,6 +2418,7 @@ test('preserves a replaced operation lock instead of deleting another owner lock
 })
 
 test('rejects chmod-only drift during rollback instead of overwriting it', async () => {
+  if (process.platform === 'win32') return
   const fixture = await mkdtemp(join(tmpdir(), 'cornerstone-update-mode-drift-test-'))
   const target = join(fixture, 'project')
   await makePredecessorStandard(target)

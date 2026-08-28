@@ -10,7 +10,7 @@ import {
   rm,
   writeFile,
 } from 'node:fs/promises'
-import { basename, dirname, join, relative, resolve, sep } from 'node:path'
+import { basename, dirname, isAbsolute, join, relative, resolve, sep } from 'node:path'
 import { parseDocument } from 'yaml'
 import { formatJsonDocument } from '../composition/composer.js'
 import {
@@ -40,6 +40,15 @@ export const lockRelativePath = '.cornerstone/manifest.lock.json'
 export const maximumMetadataBytes = 1024 * 1024
 const maximumGeneratedFileBytes = 16 * 1024 * 1024
 export const generatedFileMode = 0o644
+
+export function fileModeMatches(mode: number, expected: number): boolean {
+  return process.platform === 'win32' || (mode & 0o777) === expected
+}
+
+function portableGeneratedFileMode(mode: number): number {
+  return process.platform === 'win32' ? generatedFileMode : mode & 0o777
+}
+
 const updateLockRelativePath = '.cornerstone/update.lock'
 const exactStandardCapabilities = ['api', 'auth', 'database', 'ui', 'web'] as const
 const legacyGeneratorOwnedPaths = [
@@ -187,17 +196,19 @@ async function assertOwnedUpdateLock(
   if (
     !ownerInfo.isFile() ||
     ownerInfo.isSymbolicLink() ||
-    (ownerInfo.mode & 0o777) !== 0o600 ||
+    !fileModeMatches(ownerInfo.mode, 0o600) ||
     sha256(await readBoundedFile(ownerPath, 'Update lock owner metadata')) !== ownerChecksum
   ) {
-    throw new Error('Update operation lock owner metadata changed; lock was preserved')
+    throw new Error(
+      'Update operation lock ownership changed because owner metadata differs; lock was preserved',
+    )
   }
 }
 
 async function prepareUpdate(target: string): Promise<PreparedUpdate> {
   await assertSafeRegularFile(target, lockRelativePath)
   const projectLockInfo = await lstat(safeTargetPath(target, lockRelativePath))
-  if ((projectLockInfo.mode & 0o777) !== generatedFileMode) {
+  if (!fileModeMatches(projectLockInfo.mode, generatedFileMode)) {
     throw new Error('Generator-owned lock manifest mode was modified')
   }
   const lockBytes = await readBoundedFile(
@@ -289,7 +300,7 @@ async function prepareUpdate(target: string): Promise<PreparedUpdate> {
     path: lockRelativePath,
     owner: 'manifest-lock',
     beforeChecksum: sha256(lockBytes),
-    beforeMode: projectLockInfo.mode & 0o777,
+    beforeMode: portableGeneratedFileMode(projectLockInfo.mode),
     afterChecksum: sha256(desiredLockBytes),
     mode: generatedFileMode,
     diff: null,
@@ -451,7 +462,7 @@ async function assertChangeState(target: string, change: UpdateChange): Promise<
     info.isSymbolicLink() ||
     sha256(await readGeneratedFile(path, `Update source ${change.path}`)) !==
       change.beforeChecksum ||
-    (info.mode & 0o777) !== change.beforeMode
+    !fileModeMatches(info.mode, change.beforeMode)
   ) {
     throw new Error(`Update source changed after planning: ${change.path}`)
   }
@@ -647,7 +658,7 @@ async function rollbackJournal(target: string, journal: UpdateJournal): Promise<
       info.isSymbolicLink() ||
       sha256(await readGeneratedFile(backup, `Update backup ${entry.path}`)) !==
         entry.beforeChecksum ||
-      (info.mode & 0o777) !== entry.beforeMode
+      !fileModeMatches(info.mode, entry.beforeMode)
     ) {
       throw new Error(`Update recovery backup is invalid: ${entry.path}`)
     }
@@ -656,7 +667,7 @@ async function rollbackJournal(target: string, journal: UpdateJournal): Promise<
     const currentInfo = await lstat(current)
     const currentState = {
       checksum: sha256(await readGeneratedFile(current, `Update current output ${entry.path}`)),
-      mode: currentInfo.mode & 0o777,
+      mode: portableGeneratedFileMode(currentInfo.mode),
     }
     if (
       !currentInfo.isFile() ||
@@ -1025,7 +1036,7 @@ export async function assertExpectedFileState(
   }
   const actual = {
     checksum: sha256(await readGeneratedFile(path, `Generated update file ${label}`)),
-    mode: info.mode & 0o777,
+    mode: portableGeneratedFileMode(info.mode),
   }
   if (!matchesExpectedState(actual, expectedStates)) {
     throw new Error(`Update replacement precondition changed: ${label}`)
@@ -1036,7 +1047,10 @@ function matchesExpectedState(
   actual: ExpectedFileState,
   expected: readonly ExpectedFileState[],
 ): boolean {
-  return expected.some(({ checksum, mode }) => actual.checksum === checksum && actual.mode === mode)
+  return expected.some(
+    ({ checksum, mode }) =>
+      actual.checksum === checksum && (process.platform === 'win32' || actual.mode === mode),
+  )
 }
 
 async function assertLockedOutputs(target: string, lock: ProjectLockV2Data): Promise<void> {
@@ -1049,7 +1063,7 @@ async function assertLockedOutputs(target: string, lock: ProjectLockV2Data): Pro
       info.isSymbolicLink() ||
       sha256(await readGeneratedFile(path, `Generator-owned output ${output.path}`)) !==
         output.checksum ||
-      (info.mode & 0o777) !== output.mode
+      !fileModeMatches(info.mode, output.mode)
     ) {
       throw new Error(`Generator-owned shared file was modified: ${output.path}`)
     }
@@ -1255,10 +1269,14 @@ export function safeTargetPath(target: string, path: string): string {
   ) {
     throw new Error(`Unsafe update path: ${path}`)
   }
-  const output = resolve(target, path)
+  const root = resolve(target)
+  const output = resolve(root, path)
+  const relativePath = relative(root, output)
   if (
-    !output.startsWith(`${target}${sep}`) ||
-    relative(target, output).split(sep).join('/') !== path
+    isAbsolute(relativePath) ||
+    relativePath === '..' ||
+    relativePath.startsWith(`..${sep}`) ||
+    relativePath.split(sep).join('/') !== path
   ) {
     throw new Error(`Update path escapes target: ${path}`)
   }

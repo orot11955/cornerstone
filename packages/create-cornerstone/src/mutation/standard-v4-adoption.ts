@@ -22,6 +22,7 @@ import {
 } from './generator-engine.js'
 import {
   assertProjectBoundary,
+  fileModeMatches,
   generatedFileMode,
   lockRelativePath,
   maximumMetadataBytes,
@@ -115,7 +116,7 @@ async function prepareAdoption(
     if (
       !info.isFile() ||
       info.isSymbolicLink() ||
-      (info.mode & 0o777) !== source.mode ||
+      !fileModeMatches(info.mode, source.mode) ||
       sha256(await readBoundedFile(path, `Standard 0.3.0 adoption source ${source.path}`)) !==
         source.checksum ||
       sha256(await readStandardV3AdoptionSource(source.path)) !== source.checksum

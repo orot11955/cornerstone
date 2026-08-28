@@ -15,7 +15,7 @@ import {
   writeFile,
 } from 'node:fs/promises'
 import { readdirSync } from 'node:fs'
-import { basename, dirname, join, relative, resolve, sep } from 'node:path'
+import { basename, dirname, isAbsolute, join, relative, resolve, sep } from 'node:path'
 import { parseDocument, stringify } from 'yaml'
 import { composeStructuredOutputs, formatJsonDocument } from './composition/composer.js'
 import { bundledCapabilityCatalog } from './composition/catalog.js'
@@ -313,7 +313,7 @@ async function buildStandardLock(
             path: composer.output,
             owner: composer.id,
             checksum: sha256(await readFile(path)),
-            mode: info.mode & 0o777,
+            mode: portableFileMode(info.mode),
           }
         }),
       )
@@ -468,7 +468,7 @@ async function verifyStandardProject(
     if (locked.checksum !== expectedChecksum || sha256(await readFile(path)) !== expectedChecksum) {
       throw new Error(`Generator-owned output drift: ${expected.path}`)
     }
-    if (locked.mode !== generatedFileMode || (info.mode & 0o777) !== locked.mode) {
+    if (locked.mode !== generatedFileMode || !fileModeMatches(info.mode, locked.mode)) {
       throw new Error(`Generator-owned output mode drift: ${expected.path}`)
     }
   }
@@ -523,7 +523,7 @@ async function verifyStandardV3Predecessor(
     if (
       !info.isFile() ||
       info.isSymbolicLink() ||
-      (info.mode & 0o777) !== output.mode ||
+      !fileModeMatches(info.mode, output.mode) ||
       sha256(await readFile(path)) !== output.checksum
     ) {
       throw new Error(`Generator-owned output drift: ${output.path}`)
@@ -535,7 +535,7 @@ async function verifyStandardV3Predecessor(
     if (
       !info.isFile() ||
       info.isSymbolicLink() ||
-      (info.mode & 0o777) !== source.mode ||
+      !fileModeMatches(info.mode, source.mode) ||
       sha256(await readFile(path)) !== source.checksum ||
       sha256(await readStandardV3AdoptionSource(source.path)) !== source.checksum
     ) {
@@ -576,7 +576,7 @@ async function verifyStandardV4Predecessor(
     if (
       !info.isFile() ||
       info.isSymbolicLink() ||
-      (info.mode & 0o777) !== output.mode ||
+      !fileModeMatches(info.mode, output.mode) ||
       sha256(await readFile(path)) !== output.checksum
     ) {
       throw new Error(`Generator-owned output drift: ${output.path}`)
@@ -616,7 +616,7 @@ async function verifyStandardV5Predecessor(
     if (
       !info.isFile() ||
       info.isSymbolicLink() ||
-      (info.mode & 0o777) !== output.mode ||
+      !fileModeMatches(info.mode, output.mode) ||
       sha256(await readFile(path)) !== output.checksum
     ) {
       throw new Error(`Generator-owned output drift: ${output.path}`)
@@ -656,7 +656,7 @@ async function verifyStandardV6Predecessor(
     if (
       !info.isFile() ||
       info.isSymbolicLink() ||
-      (info.mode & 0o777) !== output.mode ||
+      !fileModeMatches(info.mode, output.mode) ||
       sha256(await readFile(path)) !== output.checksum
     ) {
       throw new Error(`Generator-owned output drift: ${output.path}`)
@@ -699,7 +699,7 @@ async function verifyLegacyStandardV2(
     if (
       !info.isFile() ||
       info.isSymbolicLink() ||
-      (info.mode & 0o777) !== output.mode ||
+      !fileModeMatches(info.mode, output.mode) ||
       sha256(await readFile(path)) !== output.checksum
     ) {
       throw new Error(`Generator-owned output drift: ${output.path}`)
@@ -965,10 +965,25 @@ async function writeLockAtomically(target: string, lock: ProjectLock): Promise<v
   await rename(temporaryLock, join(target, '.cornerstone', 'manifest.lock.json'))
 }
 
+function portableFileMode(mode: number): number {
+  return process.platform === 'win32' ? generatedFileMode : mode & 0o777
+}
+
+function fileModeMatches(mode: number, expected: number): boolean {
+  return process.platform === 'win32' || (mode & 0o777) === expected
+}
+
 function safeTargetPath(target: string, path: string): string {
-  const output = resolve(target, path)
-  const normalizedRelative = relative(target, output).split(sep).join('/')
-  if (!output.startsWith(`${target}${sep}`) || normalizedRelative !== path) {
+  const root = resolve(target)
+  const output = resolve(root, path)
+  const relativePath = relative(root, output)
+  const normalizedRelative = relativePath.split(sep).join('/')
+  if (
+    isAbsolute(relativePath) ||
+    relativePath === '..' ||
+    relativePath.startsWith(`..${sep}`) ||
+    normalizedRelative !== path
+  ) {
     throw new Error(`Output path escapes target: ${path}`)
   }
   return output

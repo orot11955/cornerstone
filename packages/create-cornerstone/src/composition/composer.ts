@@ -192,7 +192,7 @@ function examplesEnabled(manifest: ResolvedManifest): boolean {
 }
 
 function removeReferenceAppImporter(source: string): string {
-  const lines = source.split('\n')
+  const lines = source.split(/\r?\n/)
   const start = lines.findIndex((line) => line === '  examples/reference-app:')
   if (start < 0) throw new Error('Reference app importer is missing from the canonical lock')
   let end = start + 1

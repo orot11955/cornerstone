@@ -15,35 +15,96 @@
       "id": "base",
       "version": 1,
       "mappings": [
-        { "source": ".editorconfig" },
-        { "source": ".gitignore" },
-        { "source": ".node-version" },
-        { "source": ".nvmrc" },
-        { "source": ".prettierignore" },
-        { "source": ".prettierrc" },
-        { "source": "scripts/check-openapi-compatibility.mjs" },
-        { "source": "scripts/check-package-licenses.mjs" },
-        { "source": "scripts/check-web-budget.mjs" },
-        { "source": "scripts/run-database-suite.mjs" },
-        { "source": "scripts/run-web-auth-suite.mjs" },
-        { "source": "scripts/scan-secrets.mjs" },
-        { "source": "scripts/test-scope.mjs" },
-        { "source": "scripts/validate-package-boundaries.mjs" },
-        { "source": "scripts/validate-governance.mjs" },
-        { "source": "scripts/validate-migrations.mjs" },
-        { "source": "scripts/verify-logical-backup.mjs" },
-        { "source": "scripts/verify-package-consumer.mjs" },
-        { "source": ".github/CODEOWNERS" },
-        { "source": "docs/adr" },
-        { "source": "docs/cornerstone_assembly_diagram.md" },
-        { "source": "docs/identity_data_contract.md" },
-        { "source": "docs/governance" },
-        { "source": "packages/config" },
-        { "source": "packages/eslint-config" },
-        { "source": "packages/schemas" },
-        { "source": "packages/tsconfig" },
-        { "source": "packages/types" },
-        { "source": "packages/utils" }
+        {
+          "source": ".editorconfig"
+        },
+        {
+          "source": ".gitattributes"
+        },
+        {
+          "source": ".gitignore"
+        },
+        {
+          "source": ".node-version"
+        },
+        {
+          "source": ".nvmrc"
+        },
+        {
+          "source": ".prettierignore"
+        },
+        {
+          "source": ".prettierrc"
+        },
+        {
+          "source": "scripts/check-openapi-compatibility.mjs"
+        },
+        {
+          "source": "scripts/check-package-licenses.mjs"
+        },
+        {
+          "source": "scripts/check-web-budget.mjs"
+        },
+        {
+          "source": "scripts/run-database-suite.mjs"
+        },
+        {
+          "source": "scripts/run-web-auth-suite.mjs"
+        },
+        {
+          "source": "scripts/scan-secrets.mjs"
+        },
+        {
+          "source": "scripts/test-scope.mjs"
+        },
+        {
+          "source": "scripts/validate-package-boundaries.mjs"
+        },
+        {
+          "source": "scripts/validate-governance.mjs"
+        },
+        {
+          "source": "scripts/validate-migrations.mjs"
+        },
+        {
+          "source": "scripts/verify-logical-backup.mjs"
+        },
+        {
+          "source": "scripts/verify-package-consumer.mjs"
+        },
+        {
+          "source": ".github/CODEOWNERS"
+        },
+        {
+          "source": "docs/adr"
+        },
+        {
+          "source": "docs/cornerstone_assembly_diagram.md"
+        },
+        {
+          "source": "docs/identity_data_contract.md"
+        },
+        {
+          "source": "docs/governance"
+        },
+        {
+          "source": "packages/config"
+        },
+        {
+          "source": "packages/eslint-config"
+        },
+        {
+          "source": "packages/schemas"
+        },
+        {
+          "source": "packages/tsconfig"
+        },
+        {
+          "source": "packages/types"
+        },
+        {
+          "source": "packages/utils"
+        }
       ]
     },
     {
@@ -65,15 +126,21 @@
             "apps/api/tsconfig.admin-bootstrap.json"
           ]
         },
-        { "source": "packages/api-client" }
+        {
+          "source": "packages/api-client"
+        }
       ]
     },
     {
       "id": "auth",
       "version": 1,
       "mappings": [
-        { "source": "apps/api/release/auth-password-policy.json" },
-        { "source": "apps/api/src/auth" },
+        {
+          "source": "apps/api/release/auth-password-policy.json"
+        },
+        {
+          "source": "apps/api/src/auth"
+        },
         {
           "source": "apps/api/src/authorization",
           "exclude": ["apps/api/src/authorization/route-policy.ts"]
@@ -82,38 +149,71 @@
           "source": "apps/api/src/contracts",
           "exclude": ["apps/api/src/contracts/api-contract.module.ts"]
         },
-        { "source": "apps/api/src/identity" },
-        { "source": "apps/api/src/users" }
+        {
+          "source": "apps/api/src/identity"
+        },
+        {
+          "source": "apps/api/src/users"
+        }
       ]
     },
     {
       "id": "database",
       "version": 1,
       "mappings": [
-        { "source": "apps/api/src/database" },
-        { "source": "apps/api/test/database.integration-spec.ts" },
-        { "source": "apps/api/tsconfig.admin-bootstrap.json" },
-        { "source": "infra/compose" }
+        {
+          "source": "apps/api/src/database"
+        },
+        {
+          "source": "apps/api/test/database.integration-spec.ts"
+        },
+        {
+          "source": "apps/api/tsconfig.admin-bootstrap.json"
+        },
+        {
+          "source": "infra/compose"
+        }
       ]
     },
     {
       "id": "ui",
       "version": 1,
-      "mappings": [{ "source": "packages/ui" }]
+      "mappings": [
+        {
+          "source": "packages/ui"
+        }
+      ]
     },
     {
       "id": "web",
       "version": 1,
-      "mappings": [{ "source": "apps/web", "exclude": ["apps/web/AGENTS.md"] }]
+      "mappings": [
+        {
+          "source": "apps/web",
+          "exclude": ["apps/web/AGENTS.md"]
+        }
+      ]
     },
-    { "id": "observability", "version": 1, "mappings": [] },
-    { "id": "privacy", "version": 1, "mappings": [] }
+    {
+      "id": "observability",
+      "version": 1,
+      "mappings": []
+    },
+    {
+      "id": "privacy",
+      "version": 1,
+      "mappings": []
+    }
   ],
   "examples": {
     "referenceApp": {
       "id": "example-reference-app",
       "version": 1,
-      "mappings": [{ "source": "examples/reference-app" }]
+      "mappings": [
+        {
+          "source": "examples/reference-app"
+        }
+      ]
     }
   },
   "composers": [
@@ -166,21 +266,54 @@
       "output": "apps/api/src/app.module.ts",
       "nestModule": {
         "imports": [
-          { "names": ["Module"], "from": "@nestjs/common" },
-          { "names": ["ConfigModule"], "from": "@nestjs/config" },
-          { "names": ["APP_FILTER", "APP_INTERCEPTOR"], "from": "@nestjs/core" },
-          { "names": ["AuthModule"], "from": "./auth/auth.module.js" },
-          { "names": ["configuration"], "from": "./config/configuration.js" },
-          { "names": ["validateEnvironment"], "from": "./config/env.schema.js" },
-          { "names": ["DatabaseModule"], "from": "./database/database.module.js" },
-          { "names": ["ApiExceptionFilter"], "from": "./http/api-exception.filter.js" },
-          { "names": ["HealthModule"], "from": "./health/health.module.js" },
-          { "names": ["ObservabilityModule"], "from": "./observability/observability.module.js" },
+          {
+            "names": ["Module"],
+            "from": "@nestjs/common"
+          },
+          {
+            "names": ["ConfigModule"],
+            "from": "@nestjs/config"
+          },
+          {
+            "names": ["APP_FILTER", "APP_INTERCEPTOR"],
+            "from": "@nestjs/core"
+          },
+          {
+            "names": ["AuthModule"],
+            "from": "./auth/auth.module.js"
+          },
+          {
+            "names": ["configuration"],
+            "from": "./config/configuration.js"
+          },
+          {
+            "names": ["validateEnvironment"],
+            "from": "./config/env.schema.js"
+          },
+          {
+            "names": ["DatabaseModule"],
+            "from": "./database/database.module.js"
+          },
+          {
+            "names": ["ApiExceptionFilter"],
+            "from": "./http/api-exception.filter.js"
+          },
+          {
+            "names": ["GracefulShutdownModule"],
+            "from": "./health/graceful-shutdown.module.js"
+          },
+          {
+            "names": ["ObservabilityModule"],
+            "from": "./observability/observability.module.js"
+          },
           {
             "names": ["RequestLoggingInterceptor"],
             "from": "./observability/request-logging.interceptor.js"
           },
-          { "names": ["UsersModule"], "from": "./users/users.module.js" }
+          {
+            "names": ["UsersModule"],
+            "from": "./users/users.module.js"
+          }
         ],
         "moduleImports": [
           {
@@ -191,16 +324,37 @@
             "load": "configuration",
             "validate": "validateEnvironment"
           },
-          { "kind": "identifier", "name": "ObservabilityModule" },
-          { "kind": "identifier", "name": "DatabaseModule" },
-          { "kind": "identifier", "name": "HealthModule" },
-          { "kind": "identifier", "name": "AuthModule" },
-          { "kind": "identifier", "name": "UsersModule" }
+          {
+            "kind": "identifier",
+            "name": "ObservabilityModule"
+          },
+          {
+            "kind": "identifier",
+            "name": "DatabaseModule"
+          },
+          {
+            "kind": "identifier",
+            "name": "GracefulShutdownModule"
+          },
+          {
+            "kind": "identifier",
+            "name": "AuthModule"
+          },
+          {
+            "kind": "identifier",
+            "name": "UsersModule"
+          }
         ],
         "controllers": [],
         "providers": [
-          { "provide": "APP_FILTER", "useClass": "ApiExceptionFilter" },
-          { "provide": "APP_INTERCEPTOR", "useClass": "RequestLoggingInterceptor" }
+          {
+            "provide": "APP_FILTER",
+            "useClass": "ApiExceptionFilter"
+          },
+          {
+            "provide": "APP_INTERCEPTOR",
+            "useClass": "RequestLoggingInterceptor"
+          }
         ],
         "className": "AppModule"
       }
@@ -212,8 +366,14 @@
       "output": "apps/api/src/contracts/api-contract.module.ts",
       "nestModule": {
         "imports": [
-          { "names": ["Module"], "from": "@nestjs/common" },
-          { "names": ["HealthModule"], "from": "../health/health.module.js" },
+          {
+            "names": ["Module"],
+            "from": "@nestjs/common"
+          },
+          {
+            "names": ["HealthModule"],
+            "from": "../health/health.module.js"
+          },
           {
             "names": ["AuthContractController"],
             "from": "./auth-contract.controller.js"
@@ -223,7 +383,12 @@
             "from": "./user-contract.controller.js"
           }
         ],
-        "moduleImports": [{ "kind": "identifier", "name": "HealthModule" }],
+        "moduleImports": [
+          {
+            "kind": "identifier",
+            "name": "HealthModule"
+          }
+        ],
         "controllers": ["AuthContractController", "UserContractController"],
         "providers": [],
         "className": "ApiContractModule"

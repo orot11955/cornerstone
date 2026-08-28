@@ -178,7 +178,7 @@ describe('GracefulShutdownCoordinator', () => {
 });
 
 async function waitForMatch(match: () => string | undefined): Promise<string> {
-  for (let attempt = 0; attempt < 100; attempt += 1) {
+  for (let attempt = 0; attempt < 1_000; attempt += 1) {
     const value = match();
     if (value) return value;
     await new Promise((resolve) => setTimeout(resolve, 10));

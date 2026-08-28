@@ -57,7 +57,7 @@ for (const { root, manifest } of publishable) {
   }
 }
 
-for (const applicationRoot of ['apps', 'examples']) {
+for (const applicationRoot of ['apps', 'examples'].filter((root) => existsSync(root))) {
   for (const application of readdirSync(applicationRoot, { withFileTypes: true }).filter((entry) =>
     entry.isDirectory(),
   )) {
