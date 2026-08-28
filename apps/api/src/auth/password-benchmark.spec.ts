@@ -23,7 +23,7 @@ beforeAll(async () => {
   await execFileAsync('pnpm', ['build'], {
     cwd: path.resolve(path.dirname(script.pathname), '..'),
   });
-});
+}, 30_000);
 
 describe('password benchmark release harness', () => {
   it('defines the production Argon2id policy and machine-readable evidence schema', async () => {

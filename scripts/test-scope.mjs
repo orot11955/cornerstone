@@ -1,4 +1,4 @@
-import { readFileSync, readdirSync } from 'node:fs'
+import { existsSync, readFileSync, readdirSync } from 'node:fs'
 import { join, resolve } from 'node:path'
 import { spawnSync } from 'node:child_process'
 
@@ -11,15 +11,17 @@ if (!task || !config[task]) {
   process.exit(1)
 }
 
-const manifests = ['apps', 'examples', 'packages'].flatMap((directory) =>
-  readdirSync(join(root, directory), { withFileTypes: true })
-    .filter((entry) => entry.isDirectory())
-    .map((entry) => {
-      const manifestPath = join(root, directory, entry.name, 'package.json')
-      const manifest = JSON.parse(readFileSync(manifestPath, 'utf8'))
-      return [manifest.name, manifest]
-    }),
-)
+const manifests = ['apps', 'examples', 'packages']
+  .filter((directory) => existsSync(join(root, directory)))
+  .flatMap((directory) =>
+    readdirSync(join(root, directory), { withFileTypes: true })
+      .filter((entry) => entry.isDirectory())
+      .map((entry) => {
+        const manifestPath = join(root, directory, entry.name, 'package.json')
+        const manifest = JSON.parse(readFileSync(manifestPath, 'utf8'))
+        return [manifest.name, manifest]
+      }),
+  )
 
 const workspaceNames = new Set(manifests.map(([name]) => name))
 const participants = new Set(config[task].participants)

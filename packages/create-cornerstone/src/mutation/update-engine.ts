@@ -10,7 +10,7 @@ import {
   rm,
   writeFile,
 } from 'node:fs/promises'
-import { basename, dirname, join, relative, resolve, sep } from 'node:path'
+import { basename, dirname, isAbsolute, join, relative, resolve, sep } from 'node:path'
 import { parseDocument } from 'yaml'
 import { formatJsonDocument } from '../composition/composer.js'
 import {
@@ -190,7 +190,9 @@ async function assertOwnedUpdateLock(
     (ownerInfo.mode & 0o777) !== 0o600 ||
     sha256(await readBoundedFile(ownerPath, 'Update lock owner metadata')) !== ownerChecksum
   ) {
-    throw new Error('Update operation lock owner metadata changed; lock was preserved')
+    throw new Error(
+      'Update operation lock ownership changed because owner metadata differs; lock was preserved',
+    )
   }
 }
 
@@ -1255,10 +1257,14 @@ export function safeTargetPath(target: string, path: string): string {
   ) {
     throw new Error(`Unsafe update path: ${path}`)
   }
-  const output = resolve(target, path)
+  const root = resolve(target)
+  const output = resolve(root, path)
+  const relativePath = relative(root, output)
   if (
-    !output.startsWith(`${target}${sep}`) ||
-    relative(target, output).split(sep).join('/') !== path
+    isAbsolute(relativePath) ||
+    relativePath === '..' ||
+    relativePath.startsWith(`..${sep}`) ||
+    relativePath.split(sep).join('/') !== path
   ) {
     throw new Error(`Update path escapes target: ${path}`)
   }
