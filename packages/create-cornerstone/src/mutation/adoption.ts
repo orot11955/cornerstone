@@ -17,6 +17,7 @@ import {
 } from './generator-engine.js'
 import {
   assertProjectBoundary,
+  fileModeMatches,
   generatedFileMode,
   lockRelativePath,
   maximumMetadataBytes,
@@ -80,7 +81,7 @@ async function prepareAdoption(
     if (
       !info.isFile() ||
       info.isSymbolicLink() ||
-      (info.mode & 0o777) !== source.mode ||
+      !fileModeMatches(info.mode, source.mode) ||
       sha256(await readBoundedFile(path, `Nest module predecessor ${source.path}`)) !==
         source.checksum ||
       sha256(await readPredecessorAdoptionSource(predecessorTemplateVersion, source.path)) !==

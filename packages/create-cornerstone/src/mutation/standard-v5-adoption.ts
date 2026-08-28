@@ -24,6 +24,7 @@ import {
 } from './generator-engine.js'
 import {
   assertProjectBoundary,
+  fileModeMatches,
   generatedFileMode,
   lockRelativePath,
   maximumMetadataBytes,
@@ -217,7 +218,7 @@ async function assertExactPlatformSources(
     if (
       !info.isFile() ||
       info.isSymbolicLink() ||
-      (info.mode & 0o777) !== source.mode ||
+      !fileModeMatches(info.mode, source.mode) ||
       sha256(await readBoundedFile(path, `Standard 0.4.0 platform source ${source.path}`)) !==
         source.checksum ||
       sha256(await readStandardV4AdoptionSource(source.path)) !== source.checksum
