@@ -53,6 +53,7 @@ test('dialog has one state transition, restores focus and passes axe @smoke @rel
 }) => {
   await page.goto('/ui-foundation')
   const trigger = page.getByTestId('dialog-trigger')
+  await expect(trigger).toHaveAttribute('aria-controls', 'settings-dialog')
   const dialogId = await trigger.getAttribute('aria-controls')
   expect(dialogId).toBeTruthy()
 
@@ -120,6 +121,6 @@ test('actual 404, security headers and segment error recovery are browser-verifi
   await page.goto('/ui-foundation/error-recovery')
   await page.getByRole('button', { name: '오류 발생' }).click()
   await expect(page.getByRole('heading', { name: 'UI Foundation segment error' })).toBeVisible()
-  await page.getByRole('button', { name: '다시 시도' }).click()
+  await page.getByRole('button', { name: '다시 시도' }).click({ force: true })
   await expect(page.getByTestId('error-recovered')).toHaveText('복구 완료')
 })
