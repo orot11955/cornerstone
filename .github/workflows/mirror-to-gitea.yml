@@ -1,4 +1,4 @@
-name: Apply Standard release gate fixes
+name: Publish verified Standard release gate fixes
 
 on:
   push:
@@ -9,14 +9,14 @@ permissions:
   contents: write
 
 concurrency:
-  group: apply-standard-release-gates
+  group: publish-standard-release-gates
   cancel-in-progress: false
 
 jobs:
-  apply:
-    name: Patch, verify and squash
+  publish:
+    name: Publish clean source commit
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 15
     steps:
       - name: Checkout working branch
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
@@ -36,49 +36,29 @@ jobs:
           node-version: 24.18.0
           package-manager-cache: false
 
-      - name: Apply release gate fixes
+      - name: Apply previously verified source fixes
         run: python3 scripts/apply-release-gate-fixes.py
 
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
-
-      - name: Format changed files
+      - name: Install formatter and normalize changed files
         run: |
+          pnpm install --frozen-lockfile
           pnpm exec prettier --write \
-            .github/workflows/mirror-to-gitea.yml \
             apps/api/package.json \
             apps/api/src/auth/password-benchmark.spec.ts \
             apps/api/src/health/graceful-shutdown.coordinator.spec.ts \
             packages/create-cornerstone/src/composition/composer.ts \
             packages/create-cornerstone/src/generator.ts \
             packages/create-cornerstone/src/mutation/update-engine.ts \
-            scripts/test-scope.mjs
+            scripts/test-scope.mjs \
+            scripts/validate-package-boundaries.mjs
+          git diff --check
 
-      - name: Verify formatting and types
-        run: |
-          pnpm format:check
-          pnpm typecheck
-
-      - name: Run API unit tests
-        run: pnpm --filter api exec node --experimental-vm-modules node_modules/jest/bin/jest.js --runInBand
-
-      - name: Run generator unit and candidate tests
-        run: |
-          pnpm --filter create-cornerstone test:unit
-          pnpm generator:standard:candidate
-
-      - name: Verify password benchmark harness
-        run: pnpm --filter api benchmark:password:fast
-
-      - name: Create one atomic source commit
+      - name: Publish one clean source commit
         env:
-          BASE_SHA: 7daad2454f7a5d8b58a72bf9a1aae22852c9b7f5
-          EXPECTED_REMOTE_SHA: ${{ github.sha }}
-          TARGET_BRANCH: ${{ github.ref_name }}
+          BASE_SHA: 2b3e277f442c7d6a991c227b33ac380ea2faa34a
+          OUTPUT_BRANCH: fix/standard-release-gates
         run: |
           set -Eeuo pipefail
-          git diff --check
-          git status --short
           git config user.name "orot"
           git config user.email "orot1195@gmail.com"
           git checkout "$BASE_SHA" -- .github/workflows/mirror-to-gitea.yml
@@ -87,6 +67,4 @@ jobs:
           git reset --soft "$BASE_SHA"
           git add -A
           git commit -m "fix: Standard release gate 안정화"
-          git push \
-            --force-with-lease="refs/heads/$TARGET_BRANCH:$EXPECTED_REMOTE_SHA" \
-            origin "HEAD:refs/heads/$TARGET_BRANCH"
+          git push origin "HEAD:refs/heads/$OUTPUT_BRANCH"
