@@ -70,7 +70,7 @@ jobs:
       - name: Verify password benchmark harness
         run: pnpm --filter api benchmark:password:fast
 
-      - name: Create one atomic commit
+      - name: Create one atomic source commit
         env:
           BASE_SHA: 7daad2454f7a5d8b58a72bf9a1aae22852c9b7f5
           EXPECTED_REMOTE_SHA: ${{ github.sha }}
@@ -81,6 +81,8 @@ jobs:
           git status --short
           git config user.name "orot"
           git config user.email "orot1195@gmail.com"
+          git checkout "$BASE_SHA" -- .github/workflows/mirror-to-gitea.yml
+          rm -f scripts/apply-release-gate-fixes.py
           git add -A
           git reset --soft "$BASE_SHA"
           git add -A
